@@ -1,5 +1,9 @@
-// import shared functions
-importScripts('./shared.js');
+/* import-globals-from ./shared.js */
+console.log("test")
+if( 'function' === typeof importScripts) {
+  importScripts('./shared.js');
+  console.log("test")
+}
 
 // init on installation
 chrome.runtime.onInstalled.addListener(async (details) => {

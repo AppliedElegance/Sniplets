@@ -1,63 +1,115 @@
 /* All shared functions. */
 /* eslint-disable no-unused-vars */
 
-// Object classes for storing snippets in folders
+// Storage helpers. Sync must be explicitly enabled.
+/**
+ * Safely retrieves storage data from chrome.storage.local (default) or .sync.
+ * @function getStorageData
+ * @param {String} key - The key name for the stored data.
+ * @param {Boolean} synced - Whether to look in sync (true) or local (false).
+ * @returns {Promise} Stored data is returned as a { key: data } object.
+ * @example
+ * // returns { data: storedData } from local
+ * await getStorageData('data');
+ * @example
+ * // returns storedData from sync
+ * const { data } = await getStorageData('data', true);
+ */
+const getStorageData = function (key, synced = false) {
+  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return new Promise((resolve, reject) =>
+    bucket.get(key, result =>
+      chrome.runtime.lastError
+      ? reject(chrome.runtime.lastError)
+      : resolve(result)
+    ));
+}
+// Example:
+// await setStorageData({ [data]: [someData] }, true);
+const setStorageData = (data, synced = false) => {
+  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return new Promise((resolve, reject) =>
+    bucket.set(data, () =>
+      chrome.runtime.lastError
+      ? reject(chrome.runtime.lastError)
+      : resolve()
+    ));
+}
+// Example:
+// await removeStorageData('data', true);
+const removeStorageData = (key, synced = false) => {
+  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return new Promise((resolve, reject) =>
+    bucket.remove(key, () =>
+      chrome.runtime.lastError
+      ? reject(chrome.runtime.lastError)
+      : resolve()
+    ));
+}
+
+// Basic snippets data bucket
+class DataBucket {
+  version = "0.9";
+  timestamp = Date.now();
+  children;
+
+  constructor(data) {
+    this.children = data;
+  }
+}
+
+// Space object stores snippet groupings in buckets
 class Space {
-  constructor({
-    name = '',
-    synced = false,
-    data = {
-      version: "0.9",
-      timestamp: Date.now(),
-      children: [],
-    },
-  } = {}) {
-    this.name = name;
-    this.synced = synced;
-    this.data = data;
-    this.path = [];
-    this.siblings = [];
+  synced; // storage bucket
+  name; // storage key
+  data; // storage data
+  path = []; // currently viewed folder
+  // #siblings = [];
+
+  constructor({ synced, name, data } = {}) {
+    this.synced = synced || false;
+    this.name = name || "Snippets";
+    this.data = data || new DataBucket([]);
+    console.log(this);
   }
 
   async load() {
-    if (!this.name.length) {
-      console.error("Tried to load an unnamed space.");
-      return;
-    }
-    let data = await getStorageData(this.name, this.synced);
-    if (!data[this.name])
-      return;
+    // make sure the space has been initialized
+    // if (!this.#name.length) return;
+    console.log(this.synced, this.name, this.data, this.path);
+
+    // check for and load data if found
+    let data = await getStorageData(this.name, this.synced)
+    .catch(function (err) { console.error(err); });
+    if (!data[this.name]) return;
     this.data = data[this.name];
-    let siblings = await getStorageData('spaces', this.synced);
-    if (Array.isArray(siblings['spaces']))
-      this.siblings = siblings['spaces'];
-    return this.data;
+    console.log(data, this.data);
+
+    // store copy of siblings
+    // let siblings = await getStorageData('spaces', this.synced);
+    // if (Array.isArray(siblings['spaces']))
+    //   this.siblings = siblings['spaces'];
+    // return this.data;
   }
 
   async save() {
-    if (!this.name.length) {
-      console.error("Tried to save an unnamed space.");
-      return;
-    }
-    try {
-      if (this.synced) {
-        // check for sync size constraints, max 8192 per item, 102400 total
-        if (new Blob([JSON.stringify(this.data)]).size > 8192) {
-          if (confirm("The current snippets data is too large to sync. The save will fail unless switched to local storage. Please confirm you would like to switch.")) {
-            return this.shift({ synced: false });
-          }
-          console.error("The current snippets data is too large to sync.");
-          return false;
-        }
-      }
-      setStorageData({ [this.name]: this.data }, this.synced);
-      if (!this.siblings.includes(this.name))
-        this.siblings.push(this.name);
-      setStorageData({ spaces: this.siblings }, this.synced);
-    } catch (e) {
-      console.error("Something broke and the data failed to save.", e);
-      return false;
-    }
+    // make sure the space has been initialized
+    if (!this.name.length) return;
+
+    // ensure synced spaces are syncable and offer to switch otherwise
+    // if (this.synced && !this.syncable) {
+    //   if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
+    //     return this.shift({ synced: false });
+    //   }
+    //   return false;
+    // }
+
+    // store data
+    setStorageData({ [this.name]: this.data }, this.synced)
+    .catch(function (err) { console.error(err); });
+    // if (!this.siblings.includes(this.#name))
+    //   this.siblings.push(this.#name);
+    // setStorageData({ spaces: this.siblings }, this.#synced);
     return true;
   }
 
@@ -264,67 +316,6 @@ class Settings {
     setStorageData({ settings: this }, true);
   }
 }
-
-// Storage helpers. Sync must be explicitly enabled.
-/**
- * Safely retrieves storage data from chrome.storage.local (default) or .sync.
- * @function getStorageData
- * @param {String} key - The key name for the stored data.
- * @param {Boolean} synced - Whether to look in sync (true) or local (false).
- * @returns {Promise} Stored data is returned as a { key: data } object.
- * @example
- * // returns { data: storedData } from local
- * await getStorageData('data');
- * @example
- * // returns storedData from sync
- * const { data } = await getStorageData('data', true);
- */
-const getStorageData = (key, synced = false) =>
-  synced
-  ? new Promise((resolve, reject) =>
-    chrome.storage.sync.get(key, result =>
-      chrome.runtime.lastError
-        ? reject(Error(chrome.runtime.lastError.message))
-        : resolve(result)
-    ))
-  : new Promise((resolve, reject) =>
-    chrome.storage.local.get(key, result =>
-      chrome.runtime.lastError
-        ? reject(Error(chrome.runtime.lastError.message))
-        : resolve(result)
-    ));
-// Example:
-// await setStorageData({ data: [someData] }, true);
-const setStorageData = (data, synced = false) =>
-  synced
-  ? new Promise((resolve, reject) =>
-    chrome.storage.sync.set(data, () =>
-      chrome.runtime.lastError
-        ? reject(Error(chrome.runtime.lastError.message))
-        : resolve()
-    ))
-  : new Promise((resolve, reject) =>
-    chrome.storage.local.set(data, () =>
-      chrome.runtime.lastError
-        ? reject(Error(chrome.runtime.lastError.message))
-        : resolve()
-    ));
-// Example:
-// await removeStorageData('data', true);
-const removeStorageData = (key, synced = false) =>
-  synced
-  ? new Promise((resolve, reject) =>
-    chrome.storage.sync.get(key, result =>
-      chrome.runtime.lastError
-        ? reject(Error(chrome.runtime.lastError.message))
-        : resolve(result)
-    ))
-  : new Promise((resolve, reject) =>
-    chrome.storage.local.get(key, result =>
-      chrome.runtime.lastError
-        ? reject(Error(chrome.runtime.lastError.message))
-        : resolve(result)
-    ));
 
 // create backup file
 function saveToFile(filename, text) {

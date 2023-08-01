@@ -9,6 +9,8 @@ const settings = new Settings();
 const space = new Space();
 const spritesheet = "sprites.svg#";
 
+console.log(settings, space, spritesheet);
+
 // init
 const loadPopup = async function() {
   // load up settings
@@ -21,7 +23,9 @@ const loadPopup = async function() {
   let { currentSpace } = await getStorageData('currentSpace');
   if (!currentSpace) currentSpace = settings.defaultSpace;
   space.pivot(currentSpace);
+  console.log(space);
   await space.load();
+  console.log(space);
   // check if we need to init space
   if (!space.data) space.save();
   // set up listeners
@@ -67,6 +71,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
   if (buildTree) {
     // build folder tree for pop-out window (recursive function)
     let buildFolderTree = function (folders, level) {
+      console.log(folders);
       // helper for tree builder
       const hasSubfolders = folder => Array.isArray(folder)
                           ? (folder.reduce((or, c) => or + (c.children ? 1 : 0), 0) > 0)
