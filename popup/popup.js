@@ -71,7 +71,6 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
   if (buildTree) {
     // build folder tree for pop-out window (recursive function)
     let buildFolderTree = function (folders, level) {
-      console.log(folders);
       // helper for tree builder
       const hasSubfolders = folder => Array.isArray(folder)
                           ? (folder.reduce((or, c) => or + (c.children ? 1 : 0), 0) > 0)

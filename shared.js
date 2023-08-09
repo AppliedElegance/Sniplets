@@ -62,28 +62,39 @@ class DataBucket {
 class Space {
   synced; // storage bucket
   name; // storage key
+  compressed; // compression flag
   data; // storage data
   path = []; // currently viewed folder
   // #siblings = [];
 
-  constructor({ synced, name, data } = {}) {
+  constructor({ name, synced, compressed, data } = {}) {
     this.synced = synced || false;
+    this.compressed = compressed || false;
     this.name = name || "Snippets";
     this.data = data || new DataBucket([]);
-    console.log(this);
   }
 
   async load() {
     // make sure the space has been initialized
-    // if (!this.#name.length) return;
-    console.log(this.synced, this.name, this.data, this.path);
+    // if (!this.name.length) return;
 
     // check for and load data if found
     let data = await getStorageData(this.name, this.synced)
-    .catch(function (err) { console.error(err); });
+      .catch(function (err) { console.error(err); });
+    console.log(data);
     if (!data[this.name]) return;
     this.data = data[this.name];
-    console.log(data, this.data);
+
+    // uncompress data if needed
+    if (!("version" in this.data)) {
+      // create stream for decompression
+      const stream = new Blob([atob(this.data)], { type: "application/json" })
+        .stream().pipeThrough(new DecompressionStream("gzip"));
+      // read the decompressed stream and parse
+      const dataBlob = await new Response(stream).blob();
+      this.data = JSON.parse(await dataBlob.text());
+    }
+    console.log(this.data);
 
     // store copy of siblings
     // let siblings = await getStorageData('spaces', this.synced);
@@ -96,21 +107,31 @@ class Space {
     // make sure the space has been initialized
     if (!this.name.length) return;
 
+    // create a compression stream to provide more sync storage (over 9x more)
+    const stream = new Blob([JSON.stringify(this.data)], { type: 'application/json' })
+      .stream().pipeThrough(new CompressionStream("gzip"));
+    // read the compressed stream and stringify
+    const dataBlob = await new Response(stream).blob();
+    const buffer = await dataBlob.arrayBuffer();
+    const gzipData = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+
     // ensure synced spaces are syncable and offer to switch otherwise
-    // if (this.synced && !this.syncable) {
-    //   if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
-    //     return this.shift({ synced: false });
-    //   }
-    //   return false;
-    // }
+    const storageData = { [this.name]: gzipData };
+    const spaceSize = new Blob([storageData]).size;
+    if (this.synced && (spaceSize > chrome.storage.sync.QUOTA_BYTES_PER_ITEM)) {
+      if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
+        return this.shift({ synced: false });
+      }
+      return false;
+    }
 
     // store data
-    setStorageData({ [this.name]: this.data }, this.synced)
-    .catch(function (err) { console.error(err); });
+    setStorageData({[this.name]: [gzipData]}, this.synced)
+      .catch(function (err) { console.error(err); });
     // if (!this.siblings.includes(this.#name))
     //   this.siblings.push(this.#name);
     // setStorageData({ spaces: this.siblings }, this.#synced);
-    return true;
+    return spaceSize;
   }
 
   getItem(path) {
@@ -223,10 +244,10 @@ class Space {
 
   async shift({ name = this.name, synced = this.synced }) {
     // if wanting to sync, check for sync size constraints, max 8192 per item, 102400 total
-    if (synced && (new Blob([JSON.stringify(this.data)]).size > 8192)) {
-      alert("The current snippets data is too large to sync.");
-      return false;
-    }
+    // if (synced && (new Blob([JSON.stringify(this.data)]).size > 8192)) {
+    //   alert("The current snippets data is too large to sync.");
+    //   return false;
+    // }
     let oldName = this.name,
         oldSynced = this.synced,
         oldSiblings = this.siblings;
@@ -240,7 +261,11 @@ class Space {
         oldSiblings = this.siblings;
       if (oldSiblings.includes(oldName)) {
         oldSiblings.splice(oldSiblings.indexOf(oldName), 1);
-        setStorageData({ spaces: oldSiblings }, oldSynced);
+        setStorageData({ spaces: oldSiblings }, oldSynced)
+        .catch(function (err) {
+          console.error(err);
+          console.error()
+        });
       }
     }
     return success;

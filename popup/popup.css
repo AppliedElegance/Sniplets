@@ -4,6 +4,7 @@ body {
   color: rgb(41, 41, 41);
   background: rgb(231, 227, 224);
   text-align: left;
+  min-width: 440px;
   height: 100vh;
   display: flex;
   flex-direction: column;

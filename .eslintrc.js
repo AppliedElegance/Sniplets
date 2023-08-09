@@ -3,7 +3,7 @@ module.exports = {
         "browser": true,
         "webextensions": true,
         "worker": true,
-        "es2021": true
+        "esnext": true
     },
     "extends": "eslint:recommended",
     "overrides": [
