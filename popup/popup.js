@@ -9,7 +9,7 @@ const settings = new Settings();
 const space = new Space();
 const spritesheet = "sprites.svg#";
 
-console.log(settings, space, spritesheet);
+console.log(settings, space);
 
 // init
 const loadPopup = async function() {
@@ -23,9 +23,7 @@ const loadPopup = async function() {
   let { currentSpace } = await getStorageData('currentSpace');
   if (!currentSpace) currentSpace = settings.defaultSpace;
   space.pivot(currentSpace);
-  console.log(space);
   await space.load();
-  console.log(space);
   // check if we need to init space
   if (!space.data) space.save();
   // set up listeners

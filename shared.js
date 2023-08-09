@@ -62,7 +62,6 @@ class DataBucket {
 class Space {
   synced; // storage bucket
   name; // storage key
-  compressed; // compression flag
   data; // storage data
   path = []; // currently viewed folder
   // #siblings = [];
@@ -81,20 +80,31 @@ class Space {
     // check for and load data if found
     let data = await getStorageData(this.name, this.synced)
       .catch(function (err) { console.error(err); });
-    console.log(data);
     if (!data[this.name]) return;
     this.data = data[this.name];
+    // Fix data issue
+    // if (Array.isArray(this.data)) {
+    //   this.data = this.data[0];
+    //   setStorageData({[this.name]: this.data}, this.synced)
+    //   .catch(function (err) { console.error(err); });
+    // }
 
-    // uncompress data if needed
-    if (!("version" in this.data)) {
+    // uncompress data (skip for older versions)
+    if (typeof this.data == "string") {
+      // decode base64 to gzip binary
+      const gzipData = atob(this.data);
+      const len = gzipData.length;
+      const bytes = new Uint8Array(new ArrayBuffer(len));
+      for (let i = 0; i < len; i++) {
+        bytes[i] = gzipData.charCodeAt(i);
+      }
       // create stream for decompression
-      const stream = new Blob([atob(this.data)], { type: "application/json" })
+      const stream = new Blob([bytes], { type: "application/json" })
         .stream().pipeThrough(new DecompressionStream("gzip"));
       // read the decompressed stream and parse
       const dataBlob = await new Response(stream).blob();
       this.data = JSON.parse(await dataBlob.text());
     }
-    console.log(this.data);
 
     // store copy of siblings
     // let siblings = await getStorageData('spaces', this.synced);
@@ -126,7 +136,7 @@ class Space {
     }
 
     // store data
-    setStorageData({[this.name]: [gzipData]}, this.synced)
+    setStorageData(storageData, this.synced)
       .catch(function (err) { console.error(err); });
     // if (!this.siblings.includes(this.#name))
     //   this.siblings.push(this.#name);
