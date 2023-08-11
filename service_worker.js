@@ -2,15 +2,36 @@
 console.log("test")
 if( 'function' === typeof importScripts) {
   importScripts('./shared.js');
-  console.log("test")
+  console.log("test");
 }
 
 // init on installation
 chrome.runtime.onInstalled.addListener(async (details) => {
+  // force refresh
+  self.skipWaiting();
+
   // prepare defaults
   const settings = new Settings();
   await settings.load();
-  const space = new Space(settings.defaultSpace);
+
+  // legacy check for existing snippets
+  // console.log(details, JSON.stringify(details));
+  // const legacySpace = { name: 'snippets', synced: true };
+  // const space = new Space(legacySpace);
+  // console.log(space, JSON.stringify(space))
+  if (await space.load()) {
+    // const lastVersion = space.data.version.split('.')
+    // legacySpace.name = 'Snippets'
+    // await space.shift(legacySpace);
+    // settings.defaultSpace = legacySpace;
+    // await settings.save();
+  }
+  // const lastVersion = details.previousVersion.split('.');
+  // if ((parseInt(lastVersion[0]) === 0) && (parseInt(lastVersion[1]) < 9)) {
+  //   // upgrade simple storage method to a space if data found
+  //   space.pivot(legacySpace);
+    
+  // }
 
   switch (details.reason) {
   case 'install':
@@ -133,6 +154,7 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
 chrome.storage.onChanged.addListener(async function(changes, namespace) {
   // console.log(changes, namespace);
   for (let key in changes) {
+    console.log(key, changes[key]);
     switch (key) {
     case 'snipText': {
       let snip = changes[key].newValue;
