@@ -49,28 +49,107 @@ const removeStorageData = (key, synced = false) => {
 
 // Basic snippets data bucket
 class DataBucket {
-  version = "0.9";
-  timestamp = Date.now();
-  children;
-
-  constructor(data) {
-    this.children = data;
+  constructor({ version, timestamp, children } = {}) {
+    this.version = version || "0.9";
+    this.timestamp = timestamp || Date.now();
+    this.children = children || [];
+  }
+}
+class TreeItem {
+  constructor({ name, seq, type } = {}) {
+    this.name = name || "New Tree Item";
+    this.seq = seq || 1;
+    this.type = type || "item";
+  }
+}
+class Folder extends TreeItem {
+  constructor({ name, seq, children, color } = {}) {
+    super({
+      name: name || "New Folder",
+      seq: seq || 1,
+      type: "folder",
+    });
+    this.children = children || [];
+    this.color = color || undefined;
+  }
+}
+class Snippet extends TreeItem {
+  constructor({ name, seq, content, color, shortcut, sourceURL } = {}) {
+    super({
+      name: name || "New Snippet",
+      seq: seq || 1,
+      type: "snippet",
+    });
+    this.content = content || "";
+    this.color = color || undefined;
+    this.shortcut = shortcut || undefined;
+    this.sourceURL = sourceURL || undefined;
   }
 }
 
 // Space object stores snippet groupings in buckets
 class Space {
-  synced; // storage bucket
-  name; // storage key
-  data; // storage data
-  path = []; // currently viewed folder
   // #siblings = [];
 
-  constructor({ name, synced, compressed, data } = {}) {
+  constructor({ name, synced, data } = {}) {
     this.synced = synced || false;
-    this.compressed = compressed || false;
     this.name = name || "Snippets";
-    this.data = data || new DataBucket([]);
+    this.data = data || new DataBucket();
+    this.path = [];
+  }
+
+  async #compress(text) {
+    console.log(text);
+    // create a compression stream
+    const stream = new Blob([text], { type: 'application/json' })
+      .stream().pipeThrough(new CompressionStream("gzip"));
+    // read the compressed stream and convert to b64 for storage
+    const blob = await new Response(stream).blob();
+    const buffer = await blob.arrayBuffer();
+    return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+  }
+
+  async #decompress(text) {
+    // decode base64 to gzip binary
+    const binData = atob(text);
+    const len = binData.length;
+    const gzipData = new Uint8Array(new ArrayBuffer(len));
+    for (let i = 0; i < len; i++) {
+      gzipData[i] = binData.charCodeAt(i);
+    }
+    // create stream for decompression
+    const stream = new Blob([gzipData], { type: "application/json" })
+      .stream().pipeThrough(new DecompressionStream("gzip"));
+    // read the decompressed stream
+    const dataBlob = await new Response(stream).blob();
+    // return decompressed text
+    return dataBlob.text();
+  }
+
+  #cast(treeItem) {
+    switch (treeItem.type) {
+      case "item":
+        return new TreeItem(treeItem);
+
+      case "folder":
+        return new Folder(treeItem);
+
+      case "snippet":
+        return new Snippet(treeItem);
+
+      default:
+        return treeItem;
+    }
+  }
+
+  #deserialize(folder) {
+    for (let child in folder) {
+      console.log(child, folder);
+      folder[child] = this.#cast(folder[child]);
+      if (folder[child] instanceof Folder)
+        folder[child].children = this.#deserialize(folder[child].children);
+    }
+    return folder;
   }
 
   async load() {
@@ -78,33 +157,18 @@ class Space {
     // if (!this.name.length) return;
 
     // check for and load data if found
-    let data = await getStorageData(this.name, this.synced)
-      .catch(function (err) { console.error(err); });
+    const data = await getStorageData(this.name, this.synced);
     if (!data[this.name]) return;
-    this.data = data[this.name];
-    // Fix data issue
-    // if (Array.isArray(this.data)) {
-    //   this.data = this.data[0];
-    //   setStorageData({[this.name]: this.data}, this.synced)
-    //   .catch(function (err) { console.error(err); });
-    // }
+    this.data = new DataBucket(data[this.name]);
 
     // uncompress data (skip for older versions)
-    if (typeof this.data == "string") {
-      // decode base64 to gzip binary
-      const gzipData = atob(this.data);
-      const len = gzipData.length;
-      const bytes = new Uint8Array(new ArrayBuffer(len));
-      for (let i = 0; i < len; i++) {
-        bytes[i] = gzipData.charCodeAt(i);
-      }
-      // create stream for decompression
-      const stream = new Blob([bytes], { type: "application/json" })
-        .stream().pipeThrough(new DecompressionStream("gzip"));
-      // read the decompressed stream and parse
-      const dataBlob = await new Response(stream).blob();
-      this.data = JSON.parse(await dataBlob.text());
+    let children = this.data.children;
+    if (typeof children == "string") {
+      children = JSON.parse(await this.#decompress(children));
     }
+
+    // cast data to classes
+    this.data.children = this.#deserialize(children);
 
     // store copy of siblings
     // let siblings = await getStorageData('spaces', this.synced);
@@ -117,16 +181,12 @@ class Space {
     // make sure the space has been initialized
     if (!this.name.length) return;
 
-    // create a compression stream to provide more sync storage (over 9x more)
-    const stream = new Blob([JSON.stringify(this.data)], { type: 'application/json' })
-      .stream().pipeThrough(new CompressionStream("gzip"));
-    // read the compressed stream and stringify
-    const dataBlob = await new Response(stream).blob();
-    const buffer = await dataBlob.arrayBuffer();
-    const gzipData = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    // gzip compression adds about 8x more storage space
+    let dataBucket = new DataBucket(this.data);
+    dataBucket.children = await this.#compress(JSON.stringify(dataBucket.children));
 
-    // ensure synced spaces are syncable and offer to switch otherwise
-    const storageData = { [this.name]: gzipData };
+    // // ensure synced spaces are syncable and offer to switch otherwise
+    const storageData = { [this.name]: dataBucket };
     const spaceSize = new Blob([storageData]).size;
     if (this.synced && (spaceSize > chrome.storage.sync.QUOTA_BYTES_PER_ITEM)) {
       if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
@@ -136,12 +196,12 @@ class Space {
     }
 
     // store data
-    setStorageData(storageData, this.synced)
+    await setStorageData(storageData, this.synced)
       .catch(function (err) { console.error(err); });
     // if (!this.siblings.includes(this.#name))
     //   this.siblings.push(this.#name);
     // setStorageData({ spaces: this.siblings }, this.#synced);
-    return spaceSize;
+    return true;
   }
 
   getItem(path) {
@@ -253,30 +313,30 @@ class Space {
   }
 
   async shift({ name = this.name, synced = this.synced }) {
-    // if wanting to sync, check for sync size constraints, max 8192 per item, 102400 total
-    // if (synced && (new Blob([JSON.stringify(this.data)]).size > 8192)) {
-    //   alert("The current snippets data is too large to sync.");
-    //   return false;
-    // }
+    // if wanting to sync, check for sync size constraints
+    if (synced && (new Blob([JSON.stringify(this.data)]).size > 8192)) {
+      alert("The current snippets data is too large to sync.");
+      return false;
+    }
     let oldName = this.name,
-        oldSynced = this.synced,
-        oldSiblings = this.siblings;
+        oldSynced = this.synced;
+        // oldSiblings = this.siblings;
     this.name = name;
     this.synced = synced;
     let success = await this.save();
     if (success) {
       // remove old data
       removeStorageData(oldName, oldSynced);
-      if (oldSynced === synced)
-        oldSiblings = this.siblings;
-      if (oldSiblings.includes(oldName)) {
-        oldSiblings.splice(oldSiblings.indexOf(oldName), 1);
-        setStorageData({ spaces: oldSiblings }, oldSynced)
-        .catch(function (err) {
-          console.error(err);
-          console.error()
-        });
-      }
+      // if (oldSynced === synced)
+      //   oldSiblings = this.siblings;
+      // if (oldSiblings.includes(oldName)) {
+      //   oldSiblings.splice(oldSiblings.indexOf(oldName), 1);
+      //   setStorageData({ spaces: oldSiblings }, oldSynced)
+      //   .catch(function (err) {
+      //     console.error(err);
+      //     console.error()
+      //   });
+      // }
     }
     return success;
   }
@@ -288,28 +348,7 @@ class Space {
     if (path) this.path = path;
   }
 }
-class TreeItem {
-  constructor(name = "", seq = 1, type = "", color = "") {
-    this.name = name;
-    this.seq = seq;
-    this.type = type;
-    this.color = color;
-  }
-}
-class Folder extends TreeItem {
-  constructor({ name = "New Folder", seq = 1, color = "", children = [] } = {}) {
-    super(name, seq, 'folder', color);
-    this.children = children;
-  }
-}
-class Snippet extends TreeItem {
-  constructor({ name = "New Snippet", seq = 1, color = "", content = "", shortcut = "", sourceURL = "" } = {}) {
-    super(name, seq, 'snippet', color);
-    this.content = content;
-    this.shortcut = shortcut;
-    this.sourceURL = sourceURL;
-  }
-}
+
 class Settings {
   constructor() {
     this.init();

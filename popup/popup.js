@@ -1,6 +1,6 @@
 // selector shorthand
 const $ = id => document.getElementById(id);
-// const i$ = (id, subs = []) => chrome.i18n.getMessage(id, subs);
+// const i18n = (id, subs = []) => chrome.i18n.getMessage(id, subs);
 const setIcon = (action, attribute, value) =>
   document.querySelector('[data-action="' + action + '"] use').setAttribute(attribute, value);
 
@@ -9,19 +9,14 @@ const settings = new Settings();
 const space = new Space();
 const spritesheet = "sprites.svg#";
 
-console.log(settings, space);
-
 // init
 const loadPopup = async function() {
   // load up settings
-  try {
-    await settings.load();
-  } catch (e) {
-    console.warn("No previous settings to load, assuming defaults.", e);
-  }
+  await settings.load();
   // load up the current space or fall back to default
   let { currentSpace } = await getStorageData('currentSpace');
   if (!currentSpace) currentSpace = settings.defaultSpace;
+  console.log(settings, space, currentSpace);
   space.pivot(currentSpace);
   await space.load();
   // check if we need to init space
@@ -322,7 +317,7 @@ async function buttonClick(event) {
         space: space,
       }
       delete backup.space.path;
-      delete backup.space.siblings;
+      // delete backup.space.siblings;
     }
     saveToFile('snippets-backup-' + now.toISOString().slice(0,16) + '.json', JSON.stringify(backup));
     break; }

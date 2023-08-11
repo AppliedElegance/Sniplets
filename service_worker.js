@@ -9,26 +9,20 @@ if( 'function' === typeof importScripts) {
 chrome.runtime.onInstalled.addListener(async (details) => {
   // prepare defaults
   const settings = new Settings();
-  try {
-    await settings.load();
-  } catch (e) {
-    console.warn("No previous settings to load, assuming defaults.", e);
-  }
+  await settings.load();
   const space = new Space(settings.defaultSpace);
 
   switch (details.reason) {
-  case 'install': {
+  case 'install':
     // check if there's previous data from another browser
     const oldData = await space.load();
     // create default space if it doesn't exist yet.
     if (!oldData) space.save();
-    break; }
-  case 'update': {
+  case 'update':
     // legacy check for existing snippets
     const legacySpace = { name: 'snippets', synced: true };
     const lastVersion = details.previousVersion.split('.');
     if ((parseInt(lastVersion[0]) === 0) && (parseInt(lastVersion[1]) < 9)) {
-      // console.log(lastVersion);
       // upgrade simple storage method to a space if data found
       space.pivot(legacySpace);
       if (await space.load()) {
@@ -40,7 +34,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     } else {
       await space.load();
     }
-    break; }
+    break;
   case 'chrome_update':
   case 'shared_module_update':
   default:
@@ -162,10 +156,12 @@ chrome.storage.onChanged.addListener(async function(changes, namespace) {
   
     default: {
       // maybe we made some data change to the space and need to rebuild the context menus
-      let change = changes[key].newValue;
-      if (change && Object.prototype.hasOwnProperty.call(change, 'children')) {
-        buildContextMenus(new Space({ name: key, synced: (namespace == 'sync'), data: change }))
-      }
+      // let change = changes[key].newValue;
+      // TODO: update to handle compressed data
+      // console.log(change);
+      // if (change && Object.prototype.hasOwnProperty.call(change, 'children')) {
+      //   buildContextMenus(new Space({ name: key, synced: (namespace == 'sync'), data: change }));
+      // }
       break; }
     }
   }
