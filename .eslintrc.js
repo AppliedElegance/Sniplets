@@ -3,7 +3,7 @@ module.exports = {
         "browser": true,
         "webextensions": true,
         "worker": true,
-        "esnext": true
+        "es2024": true
     },
     "extends": "eslint:recommended",
     "overrides": [
@@ -22,7 +22,5 @@ module.exports = {
     "parserOptions": {
         "ecmaVersion": "latest",
         "sourceType": "module"
-    },
-    "rules": {
     }
 }

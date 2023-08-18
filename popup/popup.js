@@ -1,3 +1,4 @@
+/* global Settings, Space, Snippet, Folder, setStorageData, getStorageData, saveToFile, init */
 // selector shorthand
 const $ = id => document.getElementById(id);
 // const i18n = (id, subs = []) => chrome.i18n.getMessage(id, subs);

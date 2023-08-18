@@ -1,4 +1,5 @@
 /* All shared functions. */
+/* global CompressionStream, DecompressionStream */
 /* eslint-disable no-unused-vars */
 
 // Storage helpers. Sync must be explicitly enabled.
@@ -15,7 +16,7 @@
  * // returns storedData from sync
  * const { data } = await getStorageData('data', true);
  */
-const getStorageData = function (key, synced = false) {
+const getStorageData = (key, synced = false) => {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
     bucket.get(key, result =>
@@ -120,10 +121,10 @@ class DataBucket {
   }
 
   #deserialize(folder) {
-    for (let child in folder) {
-      folder[child] = this.#cast(folder[child]);
-      if (folder[child] instanceof Folder)
-        folder[child].children = this.#deserialize(folder[child].children);
+    for (let i in folder) {
+      folder[i] = this.#cast(folder[i]);
+      if (folder[i] instanceof Folder)
+        folder[i].children = this.#deserialize(folder[i].children);
     }
     return folder;
   }
@@ -131,7 +132,6 @@ class DataBucket {
   async decompress() {
     // check if already compressed and just deserialize otherwise
     if (typeof this.children != 'string') {
-      console.log(this.children);
       this.children = this.#deserialize(this.children);
       return false;
     }
@@ -166,6 +166,11 @@ class Space {
     this.path = [];
   }
 
+  #syncable({ name = this.name, data = this.data } = {}) {
+    const size = new Blob([JSON.stringify({ [name]: data })]).size;
+    return(size <= chrome.storage.sync.QUOTA_BYTES_PER_ITEM);
+  }
+
   async load() {
     // make sure the space has been initialized
     // if (!this.name.length) return;
@@ -180,7 +185,8 @@ class Space {
     // let siblings = await getStorageData('spaces', this.synced);
     // if (Array.isArray(siblings['spaces']))
     //   this.siblings = siblings['spaces'];
-    // return this.data;
+
+    return this.data;
   }
 
   async save() {
@@ -188,13 +194,13 @@ class Space {
     if (!this.name.length) return;
 
     // gzip compression adds about 8x more storage space
-    let dataBucket = new DataBucket(this.data);
+    const dataBucket = new DataBucket(this.data);
     await dataBucket.compress();
 
     // ensure synced spaces are syncable and offer to switch otherwise
     const storageData = { [this.name]: dataBucket };
     const spaceSize = new Blob([JSON.stringify(storageData)]).size;
-    if (this.synced && (spaceSize > chrome.storage.sync.QUOTA_BYTES_PER_ITEM)) {
+    if (this.synced && this.#syncable({ data: dataBucket })) {
       if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
         return this.shift({ synced: false });
       }
@@ -320,11 +326,13 @@ class Space {
 
   async shift({ name = this.name, synced = this.synced }) {
     // if wanting to sync, check for sync size constraints
-    if (synced && (new Blob([JSON.stringify(this.data)]).size > 8192)) {
+    const dataBucket = new DataBucket(this.data);
+    await dataBucket.compress();
+    if (synced && this.#syncable({data: dataBucket})) {
       alert("The current snippets data is too large to sync.");
       return false;
     }
-    let oldName = this.name,
+    const oldName = this.name,
         oldSynced = this.synced;
         // oldSiblings = this.siblings;
     this.name = name;
@@ -436,28 +444,31 @@ async function buildContextMenus(space) {
   if (space.data) {
     // set root menu item
     menuData.path = [];
-    delete menuData.action;
+    menuData.action = 'paste';
     chrome.contextMenus.create({
       "id": JSON.stringify(menuData),
       "title": "Paste Snippet",
       "contexts": ["editable"],
     });
+
     // recursive function for snippet tree
     let buildFolder = function(folder, parentData) {
       let menuItem = {
         "contexts": ["editable"],
         "parentId": JSON.stringify(parentData),
       };
-      let menuData = JSON.parse(JSON.stringify(parentData));
-      menuData.action = 'paste';
+      // clone parent object to avoid polluting it
+      let menuData = structuredClone(parentData);
       if (folder.length) {
-        for (let i = 0; i < folder.length; i++) {
+        for (let i in folder) {
           menuData.path = parentData.path.concat([folder[i].seq]) ?? [folder[i].seq];
           menuItem.id = JSON.stringify(menuData);
+          // using emojis for ease of parsing, nbsp needed for chrome bug
           menuItem.title = (folder[i].children
                          ? "📁 "
                          : "📝 ")
-                         + folder[i].name;
+                         + folder[i].name
+                         + "\xA0\xA0\xA0\xA0";
           chrome.contextMenus.create(menuItem);
           if (folder[i].children)
             buildFolder(folder[i].children, menuData);
