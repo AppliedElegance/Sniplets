@@ -109,15 +109,15 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
     }
   }
 
-  // injected script workaround for full selectionText with line breaks
-  const getFullSelection = (snipText) => {
-    try {
-      snipText.data.content = window.getSelection().toString();
-      // actioned on in listener
-      chrome.storage.local.set(snipText);
-    } catch (e) {
-      console.error("Couldn't snip selection!", e);
-    }
+  // injection script workaround for full selectionText with line breaks
+  const getFullSelection = () => {
+    // try {
+      return window.getSelection().toString();
+    //   // actioned on in listener
+    //   chrome.storage.local.set(snipText);
+    // } catch (e) {
+    //   console.error("Couldn't snip selection!", e);
+    // }
   }
 
   // injection script for pasting
@@ -184,19 +184,39 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
                + '…';
     }
 
-    // prepare info for injected script
-    const snipText = {
-      space: menuData.space,
-      data: {
-        name: snipName,
-      },
-    }
-    if (settings.control.saveSource) snipText.data.sourceURL = info.pageUrl;
+    // // prepare info for injected script
+    // const snipText = {
+    //   space: menuData.space,
+    //   data: {
+    //     name: snipName,
+    //   },
+    // }
+    // // save main page url if requested
+    // if (settings.control.saveSource) snipText.data.sourceURL = info.pageUrl;
 
     // inject script to grab full selection including line breaks
     src.func = getFullSelection;
-    src.args = [snipText];
-    chrome.scripting.executeScript(src);
+    // src.args = [snipText];
+    const res = await chrome.scripting.executeScript(src);
+    const snipText = res[0].result;
+    if (!snipText) return;
+
+    // add snip to space
+    console.log(snipText);
+    let snip = new Snippet({ name: snipName, content: snipText });
+    if (settings.control.saveSource) snip.sourceURL = info.pageUrl;
+    let space = new Space(menuData.space);
+    await space.load();
+    snip = space.addItem(snip);
+    await space.save();
+    
+    // open window to edit snippet
+    chrome.windows.create({
+      url: chrome.runtime.getURL("popup/popup.html?action=edit&seq=" + snip.seq),
+      type: "popup",
+      width: 700,
+      height: 500
+    });
     break;
   }
 
@@ -222,36 +242,12 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
 // update menu items as needed
 chrome.storage.onChanged.addListener(async function(changes, namespace) {
   for (let key in changes) {
-    switch (key) {
-    case 'snipText': {
-      let snip = changes[key].newValue;
-      if (!snip || !snip.data.content) return;
-      let space = new Space(snip.space);
-      await space.load();
-      let snippet = new Snippet(snip.data);
-      snippet = space.addItem(snippet);
-      await space.save();
-
-      // open window to edit snippet
-      chrome.windows.create({
-        url: chrome.runtime.getURL("popup/popup.html?action=edit&seq=" + snippet.seq),
-        type: "popup",
-        width: 700,
-        height: 500
-      });
-
-      removeStorageData('snipText');
-      break; }
-  
-    default: {
-      // maybe we made some data change to the space and need to rebuild the context menus
-      let change = changes[key].newValue;
-      if (change && Object.prototype.hasOwnProperty.call(change, 'children')) {
-        change = new DataBucket(change);
-        await change.decompress();
-        buildContextMenus(new Space({ name: key, synced: (namespace == 'sync'), data: change }));
-      }
-      break; }
+    // maybe we made some data change to the space and need to rebuild the context menus
+    let change = changes[key].newValue;
+    if (change && Object.hasOwn(change, 'children')) {
+      change = new DataBucket(change);
+      await change.decompress();
+      buildContextMenus(new Space({ name: key, synced: (namespace == 'sync'), data: change }));
     }
   }
 });
