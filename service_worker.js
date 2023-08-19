@@ -1,4 +1,4 @@
-/* global Settings, Space, Snippet, DataBucket, buildContextMenus, setStorageData, removeStorageData */
+/* global Settings, Space, Snippet, DataBucket, buildContextMenus, setStorageData */
 if( 'function' === typeof importScripts) {
   importScripts('./shared.js');
 }
