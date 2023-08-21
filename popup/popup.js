@@ -317,7 +317,6 @@ async function buttonClick(event) {
         space: space,
       }
       delete backup.space.path;
-      // delete backup.space.siblings;
     }
     saveToFile('snippets-backup-' + now.toISOString().slice(0,16) + '.json', JSON.stringify(backup));
     break; }

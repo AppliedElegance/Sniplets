@@ -190,15 +190,12 @@ class DataBucket {
   syncable(name) {
     const size = new Blob([JSON.stringify({ [name]: this.data })]).size;
     const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
-    console.log(size, maxSize);
     return (size <= maxSize);
   }
 }
 
 // Space object stores snippet groupings in buckets
 class Space {
-  // #siblings = [];
-
   constructor({ name, synced, data } = {}) {
     this.synced = synced || false;
     this.name = name || "Snippets";
@@ -207,20 +204,11 @@ class Space {
   }
 
   async load() {
-    // make sure the space has been initialized
-    // if (!this.name.length) return;
-
     // check for and load data if found
     const data = await getStorageData(this.name, this.synced);
     if (!data[this.name]) return;
     this.data = new DataBucket(data[this.name]);
     await this.data.decompress();
-
-    // store copy of siblings
-    // let siblings = await getStorageData('spaces', this.synced);
-    // if (Array.isArray(siblings['spaces']))
-    //   this.siblings = siblings['spaces'];
-
     return this.data;
   }
 
@@ -241,11 +229,7 @@ class Space {
     }
 
     // store data
-    await setStorageData({ [this.name]: dataBucket }, this.synced)
-      .catch(function (err) { console.error(err); });
-    // if (!this.siblings.includes(this.#name))
-    //   this.siblings.push(this.#name);
-    // setStorageData({ spaces: this.siblings }, this.#synced);
+    await setStorageData({ [this.name]: dataBucket }, this.synced);
     return true;
   }
 
@@ -360,9 +344,7 @@ class Space {
   async shift({ name = this.name, synced = this.synced }) {
     // if wanting to sync, check for sync size constraints
     const dataBucket = new DataBucket(this.data);
-    console.log(JSON.stringify(dataBucket));
     await dataBucket.compress();
-    console.log(JSON.stringify(dataBucket));
 
     if (synced && !dataBucket.syncable(this.name)) {
       alert("The current snippets data is too large to sync.");
@@ -370,23 +352,12 @@ class Space {
     }
     const oldName = this.name,
         oldSynced = this.synced;
-        // oldSiblings = this.siblings;
     this.name = name;
     this.synced = synced;
     let success = await this.save();
     if (success) {
       // remove old data
       removeStorageData(oldName, oldSynced);
-      // if (oldSynced === synced)
-      //   oldSiblings = this.siblings;
-      // if (oldSiblings.includes(oldName)) {
-      //   oldSiblings.splice(oldSiblings.indexOf(oldName), 1);
-      //   setStorageData({ spaces: oldSiblings }, oldSynced)
-      //   .catch(function (err) {
-      //     console.error(err);
-      //     console.error()
-      //   });
-      // }
     }
     return success;
   }
