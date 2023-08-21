@@ -30,22 +30,55 @@ const getStorageData = (key, synced = false) => {
 const setStorageData = (data, synced = false) => {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
-    bucket.set(data, () =>
-      chrome.runtime.lastError
-      ? reject(chrome.runtime.lastError)
-      : resolve()
-    ));
+  bucket.set(data, () =>
+    chrome.runtime.lastError
+    ? reject(chrome.runtime.lastError)
+    : resolve()
+  ));
 }
 // Example:
 // await removeStorageData('data', true);
 const removeStorageData = (key, synced = false) => {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
-    bucket.remove(key, () =>
-      chrome.runtime.lastError
-      ? reject(chrome.runtime.lastError)
-      : resolve()
-    ));
+  bucket.remove(key, () =>
+    chrome.runtime.lastError
+    ? reject(chrome.runtime.lastError)
+    : resolve()
+  ));
+}
+
+// Ensure injected script errors are always caught
+const injectScript = async (src) => {
+  return chrome.scripting.executeScript(src)
+  .catch((e) => { return Error(e); });
+}
+
+// Request permissions when necessary for cross-origin iframes
+const requestFrames = async (tabID) => {
+  const getFrames = () => {
+    const frames = [window.location.origin + "/*"]
+    // add src of all iframes on page so user only needs to request permission once
+    Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
+      if (frame.src) frames.push((new URL(frame.src).origin) + "/*");
+    });
+    return frames;
+  };
+  const origins = await injectScript({
+    target: { tabId: tabID },
+    func: getFrames,
+  });
+  // return script injection error if top level is blocked too
+  if (!origins) return origins;
+  // popup required to request permission
+  await setStorageData({ origins: origins[0].result });
+  const requestor = await chrome.windows.create({
+    url: chrome.runtime.getURL("permissions.html"),
+    type: "popup",
+    width: 480,
+    height: 300
+  });
+  return requestor;
 }
 
 class TreeItem {
@@ -153,6 +186,13 @@ class DataBucket {
     this.children = this.#deserialize(JSON.parse(await dataBlob.text()));
     return true;
   }
+
+  syncable(name) {
+    const size = new Blob([JSON.stringify({ [name]: this.data })]).size;
+    const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
+    console.log(size, maxSize);
+    return (size <= maxSize);
+  }
 }
 
 // Space object stores snippet groupings in buckets
@@ -164,11 +204,6 @@ class Space {
     this.name = name || "Snippets";
     this.data = data || new DataBucket();
     this.path = [];
-  }
-
-  #syncable({ name = this.name, data = this.data } = {}) {
-    const size = new Blob([JSON.stringify({ [name]: data })]).size;
-    return(size <= chrome.storage.sync.QUOTA_BYTES_PER_ITEM);
   }
 
   async load() {
@@ -198,9 +233,7 @@ class Space {
     await dataBucket.compress();
 
     // ensure synced spaces are syncable and offer to switch otherwise
-    const storageData = { [this.name]: dataBucket };
-    const spaceSize = new Blob([JSON.stringify(storageData)]).size;
-    if (this.synced && this.#syncable({ data: dataBucket })) {
+    if (this.synced && !dataBucket.syncable(this.name)) {
       if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
         return this.shift({ synced: false });
       }
@@ -208,7 +241,7 @@ class Space {
     }
 
     // store data
-    await setStorageData(storageData, this.synced)
+    await setStorageData({ [this.name]: dataBucket }, this.synced)
       .catch(function (err) { console.error(err); });
     // if (!this.siblings.includes(this.#name))
     //   this.siblings.push(this.#name);
@@ -327,8 +360,11 @@ class Space {
   async shift({ name = this.name, synced = this.synced }) {
     // if wanting to sync, check for sync size constraints
     const dataBucket = new DataBucket(this.data);
+    console.log(JSON.stringify(dataBucket));
     await dataBucket.compress();
-    if (synced && this.#syncable({data: dataBucket})) {
+    console.log(JSON.stringify(dataBucket));
+
+    if (synced && !dataBucket.syncable(this.name)) {
       alert("The current snippets data is too large to sync.");
       return false;
     }

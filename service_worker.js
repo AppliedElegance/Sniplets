@@ -1,4 +1,4 @@
-/* global Settings, Space, Snippet, DataBucket, buildContextMenus, setStorageData */
+/* global Settings, Space, Snippet, DataBucket, buildContextMenus, setStorageData, injectScript, requestFrames */
 if( 'function' === typeof importScripts) {
   importScripts('./shared.js');
 }
@@ -35,89 +35,22 @@ chrome.runtime.onInstalled.addListener(async () => {
 });
 
 // set up context menu listener
-chrome.contextMenus.onClicked.addListener(async function(info) {
-  // ignore disallowed URLs
-  console.log(info);
-  // get details from menu item and ignore "empty" ones or
-  const menuData = JSON.parse(info.menuItemId);
+chrome.contextMenus.onClicked.addListener(async function(data, tab) {
+  // get details from menu item and ignore "empty" ones
+  const menuData = JSON.parse(data.menuItemId);
   if (!menuData.action) return;
-
-  // get tab and frame info for injecting script
-  const tabID = await new Promise((resolve, reject) => {
-    try {
-      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
-        resolve(tabs[0].id);
-      });
-    } catch (e) {
-      reject(e);
-    }
-  })
-  const frameID = info.frameId;
     
   // set up injection object
   const src = {
-    target: { tabId : tabID }
-  };
-
-  // check if we're in an iFrame and inject script to see if we have the relevant permissions
-  if (frameID) {
-    const getOrigin = () => {
-      let origins = [window.location.origin + "/*"]
-      if (document.activeElement.nodeName.toUpperCase() == "IFRAME") {
-        // add src of all iframes on page so user only needs to request permission once
-        Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
-          origins.push((new URL(frame.src).origin) + "/*");
-        });
-      }
-      return origins;
-    };
-
-    // attempt frame injection
-    src.target.frameIds = [frameID];
-    src.func = getOrigin;
-    let origins = await chrome.scripting.executeScript(src).catch(() => null);
-    if (!origins) {
-      // request permission for iFrame if access was blocked
-      delete src.target.frameIds;
-      const res = await chrome.scripting.executeScript(src);
-      origins = res[0].result;
-      await setStorageData({ origins: origins });
-      // popup required to request permission
-      chrome.windows.create({
-        url: chrome.runtime.getURL("permissions.html"),
-        type: "popup",
-        width: 480,
-        height: 300
-      });
-
-      // console.log(origin);
-      // chrome.permissions.request({
-      //   origins: [origin]
-      // }, (granted) => {
-      //   console.log(granted);
-      //   if (granted) {
-      //     src.target.frameIds = [frameID];
-      //   } else {
-      //     const blockAlert = () => {
-      //       alert("This action can't be performed on the embedded field without the requested permissions. The extension popup can still be used for manual copying and pasting.");
-      //     }
-      //     src.func = blockAlert;
-      //     chrome.scripting.executeScript(src);
-      //     return false;
-      //   }
-      // });
+    target: {
+      tabId: tab.id,
     }
-  }
+  };
+  if (data.frameId) src.target.frameIds = [data.frameId];
 
   // injection script workaround for full selectionText with line breaks
   const getFullSelection = () => {
-    // try {
-      return window.getSelection().toString();
-    //   // actioned on in listener
-    //   chrome.storage.local.set(snipText);
-    // } catch (e) {
-    //   console.error("Couldn't snip selection!", e);
-    // }
+    return window.getSelection().toString();
   }
 
   // injection script for pasting
@@ -173,8 +106,9 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
     // get settings for storage
     const settings = new Settings();
     await settings.load();
+
     // create snippet title from selectionText which does not include newlines
-    let snipName = info.selectionText;
+    let snipName = data.selectionText;
     if (snipName.length > 27) {
       // cut down to size, then chuck trailing text if possible so no words are cut off
       snipName = snipName.slice(0, 28);
@@ -184,27 +118,27 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
                + '…';
     }
 
-    // // prepare info for injected script
-    // const snipText = {
-    //   space: menuData.space,
-    //   data: {
-    //     name: snipName,
-    //   },
-    // }
-    // // save main page url if requested
-    // if (settings.control.saveSource) snipText.data.sourceURL = info.pageUrl;
-
     // inject script to grab full selection including line breaks
     src.func = getFullSelection;
-    // src.args = [snipText];
-    const res = await chrome.scripting.executeScript(src);
-    const snipText = res[0].result;
+    const res = await injectScript(src);
+    let permRes, snipText;
+    if (!res) {
+      // possible cross-origin frame
+      permRes = await requestFrames(tab.id);
+      if (!permRes) {
+        snipText = data.selectionText;
+      } else {
+        return; // if it was possible to request permission, let the user try again
+      }
+    } else {
+      snipText = res[0].result;
+    }
+    
     if (!snipText) return;
 
     // add snip to space
-    console.log(snipText);
     let snip = new Snippet({ name: snipName, content: snipText });
-    if (settings.control.saveSource) snip.sourceURL = info.pageUrl;
+    if (settings.control.saveSource) snip.sourceURL = data.pageUrl;
     let space = new Space(menuData.space);
     await space.load();
     snip = space.addItem(snip);
@@ -228,13 +162,13 @@ chrome.contextMenus.onClicked.addListener(async function(info) {
       // inject paste code
       src.func = pasteSnippet;
       src.args = [snippet.content];
-      chrome.scripting.executeScript(src);
+      injectScript(src);
     }
     break;
   }
 
   default:
-    console.error("Nothin' doin'.", info);
+    console.error("Nothin' doin'.", data);
     break;
   }
 });

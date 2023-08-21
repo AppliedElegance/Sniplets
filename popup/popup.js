@@ -17,7 +17,6 @@ const loadPopup = async function() {
   // load up the current space or fall back to default
   let { currentSpace } = await getStorageData('currentSpace');
   if (!currentSpace) currentSpace = settings.defaultSpace;
-  console.log(settings, space, currentSpace);
   space.pivot(currentSpace);
   await space.load();
   // check if we need to init space
