@@ -1,13 +1,12 @@
-/* global getStorageData */
-document.addEventListener('click', async (event) => {
+/* global getStorageData removeStorageData */
+document.addEventListener("click", async (event) => {
   if (event.target.tagName.toUpperCase() != "BUTTON") return;
   let origins;
   switch (event.target.dataset.target) {
   case "this": {
-    const details = await getStorageData("origins");
-    if (!details) return;
-    origins = details.origins;
-    // removeStorageData("origins");
+    const data = await getStorageData("origins");
+    if (!data) return;
+    origins = data.origins;
     break; }
   case "all":
     origins = ["<all_urls>"];
@@ -24,3 +23,14 @@ document.addEventListener('click', async (event) => {
     }
   });
 }, false);
+
+document.addEventListener("DOMContentLoaded", () => {
+  const buttons = document.getElementsByTagName("button");
+  Array.from(buttons).forEach((button) => {
+    button.disabled = false;
+  });
+}, false);
+
+document.addEventListener("beforeunload", () => {
+  removeStorageData("origins");
+});
