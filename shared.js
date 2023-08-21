@@ -51,7 +51,7 @@ const removeStorageData = (key, synced = false) => {
 // Ensure injected script errors are always caught
 const injectScript = async (src) => {
   return chrome.scripting.executeScript(src)
-  .catch((e) => { return Error(e); });
+  .catch(() => { return false; });
 }
 
 // Request permissions when necessary for cross-origin iframes

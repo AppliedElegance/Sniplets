@@ -121,10 +121,10 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
     // inject script to grab full selection including line breaks
     src.func = getFullSelection;
     const res = await injectScript(src);
-    let permRes, snipText;
+    let snipText;
     if (!res) {
       // possible cross-origin frame
-      permRes = await requestFrames(tab.id);
+      const permRes = await requestFrames(tab.id);
       if (!permRes) {
         snipText = data.selectionText;
       } else {
@@ -162,7 +162,25 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
       // inject paste code
       src.func = pasteSnippet;
       src.args = [snippet.content];
-      injectScript(src);
+      const res = await injectScript(src);
+      if (!res) {
+        console.log(menuData, snippet, res);
+        // possible cross-origin frame
+        const permRes = await requestFrames(tab.id);
+        if (!permRes) {
+          // Unable to request access, open window to requested selection for manual copy/paste
+          const editor = chrome.windows.create({
+            url: chrome.runtime.getURL("popup/popup.html?action=edit"
+              + "&folderPath=" + JSON.stringify(menuData.path.slice(0, -1))
+              + "&seq=" + menuData.path.slice(-1)),
+            type: "popup",
+            width: 700,
+            height: 500
+          });
+          console.log(editor);
+          return editor;
+        }
+      }
     }
     break;
   }
