@@ -22,5 +22,22 @@ module.exports = {
     "parserOptions": {
         "ecmaVersion": "latest",
         "sourceType": "module"
+    },
+    "globals": {
+        "getStorageData": true,
+        "setStorageData": true,
+        "removeStorageData": true,
+        "injectScript": true,
+        "getFullSelection": true,
+        "pasteSnippet": true,
+        "requestFrames": true,
+        "TreeItem": true,
+        "Folder": true,
+        "Snippet": true,
+        "DataBucket": true,
+        "Space": true,
+        "Settings": true,
+        "saveToFile": true,
+        "buildContextMenus": true
     }
 }

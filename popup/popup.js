@@ -1,4 +1,3 @@
-/* global Settings, Space, Snippet, Folder, setStorageData, getStorageData, saveToFile, init */
 // selector shorthand
 const $ = id => document.getElementById(id);
 // const i18n = (id, subs = []) => chrome.i18n.getMessage(id, subs);
@@ -17,10 +16,7 @@ const loadPopup = async function() {
   // load up the current space or fall back to default
   let { currentSpace } = await getStorageData('currentSpace');
   if (!currentSpace) currentSpace = settings.defaultSpace;
-  space.pivot(currentSpace);
-  await space.load();
-  // check if we need to init space
-  if (!space.data) space.save();
+  await space.pivot(currentSpace);
   // set up listeners
   document.addEventListener('click', buttonClick, false);
   document.addEventListener('focusin', adjustTextArea, false);
@@ -66,21 +62,21 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
     let buildFolderTree = function (folders, level) {
       // helper for tree builder
       const hasSubfolders = folder => Array.isArray(folder)
-                          ? (folder.reduce((or, c) => or + (c.children ? 1 : 0), 0) > 0)
+                          ? (folder.reduce((or, c) => or + (c instanceof Folder ? 1 : 0), 0) > 0)
                           : false;
       const isRoot = level.join('-') == 'root';
       return `
         <ul id="folder-${ level.join('-') }">${ (!isRoot) ? `
           <li data-seq=".5" data-path="${ level.join(',') }" class="delimiter"></li>` : `` }${
   folders.map(folder => {
-    let collapsible = hasSubfolders(folder.children);
+    const collapsible = hasSubfolders(folder.children);
     return `
           <li class="folder" data-path="${ level.join(',') }" data-seq="${ (isRoot) ? `` : folder.seq }">
             <div class="title"${ (isRoot) ? `` : `draggable="true"` }>
               <${ collapsible ? `button type="button" data-action="collapse"` : `figure` } class="icon prefix">
                 <svg role="img" focusable="false">
                   <title>Folder</title>
-                  <use href="sprites.svg#icon-folder${ collapsible ? `-collapse` : `` }"/>
+                  <use href="sprites.svg#icon-folder${ collapsible ? `-collapse` : `` }" fill="${ folder.label ? folder.label : `inherit` }"/>
                 </svg>
               </${ collapsible ? `button` : `figure` }>
               <button type="button" class="name" data-action="open-folder" data-folder="${ (isRoot) ? `` : level.concat([folder.seq]).join(',') }">
@@ -108,8 +104,8 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
     }
 
     // settings
-    let foldersOnTop = settings.sort.foldersOnTop;
-    let colors = [
+    const foldersOnTop = settings.sort.foldersOnTop;
+    const colors = [
       { name: "Default", value: "", clippings: "" },
       { name: "Grey", value: "#808080", clippings: "gray" },
       { name: "Red", value: "#FF0000", clippings: "red" },
@@ -120,20 +116,21 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
       { name: "Violet", value: "#EE82EE", clippings: "purple" },
     ];
 
-    let list = space.getItem(path).children;
+    const list = space.getItem(path).children;
     if (!list.length) {
       $('snippets').innerHTML = ``;
     } else {
-      let topSnippet = settings.sort.foldersOnTop
+      let topSnippet = foldersOnTop
                      ? space.getFolderCount() + 1
                      : 1;
-      let contentMarkup = item =>
-        `<div class="title" draggable="true">
+      let contentMarkup = item => {
+        const isFolder = item instanceof Folder;
+        return `<div class="title" draggable="true">
           <div class="menu">
-            <button data-action="menu" data-dropdown="snipmenu${ item.seq }"><figure type="button" class="icon prefix" data-action="menu" data-dropdown="${ (item.children ? `folder` : `snippet`) }-${ path.concat([item.seq]).join('-') }" data-seq="${item.seq}">
+            <button data-action="menu" data-dropdown="snipmenu${ item.seq }"><figure type="button" class="icon prefix" data-action="menu" data-dropdown="${ (isFolder ? `folder` : `snippet`) }-${ path.concat([item.seq]).join('-') }" data-seq="${item.seq}">
               <svg role="img" focusable="false">
                 <title>Snippet</title>
-                <use href="sprites.svg#icon-${ item.children ? `folder` : `snippet` }" fill="${ item.label ? item.label : `inherit` }"/>
+                <use href="sprites.svg#icon-${ isFolder ? `folder` : `snippet` }" fill="${ item.label ? item.label : `inherit` }"/>
               </svg>
             </figure></button>
             <ul class="card dropdown" id="snipmenu${ item.seq }">
@@ -149,18 +146,18 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
                 </ul>
               </li>${ list.length > 1 ? `
               <li class="menu-item submenu"><h3>Move…</h3>
-                <ul class="card" id="view">${ (item.children ? (item.seq > 1) : (item.seq > topSnippet)) ? `
-                  <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ item.children ? 1 : topSnippet }"><h3>To Top</h3></button></li>
-                  <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ item.seq - 1 }"><h3>Up</h3></button></li>` : `` }${ (item.seq < ((settings.sort.foldersOnTop && item.children) ? topSnippet - 1 : list.length)) ? `
+                <ul class="card" id="view">${ (isFolder ? (item.seq > 1) : (item.seq > topSnippet)) ? `
+                  <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ isFolder ? 1 : topSnippet }"><h3>To Top</h3></button></li>
+                  <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ item.seq - 1 }"><h3>Up</h3></button></li>` : `` }${ (item.seq < ((isFolder && foldersOnTop) ? topSnippet - 1 : list.length)) ? `
                   <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ item.seq + 1 }"><h3>Down</h3></button></li>
-                  <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ (settings.sort.foldersOnTop && item.children) ? topSnippet - 1 : list.length }"><h3>To Bottom</h3></button></li>` : `` }
+                  <li class="menu-item"><button type="button" data-action="move" data-seq="${ item.seq }" data-target="${ (isFolder && foldersOnTop) ? topSnippet - 1 : list.length }"><h3>To Bottom</h3></button></li>` : `` }
                 </ul>
               </li>` : `` }
-            </ul>${ item.children ? `` : `` }
+            </ul>
           </div>
-          <${ item.children ? `button type="button" data-action="open-folder" data-folder="${ path.concat([item.seq]).join(',') }" data-seq="${item.seq}"` : `div`} class="name">
+          <${ isFolder ? `button type="button" data-action="open-folder" data-folder="${ path.concat([item.seq]).join(',') }" data-seq="${item.seq}"` : `div`} class="name">
             <h2 data-seq="${ item.seq }">${ escapeText(item.name) }</h2>
-          </${ item.children ? `button` : `div` }>
+          </${ isFolder ? `button` : `div` }>
           <input type="text" data-seq="${ item.seq }" data-action="edit" data-field="name" value="${item.name}">
           <button type="button" class="icon" data-action="rename" data-seq="${item.seq}">
             <svg role="img" focusable="false">
@@ -174,7 +171,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
               <use href="sprites.svg#icon-delete"/>
             </svg>
           </button>
-        </div>${item.children ? `` : `
+        </div>${isFolder ? `` : `
         <hr>
         <div class="snip-content">
           <textarea data-seq="${ item.seq }" data-action="edit" data-field="content">${ item.content.replaceAll('</textarea', '&lt;/textarea') }</textarea>
@@ -183,14 +180,15 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
           <label>Source:</label>
           <input type="text" data-seq="${ item.seq }" data-action="edit" data-field="sourceURL" placeholder="unknown..." value="${ item.sourceURL }">
         </div>` : `` }`}`;
+      }
       
       // build list of snippets with folders first if set
       $('snippets').innerHTML = `
-          <div class="sizer"></div>${ (foldersOnTop && (list.reduce((or, c) => or + (c.children ? 1 : 0), 0) > 0)) ? `
+          <div class="sizer"></div>${ (foldersOnTop && (list.reduce((or, c) => or + (c instanceof Folder ? 1 : 0), 0) > 0)) ? `
     
           <div class="card">
             <ul id="folder-list">
-              <li data-seq=".5" data-path="${ path.join(',') }" class="delimiter">${list.map(item => item.children ? `</li>
+              <li data-seq=".5" data-path="${ path.join(',') }" class="delimiter">${list.map(item => item instanceof Folder ? `</li>
               <li class="folder" data-seq="${item.seq}" data-path="${ path.join(',') }">
                 ${ contentMarkup(item) }
               </li>
@@ -200,14 +198,16 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
     
           <hr>` : ``}
     
-          <ul id="snippet-list">${list.map(item => (foldersOnTop && item.children) ? null : `${ item.children ? `
+          <ul id="snippet-list">${list.map(item => { 
+            const isFolder = item instanceof Folder;
+            return (isFolder && foldersOnTop) ? null : `${ isFolder ? `
             <li data-seq="${ item.seq - .5 }" data-path="${ path.join(',') }" class="delimiter">` : `` }
-            <li class="${item.children ? `folder` : `snippet`}" data-seq="${item.seq}" data-path="${ path.join(',') }">
+            <li class="${isFolder ? `folder` : `snippet`}" data-seq="${item.seq}" data-path="${ path.join(',') }">
               <div class="card" data-seq="${item.seq}">
                 ${ contentMarkup(item) }
               </div>
-            </li>${ item.children ? `
-            <li data-seq="${ item.seq + .5 }" data-path="${ path.join(',') }" class="delimiter">` : `` }`).filter(x => x ? true : false).join(``)}
+            </li>${ isFolder ? `
+            <li data-seq="${ item.seq + .5 }" data-path="${ path.join(',') }" class="delimiter">` : `` }` }).filter(x => x ? true : false).join(``)}
           </ul>
     `;
       for (let textarea of $('snippets').getElementsByTagName('textarea'))
@@ -359,7 +359,11 @@ async function buttonClick(event) {
     if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
     await chrome.storage.local.clear();
     await chrome.storage.sync.clear();
-    await init();
+    // reinitialize
+    settings.init();
+    await settings.save();
+    await space.pivot(settings.defaultSpace);
+    await space.save();
     loadPopup();
     break;
   }
@@ -367,8 +371,10 @@ async function buttonClick(event) {
   case 'toggle-sync': {
     if (await space.shift({ synced: !space.synced })) {
       // update current/default spaces if necessary
-      if (settings.defaultSpace.name == space.name)
+      if (settings.defaultSpace.name == space.name) {
         settings.defaultSpace.synced = space.synced;
+        settings.save();
+      }
     }
     setCurrentSpace();
     loadSnippets({ buildTree: false, buildList: false });
@@ -496,16 +502,16 @@ function inputChange(event) {
       case 'restore': {
         try {
           var obj = JSON.parse(reader.result);
-          if (obj.createdBy.slice(0, 9) == "Clippings" && obj.version == 6.1) {
-            space.data.children = obj.userClippingsRoot;
+          if (obj.createdBy.slice(0, 9) == "Clippings") {
+            space.data.children = space.data.restructure(obj.userClippingsRoot);
           } else if (obj.createdBy == "Snippets") {
             switch (obj.version) {
             case "0.8":
-              space.data = obj.data;
+              space.data = space.data.restructure(obj.data);
               break;
 
             case "0.9":
-              space.pivot(obj.space);
+              await space.pivot(obj.space);
               break;
           
             default:
@@ -514,7 +520,7 @@ function inputChange(event) {
           }
           space.sort(settings.sort);
           space.save();
-          space.path.length = 0;
+          // space.path.length = 0;
           loadSnippets();
         } catch (e) {
           console.error(e);
