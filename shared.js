@@ -77,7 +77,7 @@ const pasteSnippet = (snipText) => {
       selNode.selectionStart = selNode.selectionEnd = selStart + snipText.length;
     }
   } else {
-    // assume contenteditable and paste as rich text
+    // paste into contenteditable as rich text (plain-text fields fall back automatically)
     const pasted = document.execCommand('insertHTML', false, snipText);
     // forward-compatible alt code, kills the undo stack
     if (!pasted) {
@@ -358,14 +358,14 @@ class Space {
   sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'], } = {}) {
     // recursive function in case everything needs to be sorted
     let sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
-      if (!data.children || !data.children.length)
+      if (!data.children)
         return;
       data.children.sort((a, b) => {
         let result = a[by] > b[by];
         if (foldersOnTop)
-          result = a.children
-                 ? (b.children ? result : false)
-                 : (b.children ? true : result);
+          result = (a instanceof Folder)
+                 ? ((b instanceof Folder) ? result : false)
+                 : ((b instanceof Folder) ? true : result);
         if (reverse)
           result = !result;
         return result ? 1 : -1;
@@ -515,7 +515,7 @@ const buildContextMenus = async (space) => {
     });
 
     // recursive function for snippet tree
-    let buildFolder = function(folder, parentData) {
+    let buildFolder = async function(folder, parentData) {
       let menuItem = {
         "contexts": ["editable"],
         "parentId": JSON.stringify(parentData),
@@ -523,19 +523,28 @@ const buildContextMenus = async (space) => {
       // clone parent object to avoid polluting it
       let menuData = structuredClone(parentData);
       if (folder.length) {
-        for (let i in folder) {
-          menuData.path = parentData.path.concat([folder[i].seq]) ?? [folder[i].seq];
+        // check for folders on top
+        // const settings = new Settings();
+        // await settings.load();
+        // if (settings.sort.foldersOnTop) {
+        //   folder.sort((a, b) => (a instanceof Folder)
+        //     ? ((b instanceof Folder) ? 0 : -1)
+        //     : ((b instanceof Folder) ? 1 : 0)
+        //   );
+        // }
+        folder.forEach(item => {
+          menuData.path = parentData.path.concat([item.seq]) ?? [item.seq];
           menuItem.id = JSON.stringify(menuData);
-          // using emojis for ease of parsing, nbsp needed for chrome bug
-          menuItem.title = (folder[i].children
+          // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
+          menuItem.title = ((item instanceof Folder)
                          ? "📁 "
                          : "📝 ")
-                         + folder[i].name
+                         + item.name.replace("&", "&&")
                          + "\xA0\xA0\xA0\xA0";
           chrome.contextMenus.create(menuItem);
-          if (folder[i].children)
-            buildFolder(folder[i].children, menuData);
-        }
+          if (item instanceof Folder)
+            buildFolder(item.children, menuData);
+        });
       } else {
         menuData.path = parentData.path.concat(['empty']);
         menuItem.id = JSON.stringify(menuData);

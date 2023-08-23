@@ -401,6 +401,7 @@ async function buttonClick(event) {
   
   case 'new-folder': {
     let newFolder = space.addItem(new Folder());
+    if (settings.sort.foldersOnTop) space.sort(settings.sort);
     space.save();
     loadSnippets({ action: 'rename', seq: newFolder.seq });
     break; }
@@ -445,8 +446,8 @@ async function buttonClick(event) {
     chrome.windows.create({
       url: chrome.runtime.getURL("popup/popup.html"),
       type: "popup",
-      width: 700,
-      height: 500
+      width: 867,
+      height: 540
     });
     window.close();
     break; }
