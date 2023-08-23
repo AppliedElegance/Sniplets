@@ -1,5 +1,5 @@
 /* All shared functions. */
-/* global CompressionStream, DecompressionStream */
+/* global CompressionStream DecompressionStream */
 /* eslint-disable no-unused-vars */
 
 // Storage helpers. Sync must be explicitly enabled.
@@ -51,27 +51,89 @@ const removeStorageData = (key, synced = false) => {
 // Ensure injected script errors are always caught
 const injectScript = async (src) => {
   return chrome.scripting.executeScript(src)
-  .catch(() => { return false; });
+  .catch((e) => { return false; });
+}
+
+
+// injection script workaround for full selectionText with line breaks
+const getFullSelection = () => {
+  return window.getSelection().toString();
+}
+
+// injection script for pasting
+const pasteSnippet = (snipText) => {
+  const selNode = document.activeElement;
+
+  // execCommand is deprecated but insertText is still supported in chrome as wontfix
+  // and produces the most desirable result. See par. 3 in:
+  // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
+  if (selNode.value != undefined) {
+    const pasted = document.execCommand('insertText', false, snipText);
+    // forward-compatible alt code, kills the undo stack
+    if (!pasted) {
+      const selVal = selNode.value;
+      const selStart = selNode.selectionStart;
+      selNode.value = selVal.slice(0, selStart) + snipText + selVal.slice(selNode.selectionEnd);
+      selNode.selectionStart = selNode.selectionEnd = selStart + snipText.length;
+    }
+  } else {
+    // paste into contenteditable as rich text (plain-text fields fall back automatically)
+    const pasted = document.execCommand('insertHTML', false, snipText);
+    // forward-compatible alt code, kills the undo stack
+    if (!pasted) {
+      const sel = window.getSelection();
+      const selRng = sel.getRangeAt(0);
+      selRng.deleteContents();
+      selRng.insertNode(document.createTextNode(snipText));
+      sel.collapseToEnd();
+    }
+  }
+
+  // event dispatch for editors that handle their own undo stack like stackoverflow
+  selNode.dispatchEvent(new KeyboardEvent('keydown', {
+    ctrlKey: true,
+    key: 'v',
+    view: window,
+    bubbles: true,
+    cancelable: true,
+  }));
+  selNode.dispatchEvent(new InputEvent('input', {
+    inputType: 'insertText',
+    data: snipText,
+    view: window,
+    bubbles: true,
+    cancelable: true,
+  }));
+  selNode.dispatchEvent(new KeyboardEvent('keyup', {
+    ctrlKey: true,
+    key: 'v',
+    view: window,
+    bubbles: true,
+    cancelable: true,
+  }));
 }
 
 // Request permissions when necessary for cross-origin iframes
-const requestFrames = async (tabID) => {
-  const getFrames = () => {
-    const frames = [window.location.origin + "/*"]
+const requestFrames = async (action, src) => {
+  const getFrameOrigins = () => {
+    const origins = [window.location.origin + "/*"]
     // add src of all iframes on page so user only needs to request permission once
     Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
-      if (frame.src) frames.push((new URL(frame.src).origin) + "/*");
+      if (frame.src) origins.push((new URL(frame.src).origin) + "/*");
     });
-    return frames;
+    return origins;
   };
   const origins = await injectScript({
-    target: { tabId: tabID },
-    func: getFrames,
+    target: { tabId: src.target.tabId },
+    func: getFrameOrigins,
   });
   // return script injection error if top level is blocked too
   if (!origins) return origins;
   // popup required to request permission
   await setStorageData({ origins: origins[0].result });
+  // pass requested script in case successfull, functions can't be passed
+  src.func = action;
+  await setStorageData({ src: src });
   const requestor = await chrome.windows.create({
     url: chrome.runtime.getURL("permissions.html"),
     type: "popup",
@@ -82,32 +144,30 @@ const requestFrames = async (tabID) => {
 }
 
 class TreeItem {
-  constructor({ name, seq, type } = {}) {
+  constructor({ name, seq, label } = {}) {
     this.name = name || "New Tree Item";
     this.seq = seq || 1;
-    this.type = type || "item";
+    this.label = label || undefined;
   }
 }
 class Folder extends TreeItem {
-  constructor({ name, seq, children, color } = {}) {
+  constructor({ name, seq, children, label } = {}) {
     super({
       name: name || "New Folder",
       seq: seq || 1,
-      type: "folder",
+      label: label || undefined,
     });
     this.children = children || [];
-    this.color = color || undefined;
   }
 }
 class Snippet extends TreeItem {
-  constructor({ name, seq, content, color, shortcut, sourceURL } = {}) {
+  constructor({ name, seq, content, label, shortcut, sourceURL } = {}) {
     super({
       name: name || "New Snippet",
       seq: seq || 1,
-      type: "snippet",
+      label: label || undefined,
     });
     this.content = content || "";
-    this.color = color || undefined;
     this.shortcut = shortcut || undefined;
     this.sourceURL = sourceURL || undefined;
   }
@@ -137,35 +197,30 @@ class DataBucket {
     return true;
   }
 
-  #cast(treeItem) {
-    switch (treeItem.type) {
-      case "item":
-        return new TreeItem(treeItem);
-
-      case "folder":
-        return new Folder(treeItem);
-
-      case "snippet":
-        return new Snippet(treeItem);
-
-      default:
-        return treeItem;
+  #cast(item) {
+    if (Object.hasOwn(item, "children")) {
+      return new Folder(item);
+    } else if (Object.hasOwn(item, "content")) {
+      return new Snippet(item);
     }
+    return item;
   }
 
-  #deserialize(folder) {
-    for (let i in folder) {
-      folder[i] = this.#cast(folder[i]);
-      if (folder[i] instanceof Folder)
-        folder[i].children = this.#deserialize(folder[i].children);
-    }
-    return folder;
+  restructure(folder = this.children) {
+    const items = [];
+    folder.forEach((item) => {
+      if (Object.hasOwn(item, "children")) {
+        item.children = this.restructure(item.children);
+      }
+      items.push(this.#cast(item));
+    });
+    return items;
   }
 
-  async decompress() {
-    // check if already compressed and just deserialize otherwise
+  async parse() {
+    // check if already compressed and otherwise just cast contents appropriately
     if (typeof this.children != 'string') {
-      this.children = this.#deserialize(this.children);
+      this.children = this.restructure();
       return false;
     }
 
@@ -183,7 +238,7 @@ class DataBucket {
     // read the decompressed stream
     const dataBlob = await new Response(stream).blob();
     // return decompressed and deserialized text
-    this.children = this.#deserialize(JSON.parse(await dataBlob.text()));
+    this.children = this.restructure(JSON.parse(await dataBlob.text()));
     return true;
   }
 
@@ -208,7 +263,7 @@ class Space {
     const data = await getStorageData(this.name, this.synced);
     if (!data[this.name]) return;
     this.data = new DataBucket(data[this.name]);
-    await this.data.decompress();
+    await this.data.parse();
     return this.data;
   }
 
@@ -292,7 +347,7 @@ class Space {
       toFolder.children.splice(toSeq, 0,
         fromFolder.children.splice(fromSeq, 1)[0]);
       this.sequence(toFolder);
-      if(JSON.stringify(fromPath) !== JSON.stringify(toPath))
+      if(JSON.stringify(fromPath) != JSON.stringify(toPath))
         this.sequence(fromFolder);
     } catch (error) {
       console.error(error);
@@ -303,14 +358,14 @@ class Space {
   sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'], } = {}) {
     // recursive function in case everything needs to be sorted
     let sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
-      if (!data.children || !data.children.length)
+      if (!data.children)
         return;
       data.children.sort((a, b) => {
         let result = a[by] > b[by];
         if (foldersOnTop)
-          result = a.children
-                 ? (b.children ? result : false)
-                 : (b.children ? true : result);
+          result = (a instanceof Folder)
+                 ? ((b instanceof Folder) ? result : false)
+                 : ((b instanceof Folder) ? true : result);
         if (reverse)
           result = !result;
         return result ? 1 : -1;
@@ -362,11 +417,12 @@ class Space {
     return success;
   }
 
-  pivot({ name, synced, data = null, path = null, }) {
+  async pivot({ name, synced, data, path }) {
     this.name = name;
     this.synced = synced;
-    if (data) this.data = data;
-    if (path) this.path = path;
+    this.data = data ? new DataBucket(data).parse() : new DataBucket();
+    this.path = path || [];
+    return await this.load();
   }
 }
 
@@ -413,7 +469,7 @@ class Settings {
 }
 
 // create backup file
-function saveToFile(filename, text) {
+const saveToFile = (filename, text) => {
   // create URI encoded file link
   let fileAnchor = document.createElement('a');
   fileAnchor.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
@@ -429,7 +485,7 @@ function saveToFile(filename, text) {
 }
 
 // (re)build context menu for snipping and pasting
-async function buildContextMenus(space) {
+const buildContextMenus = async (space) => {
   // clear current
   await chrome.contextMenus.removeAll();
   let menuData = {
@@ -459,7 +515,7 @@ async function buildContextMenus(space) {
     });
 
     // recursive function for snippet tree
-    let buildFolder = function(folder, parentData) {
+    let buildFolder = async function(folder, parentData) {
       let menuItem = {
         "contexts": ["editable"],
         "parentId": JSON.stringify(parentData),
@@ -467,19 +523,28 @@ async function buildContextMenus(space) {
       // clone parent object to avoid polluting it
       let menuData = structuredClone(parentData);
       if (folder.length) {
-        for (let i in folder) {
-          menuData.path = parentData.path.concat([folder[i].seq]) ?? [folder[i].seq];
+        // check for folders on top
+        // const settings = new Settings();
+        // await settings.load();
+        // if (settings.sort.foldersOnTop) {
+        //   folder.sort((a, b) => (a instanceof Folder)
+        //     ? ((b instanceof Folder) ? 0 : -1)
+        //     : ((b instanceof Folder) ? 1 : 0)
+        //   );
+        // }
+        folder.forEach(item => {
+          menuData.path = parentData.path.concat([item.seq]) ?? [item.seq];
           menuItem.id = JSON.stringify(menuData);
-          // using emojis for ease of parsing, nbsp needed for chrome bug
-          menuItem.title = (folder[i].children
+          // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
+          menuItem.title = ((item instanceof Folder)
                          ? "📁 "
                          : "📝 ")
-                         + folder[i].name
+                         + item.name.replace("&", "&&")
                          + "\xA0\xA0\xA0\xA0";
           chrome.contextMenus.create(menuItem);
-          if (folder[i].children)
-            buildFolder(folder[i].children, menuData);
-        }
+          if (item instanceof Folder)
+            buildFolder(item.children, menuData);
+        });
       } else {
         menuData.path = parentData.path.concat(['empty']);
         menuItem.id = JSON.stringify(menuData);

@@ -1,6 +1,5 @@
-/* global Settings Space Snippet DataBucket buildContextMenus injectScript requestFrames */
-if( 'function' === typeof importScripts) {
-  importScripts('./shared.js');
+if(typeof importScripts === 'function') {
+  importScripts("./shared.js");
 }
 
 // init on installation
@@ -13,19 +12,18 @@ chrome.runtime.onInstalled.addListener(async () => {
   await settings.load();
 
   // legacy check for existing snippets, creating new space otherwise
-  const legacySpace = { name: 'snippets', synced: true };
+  const legacySpace = { name: "snippets", synced: true };
   const space = new Space(legacySpace);
   if (await space.load()) {
     const lastVersion = space.data.version.split('.');
     if ((parseInt(lastVersion[0]) == 0) && (parseInt(lastVersion[1]) < 9)) {
-      space.name = 'Snippets';
+      space.name = "Snippets";
       await space.shift(legacySpace);
       settings.defaultSpace = legacySpace;
       await settings.save();
     }
   } else {
-    space.pivot(settings.defaultSpace);
-    const data = await space.load();
+    const data = await space.pivot(settings.defaultSpace);
     if (!data) {
       await space.save();
     } else {
@@ -47,58 +45,6 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
     }
   };
   if (data.frameId) src.target.frameIds = [data.frameId];
-
-  // injection script workaround for full selectionText with line breaks
-  const getFullSelection = () => {
-    return window.getSelection().toString();
-  }
-
-  // injection script for pasting
-  const pasteSnippet = (snipText) => {
-    const selNode = document.activeElement;
-
-    // execCommand is deprecated but insertText is still supported in chrome as wontfix
-    // and produces the most desirable result. See par. 3 in:
-    // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
-    const pasted = document.execCommand('insertText', false, snipText);
-
-    // forward compatible alt code for inserting text, but kills the undo stack
-    if (!pasted) {
-      if (selNode.value != undefined) {
-        const selVal = selNode.value;
-        const selStart = selNode.selectionStart;
-        selNode.value = selVal.slice(0, selStart) + snipText + selVal.slice(selNode.selectionEnd);
-        selNode.selectionStart = selNode.selectionEnd = selStart + snipText.length;
-      } else {
-        const sel = window.getSelection();
-        const selRng = sel.getRangeAt(0);
-        selRng.deleteContents();
-        selRng.insertNode(document.createTextNode(snipText));
-        sel.collapseToEnd();
-      }
-    }
-
-    // event dispatch for editors that handle their own undo stack like stackoverflow
-    selNode.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'Shift',
-      view: window,
-      bubbles: true,
-      cancelable: true,
-    }));
-    selNode.dispatchEvent(new InputEvent('input', {
-      inputType: 'insertText',
-      data: snipText,
-      view: window,
-      bubbles: true,
-      cancelable: true,
-    }));
-    selNode.dispatchEvent(new KeyboardEvent('keyup', {
-      key: 'Shift',
-      view: window,
-      bubbles: true,
-      cancelable: true,
-    }));
-  }
 
   // get menu action and perform accordingly
   switch (menuData.action) {
@@ -124,7 +70,7 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
     let snipText;
     if (!res) {
       // possible cross-origin frame
-      const permRes = await requestFrames(tab.id);
+      const permRes = await requestFrames(menuData.action, src);
       if (!permRes) {
         snipText = data.selectionText;
       } else {
@@ -164,20 +110,18 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
       src.args = [snippet.content];
       const res = await injectScript(src);
       if (!res) {
-        console.log(menuData, snippet, res);
         // possible cross-origin frame
-        const permRes = await requestFrames(tab.id);
+        const permRes = await requestFrames(menuData.action, src);
         if (!permRes) {
           // Unable to request access, open window to requested selection for manual copy/paste
           const editor = chrome.windows.create({
             url: chrome.runtime.getURL("popup/popup.html?action=edit"
-              + "&folderPath=" + JSON.stringify(menuData.path.slice(0, -1))
+              + "&folderPath=" + menuData.path.slice(0, -1).join(',')
               + "&seq=" + menuData.path.slice(-1)),
             type: "popup",
             width: 700,
             height: 500
           });
-          console.log(editor);
           return editor;
         }
       }
@@ -198,7 +142,7 @@ chrome.storage.onChanged.addListener(async function(changes, namespace) {
     let change = changes[key].newValue;
     if (change && Object.hasOwn(change, 'children')) {
       change = new DataBucket(change);
-      await change.decompress();
+      await change.parse();
       buildContextMenus(new Space({ name: key, synced: (namespace == 'sync'), data: change }));
     }
   }
