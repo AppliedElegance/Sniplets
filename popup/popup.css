@@ -4,7 +4,7 @@ body {
   color: rgb(41, 41, 41);
   background: rgb(231, 227, 224);
   text-align: left;
-  min-width: 300px;
+  min-width: 400px;
   height: 100vh;
   display: flex;
   flex-direction: column;
@@ -78,8 +78,7 @@ svg {
 
 main {
   margin: 1px 0 2px;
-  min-width: 440px;
-  min-height: 485px;
+  min-height: 500px;
   flex-grow: 1;
 }
 

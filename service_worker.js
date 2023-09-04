@@ -23,12 +23,17 @@ chrome.runtime.onInstalled.addListener(async () => {
       await settings.save();
     }
   } else {
-    const data = await space.pivot(settings.defaultSpace);
-    if (!data) {
-      await space.save();
+    // check for current space in case of reinstall
+    let { currentSpace } = await getStorageData('currentSpace');
+    if (currentSpace) {
+      await space.pivot(currentSpace);
     } else {
-      buildContextMenus(space);
+      const data = await space.pivot(settings.defaultSpace);
+      if (!data) {
+        await space.save();
+      }
     }
+    buildContextMenus(space);
   }
 });
 
