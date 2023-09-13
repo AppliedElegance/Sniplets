@@ -2,19 +2,45 @@
 /* global CompressionStream DecompressionStream */
 /* eslint-disable no-unused-vars */
 
+/**
+ * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
+ * @param {string} message 
+ * @returns {string}
+ * @example
+ * // returns "Snippet"
+ * i18n("app_name")
+ */
+const i18n = (message) => chrome.i18n.getMessage(message);
+
 // Storage helpers. Sync must be explicitly enabled.
 /**
+ * Safely stores data to chrome.storage.local (default) or .sync.
+ * @param {Object.<string, *>} data - a { key: value } object to store
+ * @param {boolean} [synced=false] - Whether to store the data in local (false, default) or sync (true).
+ * @example
+ * // Saves data in sync storage under the name stored in the string variable: key
+ * await setStorageData({ [key]: value }, true);
+ */
+const setStorageData = (data, synced = false) => {
+  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return new Promise((resolve, reject) =>
+  bucket.set(data, () =>
+    chrome.runtime.lastError
+    ? reject(chrome.runtime.lastError)
+    : resolve()
+  ));
+}
+/**
  * Safely retrieves storage data from chrome.storage.local (default) or .sync.
- * @function getStorageData
- * @param {String} key - The key name for the stored data.
- * @param {Boolean} synced - Whether to look in sync (true) or local (false).
- * @returns {Promise} Stored data is returned as a { key: data } object.
+ * @param {string} key - The key name for the stored data.
+ * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
+ * @returns {Promise<Object.<string, *>>} Found data is returned as a { key: value } object.
  * @example
- * // returns { data: storedData } from local
- * await getStorageData('data');
+ * // returns { key: value } from local
+ * await getStorageData('key');
  * @example
- * // returns storedData from sync
- * const { data } = await getStorageData('data', true);
+ * // stores the value of the storage object in the key variable
+ * const { key } = await getStorageData('key', true);
  */
 const getStorageData = (key, synced = false) => {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
@@ -25,19 +51,14 @@ const getStorageData = (key, synced = false) => {
       : resolve(result)
     ));
 }
-// Example:
-// await setStorageData({ [data]: [someData] }, true);
-const setStorageData = (data, synced = false) => {
-  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return new Promise((resolve, reject) =>
-  bucket.set(data, () =>
-    chrome.runtime.lastError
-    ? reject(chrome.runtime.lastError)
-    : resolve()
-  ));
-}
-// Example:
-// await removeStorageData('data', true);
+/**
+ * Safely removes storage data from chrome.storage.local (default) or .sync.
+ * @param {string} key - The key name for the stored data.
+ * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
+ * @example
+ * // removes the { key: value } data from local storage
+ * await removeStorageData('key');
+ */
 const removeStorageData = (key, synced = false) => {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
@@ -48,69 +69,175 @@ const removeStorageData = (key, synced = false) => {
   ));
 }
 
-// Ensure injected script errors are always caught
+/**
+ * Ensure script injection errors including permission blocks are always handled gracefully.
+ * Requires the ["scripting"] permission.
+ * @param {Object} src - The details of the script to inject.
+ * @param {InjectionTarget} [src.target] - Details specifying the target into which to inject the script.
+ * @param {string[]} [src.files] - The path of the JS or CSS files to inject, relative to the extension's root directory. Exactly one of files and func must be specified.
+ * @param {void} [src.func] - A JavaScript function to inject. This function will be serialized, and then deserialized for injection. This means that any bound parameters and execution context will be lost. Exactly one of files and func must be specified.
+ * @param {*[]} [src.args] - The arguments to carry into a provided function. This is only valid if the func parameter is specified. These arguments must be JSON-serializable.
+ * @param {boolean} [src.injectImmediately] - Whether the injection should be triggered in the target as soon as possible. Note that this is not a guarantee that injection will occur prior to page load, as the page may have already loaded by the time the script reaches the target.
+ * @param {ExecutionWorld} [src.world] - The JavaScript "world" to run the script in. Defaults to ISOLATED.
+ * @returns {Promise<InjectionResult[]>|boolean}
+ */
 const injectScript = async (src) => {
   return chrome.scripting.executeScript(src)
   .catch((e) => { return false; });
 }
 
-
-// injection script workaround for full selectionText with line breaks
+/**
+ * Injection script workaround for full selectionText with line breaks
+ */
 const getFullSelection = () => {
   return window.getSelection().toString();
 }
 
-// injection script for pasting
-const pasteSnippet = (snipText) => {
+/**
+ * Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
+ */
+const pasteSnippet = async ({ text, nosubst = false }) => {
+  // get clicked element
   const selNode = document.activeElement;
 
-  // execCommand is deprecated but insertText is still supported in chrome as wontfix
-  // and produces the most desirable result. See par. 3 in:
-  // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
-  if (selNode.value != undefined) {
-    const pasted = document.execCommand('insertText', false, snipText);
-    // forward-compatible alt code, kills the undo stack
-    if (!pasted) {
-      const selVal = selNode.value;
-      const selStart = selNode.selectionStart;
-      selNode.value = selVal.slice(0, selStart) + snipText + selVal.slice(selNode.selectionEnd);
-      selNode.selectionStart = selNode.selectionEnd = selStart + snipText.length;
+  // set up paste code
+  const paste = (text) => {
+    selNode.focus
+    // execCommand is deprecated but insertText is still supported in chrome as wontfix
+    // and produces the most desirable result. See par. 3 in:
+    // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
+    if (selNode.value !== undefined) {
+      const pasted = document.execCommand('insertText', false, text);
+      // forward-compatible alt code, kills the undo stack
+      if (!pasted) {
+        const selVal = selNode.value;
+        const selStart = selNode.selectionStart;
+        selNode.value = selVal.slice(0, selStart) + text + selVal.slice(selNode.selectionEnd);
+        selNode.selectionStart = selNode.selectionEnd = selStart + text.length;
+      }
+    } else {
+      // paste into contenteditable as rich text (plain-text fields fall back automatically)
+      const pasted = document.execCommand('insertHTML', false, text);
+      // forward-compatible alt code, kills the undo stack
+      if (!pasted) {
+        const sel = window.getSelection();
+        const selRng = sel.getRangeAt(0);
+        selRng.deleteContents();
+        selRng.insertNode(document.createTextNode(text));
+        sel.collapseToEnd();
+      }
     }
-  } else {
-    // paste into contenteditable as rich text (plain-text fields fall back automatically)
-    const pasted = document.execCommand('insertHTML', false, snipText);
-    // forward-compatible alt code, kills the undo stack
-    if (!pasted) {
-      const sel = window.getSelection();
-      const selRng = sel.getRangeAt(0);
-      selRng.deleteContents();
-      selRng.insertNode(document.createTextNode(snipText));
-      sel.collapseToEnd();
-    }
+
+    // event dispatch for editors that handle their own undo stack like stackoverflow
+    selNode.dispatchEvent(new KeyboardEvent('keydown', {
+      ctrlKey: true,
+      key: 'v',
+      view: window,
+    }));
+    selNode.dispatchEvent(new InputEvent('input', {
+      inputType: 'insertText',
+      data: text,
+      view: window,
+    }));
+    selNode.dispatchEvent(new KeyboardEvent('keyup', {
+      ctrlKey: true,
+      key: 'v',
+      view: window,
+    }));
   }
 
-  // event dispatch for editors that handle their own undo stack like stackoverflow
-  selNode.dispatchEvent(new KeyboardEvent('keydown', {
-    ctrlKey: true,
-    key: 'v',
-    view: window,
-    bubbles: true,
-    cancelable: true,
-  }));
-  selNode.dispatchEvent(new InputEvent('input', {
-    inputType: 'insertText',
-    data: snipText,
-    view: window,
-    bubbles: true,
-    cancelable: true,
-  }));
-  selNode.dispatchEvent(new KeyboardEvent('keyup', {
-    ctrlKey: true,
-    key: 'v',
-    view: window,
-    bubbles: true,
-    cancelable: true,
-  }));
+  // TODO: replace modal with popup so the selection won't lose focus
+  // // process custom fields
+  // const params = {};
+  // // get custom parameters, all builtins should already be replaced
+  // for (let match of text.matchAll(/\$\[(.+?)(?:\{(.+?)\})?\]/g)) {
+  //   if (match[1] in params) continue;
+  //   if (match[2]) {
+  //     const defs = match[2].split("|");
+  //     params[match[1]] = defs;
+  //   } else {
+  //     params[match[1]] = [""];
+  //   }
+  // }
+  // if (!nosubst && (params !== {})) {
+  //   // generate modal for getting values
+  //   const modal = document.createElement("div");
+  //   modal.style.zIndex = "9999";
+  //   modal.style.position = "fixed";
+  //   modal.style.top = "0";
+  //   modal.style.left = "0";
+  //   modal.style.width = "100vw";
+  //   modal.style.height = "100vh";
+  //   modal.style.transition = "all 0.3s ease";
+  //   modal.style.display = "flex";
+  //   modal.style.alignItems = "center";
+  //   modal.style.justifyContent = "center";
+  //   const modalBg = document.createElement("div");
+  //   modalBg.style.cssText = "position: absolute; width: 100%; height: 100%; background: black;";
+  //   modal.appendChild(modalBg);
+  //   const modalCard = document.createElement("div");
+  //   modalCard.style.cssText = "position: relative; border-radius: 10px; background: #fff; padding: 30px;";
+  //   const modalParams = [];
+  //   for (let param in params) {
+  //     const modalParam = document.createElement("div");
+  //     const modalLabel = document.createElement("label");
+  //     modalLabel.htmlFor = "snippets-" + param;
+  //     modalLabel.appendChild(document.createTextNode(param));
+  //     modalLabel.style.display = "inline-block";
+  //     modalLabel.style.width = "100px";
+  //     modalParam.appendChild(modalLabel);
+  //     let modalInput;
+  //     if (params[param].length > 1) {
+  //       modalInput = document.createElement("select");
+  //       params[param].forEach((value) => {
+  //         modalInput.add(new Option(value, value));
+  //       })
+  //     } else {
+  //       modalInput = document.createElement("input");
+  //       modalInput.value = params[param][0] || "";
+  //     }
+  //     modalInput.name = "snippets-" + param;
+  //     modalInput.id = "snippets-" + param;
+  //     modalInput.style.width = "300px";
+  //     modalParam.appendChild(modalInput);
+  //     modalCard.appendChild(modalParam);
+  //     // save for retrieving values
+  //     modalParams.push(modalParam);
+  //   }
+  //   const modalActions = document.createElement("div");
+  //   modalActions.style.textAlign = "right";
+  //   const modalCancel = document.createElement("button");
+  //   modalCancel.appendChild(document.createTextNode("Cancel"));
+  //   modalCancel.style.width = "100px";
+  //   modalCancel.addEventListener('click', () => {
+  //     modal.remove();
+  //   });
+  //   modalActions.appendChild(modalCancel);
+  //   modalActions.appendChild(document.createTextNode(" "));
+  //   const modalSubmit = document.createElement("button");
+  //   modalSubmit.appendChild(document.createTextNode("Submit"));
+  //   modalSubmit.style.width = "100px";
+  //   modalSubmit.addEventListener('click', () => {
+  //     // retrieve values
+  //     modalParams.forEach((element) => {
+  //       const input = element.lastChild;
+  //       params[input.id.slice(9)] = input.value;
+  //     });
+  //     text = text.replaceAll(/\$\[(.+?)(?:\{.+?\})?\]/g, (match, p1) => {
+  //       return params[p1];
+  //     });
+  //     // complete paste action and remove modal
+  //     paste(text);
+  //     modal.remove();
+  //   });
+  //   modalActions.appendChild(modalSubmit);
+  //   modalCard.appendChild(modalActions);
+  //   modal.appendChild(modalCard);
+  //   document.body.appendChild(modal);
+  //   return;
+  // }
+
+  paste(text);
 }
 
 // Request permissions when necessary for cross-origin iframes
@@ -131,7 +258,7 @@ const requestFrames = async (action, src) => {
   if (!origins) return origins;
   // popup required to request permission
   await setStorageData({ origins: origins[0].result });
-  // pass requested script in case successfull, functions can't be passed
+  // pass requested script in case successfull; note that functions can't be passed
   src.func = action;
   await setStorageData({ src: src });
   const requestor = await chrome.windows.create({
@@ -143,6 +270,9 @@ const requestFrames = async (action, src) => {
   return requestor;
 }
 
+/**
+ * Base constructor for folders, snippets and any future items
+ */
 class TreeItem {
   constructor({ name, seq, label } = {}) {
     this.name = name || "New Tree Item";
@@ -150,6 +280,9 @@ class TreeItem {
     this.label = label || undefined;
   }
 }
+/**
+ * Folders contain tree items and can be nested.
+ */
 class Folder extends TreeItem {
   constructor({ name, seq, children, label } = {}) {
     super({
@@ -160,6 +293,9 @@ class Folder extends TreeItem {
     this.children = children || [];
   }
 }
+/**
+ * Snippets are basic text blocks that can be pasted
+ */
 class Snippet extends TreeItem {
   constructor({ name, seq, content, label, shortcut, sourceURL } = {}) {
     super({
@@ -174,15 +310,23 @@ class Snippet extends TreeItem {
 }
 // Basic snippets data bucket
 class DataBucket {
-  constructor({ version, timestamp, children } = {}) {
-    this.version = version || "0.9";
+  constructor({ version, timestamp, children, counters } = {}) {
+    this.version = version || "1.0";
     this.timestamp = timestamp || Date.now();
     this.children = children || [];
+    this.counters = counters || { startVal: 0 };
+
+    // in case a restored backup is corrupt, ensure a startVal is available
+    if (this.counters.startVal === undefined) this.counters.startVal = 0;
   }
 
+  /**
+   * Compress root folder (children) using browser gzip compression
+   * @returns {boolean}
+   */
   async compress() {
     // check if already compressed
-    if (typeof this.children == 'string') {
+    if (typeof this.children === 'string') {
       console.warn("Data is already in compressed form");
       return false;
     }
@@ -217,9 +361,13 @@ class DataBucket {
     return items;
   }
 
+  /**
+   * Decompress root folder (children) and cast objects as their appropriate TreeItem
+   * @returns {boolean}
+   */
   async parse() {
     // check if already compressed and otherwise just cast contents appropriately
-    if (typeof this.children != 'string') {
+    if (typeof this.children !== 'string') {
       this.children = this.restructure();
       return false;
     }
@@ -242,6 +390,11 @@ class DataBucket {
     return true;
   }
 
+  /**
+   * Check if the data is small enough to fit in a sync storage bucket with the given key name.
+   * @param {string} name Key that will be used for retrieving the data (factored into the browser's storage limits)
+   * @returns 
+   */
   syncable(name) {
     const size = new Blob([JSON.stringify({ [name]: this.data })]).size;
     const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
@@ -249,7 +402,9 @@ class DataBucket {
   }
 }
 
-// Space object stores snippet groupings in buckets
+/**
+ * Space object stores snippet groupings in buckets.
+ */
 class Space {
   constructor({ name, synced, data } = {}) {
     this.synced = synced || false;
@@ -288,29 +443,6 @@ class Space {
     return true;
   }
 
-  getItem(path) {
-    try {
-      let item = this.data;
-      for (let y of path) {
-        for (let x of item.children) {
-          if (x.seq == y) {
-            item = x;
-            break;
-          }
-        }
-      }
-      return item;
-    } catch (e) {
-      console.error("The path requested does not exist.", path, e);
-      return;
-    }
-  }
-
-  getFolderCount(folderPath = this.path) {
-    let folder = this.getItem(folderPath);
-    return folder.children.filter(item => item.children).length;
-  }
-
   addItem(item, folderPath = this.path) {
     let folder = this.getItem(folderPath).children;
     item.seq = folder.length + 1;
@@ -347,12 +479,272 @@ class Space {
       toFolder.children.splice(toSeq, 0,
         fromFolder.children.splice(fromSeq, 1)[0]);
       this.sequence(toFolder);
-      if(JSON.stringify(fromPath) != JSON.stringify(toPath))
+      if(JSON.stringify(fromPath) !== JSON.stringify(toPath))
         this.sequence(fromFolder);
     } catch (error) {
       console.error(error);
     }
     return fromItem;
+  }
+
+  getItem(path) {
+    try {
+      let item = this.data;
+      for (let y of path) {
+        for (let x of item.children) {
+          if (x.seq === y) {
+            item = x;
+            break;
+          }
+        }
+      }
+      return item;
+    } catch (e) {
+      console.error("The path requested does not exist.", path, e);
+      return;
+    }
+  }
+
+  async getProcessedSnippet(path) {
+    const locale = navigator.language;
+    const snip = this.getItem(path);
+    const folder = this.getItem(path.slice(0,-1))
+    let snipText = snip.content;
+    
+    // skip processing if Clippings [NOSUBST] flag is in the name
+    if (snip.name.slice(0,9) === "[NOSUBST]") return { text: snipText, nosubst: true };
+
+    // process counters, kept track internally to allow use across multiple snippets
+    let counterUse = false;
+    snipText = snipText.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
+      if (!counterUse) counterUse = true;
+      if (p1 in this.data.counters === false) {
+        this.data.counters[p1] = this.data.counters.startVal;
+      }
+      return this.data.counters[p1]++;
+    });
+    // save space if counters were used and thus incremented
+    if (counterUse) await this.save();
+    console.log(snipText);
+  
+    // process placeholders
+    snipText = snipText.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
+      if (p3) p3 = p3.split('|');
+      const now = new Date();
+  
+      // function for full date/time format string replacement (compatible with Clippings)
+      const formattedDateTime = (dateString, date) => {
+        // required for ordinal suffixes as not part of Intl yet
+        const pr = new Intl.PluralRules(locale, { type: "ordinal" });
+        const suffixes = {
+          "en": { "one": "st", "two": "nd", "few": "rd", "other": "th" }
+        }
+        const datePartsToObject = (obj, item) =>
+          (item.type === "literal") ? obj : (obj[item.type] = item.value, obj);
+  
+        // generate localized replacement objects for full replacement support
+        const longDate = new Intl.DateTimeFormat(locale, {
+          hourCycle: "h12",
+          weekday: "long", day: "numeric", month: "long",
+          hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3,
+          dayPeriod: "long", timeZoneName: "long", era: "long",
+        }).formatToParts(date).reduce(datePartsToObject, {});
+        const shortDate = new Intl.DateTimeFormat(locale, {
+          hourCycle: "h12",
+          weekday: "short", day: "numeric", month: "short",
+          hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 1,
+          timeZoneName: "short", era: "short",
+        }).formatToParts(date).reduce(datePartsToObject, {});
+        const paddedDate = new Intl.DateTimeFormat(locale, {
+          hourCycle: "h23",
+          year: "2-digit", month: "2-digit", day: "2-digit",
+          hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 2,
+          timeZoneName: "longOffset",
+        }).formatToParts(date).reduce(datePartsToObject, {});
+        // numeric date/times will only not be padded if loaded individually
+        const numericDate = new Intl.DateTimeFormat(locale, {
+          hourCycle: "h23", year: "numeric", hour: "numeric",
+        }).formatToParts(date).concat(new Intl.DateTimeFormat(locale, {
+          month: "numeric", minute: "numeric",
+        }).formatToParts(date).concat(new Intl.DateTimeFormat(locale, {
+          day: "numeric", second: "numeric", fractionalSecondDigits: 3,
+        }).formatToParts(date))).reduce(datePartsToObject, {});
+        // fix numeric 24 hours still being padded for some locals no matter how generated
+        if (numericDate.hour.length === 2) numericDate.hour = numericDate.hour.replace(/^0/, "");
+  
+        // replace each part of format string
+        dateString = dateString.replaceAll(/([a-zA-Z]*)(\.s+)?/g, (match, p1, p2) => {
+          // split seconds
+          if (p2) {
+            let seconds = "";
+            switch (p1) {
+              case "s":
+                seconds += numericDate.second;
+                break;
+            
+              case "ss":
+                seconds += paddedDate.second;
+                break;
+            
+              default:
+                seconds += p1;
+                break;
+            }
+            switch (p2) {
+              case ".s":
+                seconds += "." + shortDate.fractionalSecond;
+                break;
+            
+              case ".ss":
+                seconds += "." + paddedDate.fractionalSecond;
+                break;
+            
+              case ".sss":
+                seconds += "." + longDate.fractionalSecond;
+                break;
+            
+              default:
+                seconds += p2;
+                break;
+            }
+            return seconds;
+          }
+          // case sensitive matches
+          switch (match) {
+            case "m":
+              return numericDate.minute;
+            case "mm":
+              return paddedDate.minute;
+            case "M":
+              return numericDate.month;
+            case "MM":
+              return paddedDate.month;
+            case "h":
+              return shortDate.hour;
+            case "hh":
+              return longDate.hour;
+            case "H":
+              return numericDate.hour;
+            case "HH":
+              return paddedDate.hour;
+            case "a":
+              return shortDate.dayPeriod;
+            case "A":
+              return shortDate.dayPeriod.toUpperCase();
+            default:
+              break;
+            }
+          // case insensitive matches required for clippings compatibility
+          switch (match.toUpperCase()) {
+          case "D":
+            return numericDate.day;
+          case "DD":
+            return paddedDate.day;
+          case "DDD":
+            return shortDate.weekday;
+          case "DDDD":
+            return longDate.weekday;
+          case "DO":
+            return numericDate.day + (suffixes[locale.slice(0,2)][pr.select(parseInt(numericDate.day))] || "");
+          case "MMM":
+            return shortDate.month;
+          case "MMMM":
+            return longDate.month;
+          case "Y":
+            return paddedDate.slice(-1);
+          case "YY":
+            return paddedDate.year;
+          case "YYY":
+            return numericDate.year.slice(-3);
+          case "YYYY":
+            return numericDate.year;
+          case "GG":
+            return shortDate.era;
+          case "S":
+            return numericDate.second;
+          case "SS":
+            return paddedDate.second;
+          case "Z":
+            return paddedDate.timeZoneName;
+          case "ZZ":
+            return paddedDate.timeZoneName.replaceAll(/[^+\-\d]/g, "");
+          default:
+            break;
+          }
+          return match;
+        });
+        return dateString;
+      }
+      const UA = navigator.userAgent;
+      let host;
+      switch (p1.toUpperCase()) {
+        case "DATE":
+          if (p2) {
+            // shorthand date options
+            if (p2.toUpperCase() === "FULL") return new Intl.DateTimeFormat(locale, {
+              dateStyle: "full",
+            }).format(now);
+            if (p2.toUpperCase() === "LONG") return new Intl.DateTimeFormat(locale, {
+              dateStyle: "long"
+            }).format(now);
+            if (p2.toUpperCase() === "MEDIUM") return new Intl.DateTimeFormat(locale, {
+              dateStyle: "medium"
+            }).format(now);
+            if (p2.toUpperCase() === "SHORT") return new Intl.DateTimeFormat(locale, {
+              dateStyle: "short"
+            }).format(now);
+  
+            return formattedDateTime(p2, now);
+          }
+          return now.toLocaleDateString();
+  
+        case "TIME":
+          if (p2) {
+            if (p2 === "full") return new Intl.DateTimeFormat(locale, {
+              timeStyle: "full"
+            }).format(now);
+            if (p2 === "long") return new Intl.DateTimeFormat(locale, {
+              timeStyle: "long"
+            }).format(now);
+            if (p2 === "medium") return new Intl.DateTimeFormat(locale, {
+              timeStyle: "medium"
+            }).format(now);
+            if (p2 === "short") return new Intl.DateTimeFormat(locale, {
+              timeStyle: "short"
+            }).format(now);
+  
+            return formattedDateTime(p2, now);
+          }
+          return now.toLocaleTimeString();
+  
+        case "HOSTAPP":
+          host = UA.match(/Edg\/([0-9.]+)/);
+          if (host) return "Edge " + host[1];
+          host = UA.match(/Chrome\/([0-9.]+)/);
+          if (host) return "Chrome " + host[1];
+          return match;
+  
+        case "UA":
+          return UA;
+  
+        case "NAME":
+          return snip.name;
+  
+        case "FOLDER":
+          return folder.name;
+      
+        default:
+          // popup requesting input values
+          return match;
+      }
+    });
+
+    return { text: snipText, nosubst: false };
+  }
+
+  getFolderCount(folderPath = this.path) {
+    let folder = this.getItem(folderPath);
+    return folder.children.filter(item => item.children).length;
   }
 
   sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'], } = {}) {
@@ -523,15 +915,6 @@ const buildContextMenus = async (space) => {
       // clone parent object to avoid polluting it
       let menuData = structuredClone(parentData);
       if (folder.length) {
-        // check for folders on top
-        // const settings = new Settings();
-        // await settings.load();
-        // if (settings.sort.foldersOnTop) {
-        //   folder.sort((a, b) => (a instanceof Folder)
-        //     ? ((b instanceof Folder) ? 0 : -1)
-        //     : ((b instanceof Folder) ? 1 : 0)
-        //   );
-        // }
         folder.forEach(item => {
           menuData.path = parentData.path.concat([item.seq]) ?? [item.seq];
           menuItem.id = JSON.stringify(menuData);

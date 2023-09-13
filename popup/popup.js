@@ -64,7 +64,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
       const hasSubfolders = folder => Array.isArray(folder)
                           ? (folder.reduce((or, c) => or + (c instanceof Folder ? 1 : 0), 0) > 0)
                           : false;
-      const isRoot = level.join('-') == 'root';
+      const isRoot = level.join('-') === 'root';
       return `
         <ul id="folder-${ level.join('-') }">${ (!isRoot) ? `
           <li data-seq=".5" data-path="${ level.join(',') }" class="delimiter"></li>` : `` }${
@@ -239,7 +239,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
 // auto-adjust the heights of input textareas
 function adjustTextArea(textarea, limit = false) {
   textarea = textarea.target ?? textarea; // get target for events
-  if (textarea.tagName.toLowerCase() == 'textarea') {
+  if (textarea.tagName.toLowerCase() === 'textarea') {
     let ch = parseInt(textarea.clientHeight, 10) ?? 0;
     let sh = textarea.scrollHeight;
     // only expand or collapse as necessary
@@ -271,7 +271,7 @@ async function buttonClick(event) {
   }
   // find parent item
   let item = target;
-  while (item && (item.tagName != 'LI')) {
+  while (item && (item.tagName !== 'LI')) {
     item = item.parentElement;
   }
 
@@ -293,7 +293,7 @@ async function buttonClick(event) {
   
   switch (params.action) {
   case 'menu': {
-    if ($(params.dropdown).style.display == 'block') {
+    if ($(params.dropdown).style.display === 'block') {
       clearMenus();
     } else {
       clearMenus();
@@ -371,7 +371,7 @@ async function buttonClick(event) {
   case 'toggle-sync': {
     if (await space.shift({ synced: !space.synced })) {
       // update current/default spaces if necessary
-      if (settings.defaultSpace.name == space.name) {
+      if (settings.defaultSpace.name === space.name) {
         settings.defaultSpace.synced = space.synced;
         settings.save();
       }
@@ -479,7 +479,7 @@ async function buttonClick(event) {
     break; }
   }
 
-  if (params.action != 'menu') {
+  if (params.action !== 'menu') {
     clearMenus();
   }
 }
@@ -503,9 +503,9 @@ function inputChange(event) {
       case 'restore': {
         try {
           var obj = JSON.parse(reader.result);
-          if (obj.createdBy.slice(0, 9) == "Clippings") {
+          if (obj.createdBy.slice(0, 9) === "Clippings") {
             space.data.children = space.data.restructure(obj.userClippingsRoot);
-          } else if (obj.createdBy == "Snippets") {
+          } else if (obj.createdBy === "Snippets") {
             switch (obj.version) {
             case "0.8":
               space.data = space.data.restructure(obj.data);
@@ -551,7 +551,7 @@ function inputActions(event) {
   // helpers
   const target = event.target;
   let item = target;
-  while (item && (item.tagName != 'LI')) {
+  while (item && (item.tagName !== 'LI')) {
     item = item.parentElement;
   }
   const pq = q => item.querySelector(q);
@@ -671,14 +671,14 @@ function handleDragDrop(event) {
       };
       if (target.classList.contains('folder')) {
         // no need to push seq for root
-        if (mover.toPath[0] == "root") {
+        if (mover.toPath[0] === "root") {
           mover.toPath = [];
         } else {
           mover.toPath.push(mover.toSeq);
         }
         //make sure we're not trying to put a folder inside its child
         if (mover.toPath.length > mover.fromPath.length
-        && mover.toPath.slice(0, mover.fromPath.length + 1).join() == mover.fromPath.concat([mover.fromSeq]).join()) {
+        && mover.toPath.slice(0, mover.fromPath.length + 1).join() === mover.fromPath.concat([mover.fromSeq]).join()) {
           alert("Sorry, you can't put a folder inside its child folder.");
           return dragEnd();
         } else {
@@ -686,13 +686,13 @@ function handleDragDrop(event) {
         }
       } else {
         // adjust resort based on position
-        if (mover.toSeq % 1 != 0)
+        if ((mover.toSeq % 1) !== 0)
           mover.toSeq = Math.trunc(mover.toSeq)
                       + ((mover.toSeq > mover.fromSeq)
                       ? 0
                       : 1);
         // make sure we're not sorting to self in a folder list
-        if (mover.fromSeq == mover.toSeq)
+        if (mover.fromSeq === mover.toSeq)
           return dragEnd();
       }
       space.moveItem(mover);

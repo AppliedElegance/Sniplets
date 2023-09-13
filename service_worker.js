@@ -16,7 +16,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   const space = new Space(legacySpace);
   if (await space.load()) {
     const lastVersion = space.data.version.split('.');
-    if ((parseInt(lastVersion[0]) == 0) && (parseInt(lastVersion[1]) < 9)) {
+    if ((parseInt(lastVersion[0]) === 0) && (parseInt(lastVersion[1]) < 9)) {
       space.name = "Snippets";
       await space.shift(legacySpace);
       settings.defaultSpace = legacySpace;
@@ -42,6 +42,12 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
   // get details from menu item and ignore "empty" ones
   const menuData = JSON.parse(data.menuItemId);
   if (!menuData.action) return;
+  // get space for handling actions
+  const space = new Space(menuData.space);
+  if (!(await space.load())) return;
+  // get settings for storage
+  const settings = new Settings();
+  await settings.load();
     
   // set up injection object
   const src = {
@@ -54,10 +60,6 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
   // get menu action and perform accordingly
   switch (menuData.action) {
   case 'snip': {
-    // get settings for storage
-    const settings = new Settings();
-    await settings.load();
-
     // create snippet title from selectionText which does not include newlines
     let snipName = data.selectionText;
     if (snipName.length > 27) {
@@ -90,8 +92,6 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
     // add snip to space
     let snip = new Snippet({ name: snipName, content: snipText });
     if (settings.control.saveSource) snip.sourceURL = data.pageUrl;
-    let space = new Space(menuData.space);
-    await space.load();
     snip = space.addItem(snip);
     await space.save();
     
@@ -106,29 +106,25 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
   }
 
   case 'paste': {
-    let space = new Space(menuData.space);
-    await space.load();
-    let snippet = space.getItem(menuData.path);
-    if (snippet.content) {
-      // inject paste code
-      src.func = pasteSnippet;
-      src.args = [snippet.content];
-      const res = await injectScript(src);
-      if (!res) {
-        // possible cross-origin frame
-        const permRes = await requestFrames(menuData.action, src);
-        if (!permRes) {
-          // Unable to request access, open window to requested selection for manual copy/paste
-          const editor = chrome.windows.create({
-            url: chrome.runtime.getURL("popup/popup.html?action=edit"
-              + "&folderPath=" + menuData.path.slice(0, -1).join(',')
-              + "&seq=" + menuData.path.slice(-1)),
-            type: "popup",
-            width: 700,
-            height: 500
-          });
-          return editor;
-        }
+    const snip = await space.getProcessedSnippet(menuData.path);
+    // inject paste code
+    src.func = pasteSnippet;
+    src.args = [snip];
+    const res = await injectScript(src);
+    if (!res) {
+      // possible cross-origin frame
+      const permRes = await requestFrames(menuData.action, src);
+      if (!permRes) {
+        // Unable to request access, open window to requested selection for manual copy/paste
+        const editor = chrome.windows.create({
+          url: chrome.runtime.getURL("popup/popup.html?action=edit"
+            + "&folderPath=" + menuData.path.slice(0, -1).join(',')
+            + "&seq=" + menuData.path.slice(-1)),
+          type: "popup",
+          width: 700,
+          height: 500
+        });
+        return editor;
       }
     }
     break;
@@ -148,7 +144,7 @@ chrome.storage.onChanged.addListener(async function(changes, namespace) {
     if (change && Object.hasOwn(change, 'children')) {
       change = new DataBucket(change);
       await change.parse();
-      buildContextMenus(new Space({ name: key, synced: (namespace == 'sync'), data: change }));
+      buildContextMenus(new Space({ name: key, synced: (namespace === 'sync'), data: change }));
     }
   }
 });

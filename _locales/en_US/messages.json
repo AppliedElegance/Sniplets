@@ -1,10 +1,2 @@
 {
-  "appName": {
-    "message": "Snippets",
-    "description": "Name of the extension"
-  },
-  "appDesc": {
-    "message": "Snip, save, organize and insert editable text from the context menu. Backup compatible with Clippings.",
-    "description": "Plain <132 character description of the extension highlighting name of Firefox rival"
-  }
 }
