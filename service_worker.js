@@ -39,7 +39,7 @@ chrome.runtime.onInstalled.addListener(async (event) => {
 });
 
 chrome.runtime.onStartup.addListener(async (event) => {
-  // rebuild context menus in case of crash or CCCleaner deletion
+  // rebuild context menus in case of crash or CCleaner deletion
   console.log(event);
   const { currentSpace } = await getStorageData('currentSpace');
   const space = new Space(currentSpace);
