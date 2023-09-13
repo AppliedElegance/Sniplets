@@ -279,15 +279,16 @@ async function buttonClick(event) {
   const pq = query => item.querySelector(query);
   if (document.activeElement !== document.body)
     document.activeElement.blur();
-  let url = new URL(window.location),
-      params = target.dataset;
+  const url = new URL(window.location);
+  const params = target.dataset;
   let setCurrentSpace = async function () {
-    let data = { currentSpace: {
+    const data = { currentSpace: {
       name: space.name,
       synced: space.synced
     }};
-    if (settings.view.rememberPath)
+    if (settings.view.rememberPath) {
       data.currentSpace.path = space.path;
+    }
     await setStorageData(data);
   }
   

@@ -492,7 +492,8 @@ class Space {
       let item = this.data;
       for (let y of path) {
         for (let x of item.children) {
-          if (x.seq === y) {
+          // possible type difference, loosy comparison
+          if (x.seq == y) {
             item = x;
             break;
           }
@@ -525,7 +526,6 @@ class Space {
     });
     // save space if counters were used and thus incremented
     if (counterUse) await this.save();
-    console.log(snipText);
   
     // process placeholders
     snipText = snipText.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
