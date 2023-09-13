@@ -322,7 +322,6 @@ class DataBucket {
 
   /**
    * Compress root folder (children) using browser gzip compression
-   * @returns {boolean}
    */
   async compress() {
     // check if already compressed
@@ -363,7 +362,6 @@ class DataBucket {
 
   /**
    * Decompress root folder (children) and cast objects as their appropriate TreeItem
-   * @returns {boolean}
    */
   async parse() {
     // check if already compressed and otherwise just cast contents appropriately

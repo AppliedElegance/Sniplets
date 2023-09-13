@@ -39,7 +39,7 @@ chrome.runtime.onInstalled.addListener(async (event) => {
 });
 
 chrome.runtime.onStartup.addListener(async (event) => {
-  // check if context menu is still there, otherwise rebuild
+  // rebuild context menus in case of crash or CCCleaner deletion
   console.log(event);
   const { currentSpace } = await getStorageData('currentSpace');
   const space = new Space(currentSpace);

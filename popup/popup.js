@@ -281,7 +281,7 @@ async function buttonClick(event) {
     document.activeElement.blur();
   const url = new URL(window.location);
   const params = target.dataset;
-  let setCurrentSpace = async function () {
+  const setCurrentSpace = async function () {
     const data = { currentSpace: {
       name: space.name,
       synced: space.synced
