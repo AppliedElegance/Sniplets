@@ -3,7 +3,8 @@ if(typeof importScripts === 'function') {
 }
 
 // init on installation
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (event) => {
+  console.log(event);
   // force refresh
   self.skipWaiting();
 
@@ -24,7 +25,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     }
   } else {
     // check for current space in case of reinstall
-    let { currentSpace } = await getStorageData('currentSpace');
+    const { currentSpace } = await getStorageData('currentSpace');
     if (currentSpace) {
       await space.pivot(currentSpace);
     } else {
@@ -33,6 +34,16 @@ chrome.runtime.onInstalled.addListener(async () => {
         await space.save();
       }
     }
+    buildContextMenus(space);
+  }
+});
+
+chrome.runtime.onStartup.addListener(async (event) => {
+  // check if context menu is still there, otherwise rebuild
+  console.log(event);
+  const { currentSpace } = await getStorageData('currentSpace');
+  const space = new Space(currentSpace);
+  if (await space.load()) {
     buildContextMenus(space);
   }
 });
