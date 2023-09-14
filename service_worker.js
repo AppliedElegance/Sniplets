@@ -3,8 +3,7 @@ if(typeof importScripts === 'function') {
 }
 
 // init on installation
-chrome.runtime.onInstalled.addListener(async (event) => {
-  console.log(event);
+chrome.runtime.onInstalled.addListener(async () => {
   // force refresh
   self.skipWaiting();
 
@@ -38,9 +37,8 @@ chrome.runtime.onInstalled.addListener(async (event) => {
   }
 });
 
-chrome.runtime.onStartup.addListener(async (event) => {
+chrome.runtime.onStartup.addListener(async () => {
   // rebuild context menus in case of crash or CCleaner deletion
-  console.log(event);
   const { currentSpace } = await getStorageData('currentSpace');
   const space = new Space(currentSpace);
   if (await space.load()) {
