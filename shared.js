@@ -114,7 +114,6 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
     // and produces the most desirable result. See par. 3 in:
     // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
     let pasted = false
-    console.log(selNode, selNode.value);
     if (selNode.value !== undefined) {
       pasted = document.execCommand('insertText', false, text);
       // forward-compatible alt code, kills the undo stack
@@ -127,56 +126,57 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
     } else {
       // paste into contenteditable as rich text accounting for newlines when not plain-text
       if (selNode.contentEditable === "true") {
-        console.log(selNode);
         /**
          * email parser regex breakdown with an added check to ensure it isn't already linked:
-         * (?<!<[^>]*) - ignore emails inside tag defs
-         * (?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable starting characters
-         * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]* - allowable characters
-         * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable ending characters
-         * |[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]) - allowable single character
-         * @ - defining email character
-         * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - url
-         * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
+         * 
+         * * (?<!<[^>]*) - ignore emails inside tag defs
+         * * (?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable starting characters
+         * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]* - allowable characters
+         * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable ending characters
+         * * |[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]) - allowable single character
+         * * @ - defining email character
+         * * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - url
+         * * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
          */
-        text = text.replaceAll(/(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig, (match) => {
-          console.log(match);
+        const rxEmail = /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig;
+        text = text.replaceAll(rxEmail, (match) => {
           return `<a href="mailto:${ match }">${ match }</a>`;
         })
         /**
          * url parser regex breakdown with an added check to ensure it isn't already linked:
-         * (?<!<[^>]*| - ignore urls inside tag defs
-         * [.+@a-zA-Z0-9]) - ignore emails pt1
-         * (?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)? - only match openable urls if a protocol is included (file has one more slash indicating the root folder)
-         * (?:(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+) - find url sequences or ipv4 addresses (ipv6 is too complicated for a single line regex)
-         * (?::[0-9]+)? - include port references
-         * (?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)? - include allowed characters in subfolders
-         * (?![.+@a-zA-Z0-9]| - ignore emails pt2
-         * (?!<a).*?<\/a>) - ignore urls that are inside an anchor tag
+         * 
+         * * (?<!<[^>]*| - ignore urls inside tag defs
+         * * [.+@a-zA-Z0-9]) - ignore emails pt1
+         * * (?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)? - only match openable urls if a protocol is included (file has one more slash indicating the root folder)
+         * * (?:(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+) - find url sequences or ipv4 addresses (ipv6 is too complicated for a single line regex)
+         * * (?::[0-9]+)? - include port references
+         * * (?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)? - include allowed characters in subfolders
+         * * (?![.+@a-zA-Z0-9]| - ignore emails pt2
+         * * (?!<a).*?<\/a>) - ignore urls that are inside an anchor tag
          */
-        text = text.replaceAll(/(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig, (match) => {
+        const rxURL = /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig;
+        text = text.replaceAll(rxURL, (match) => {
           const matchURL = new URL((!match.match(/(?:https?|ftp|chrome|edge|about|file\/):\/\//)) ? "http://" + match : match);
           return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
         })
         /**
          * newline parser Regex breakdown ignoring those after a block level tag:
-         * (?<!<\/? - don't match if specific tags are found before a newline
-         * (?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+? - inline tags are okay to add breaks after
-         * (?:>| .*>)) - allow for opening tags with options
-         * (?:\r\n|\r|\n) - match newlines no matter how formatted (should always be \n, but just in case)
+         * 
+         * * (?<!<\/? - don't match if specific tags are found before a newline
+         * * (?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+? - inline tags are okay to add breaks after
+         * * (?:>| .*>)) - allow for opening tags with options
+         * * (?:\r\n|\r|\n) - match newlines no matter how formatted (should always be \n, but just in case)
          */
-        console.log(text);
-        text = text.replaceAll(/(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g, (match) => {
-          console.log(match);
+        const rxNewline = /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g;
+        text = text.replaceAll(rxNewline, (match) => {
           return "<br>" + match;
         });
-        console.log(text);
       }
 
       // note that ckeditor does not allow any programatic inputs unless in the code layout
-      if (!selNode.classList.contains("ck")) {
-        pasted = document.execCommand('insertHTML', false, text);
-      }
+      if (selNode.classList.contains("ck")) return "ckeditor";
+
+      pasted = document.execCommand('insertHTML', false, text);
       // forward-compatible alt code, kills the undo stack
       if (!pasted) {
         const sel = window.getSelection();
@@ -197,6 +197,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
     })
 
     selNode.dispatchEvent(new KeyboardEvent('keyup', keyEvent));
+    return true;
   }
 
   // TODO: replace modal with popup so the selection won't lose focus
@@ -290,7 +291,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
   //   return;
   // }
 
-  paste(text);
+  return paste(text);
 }
 
 // Request permissions when necessary for cross-origin iframes

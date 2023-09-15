@@ -120,21 +120,22 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
     src.func = pasteSnippet;
     src.args = [snip];
     const res = await injectScript(src);
+    let permRes = true;
     if (!res) {
       // possible cross-origin frame
-      const permRes = await requestFrames(menuData.action, src);
-      if (!permRes) {
-        // Unable to request access, open window to requested selection for manual copy/paste
-        const editor = chrome.windows.create({
-          url: chrome.runtime.getURL("popup/popup.html?action=edit"
-            + "&folderPath=" + menuData.path.slice(0, -1).join(',')
-            + "&seq=" + menuData.path.slice(-1)),
-          type: "popup",
-          width: 700,
-          height: 500
-        });
-        return editor;
-      }
+      permRes = await requestFrames(menuData.action, src);
+    }
+    if (res[0].result === "ckeditor" || !permRes) {
+      // Unable to paste, open window to requested selection for manual copy/paste
+      const editor = chrome.windows.create({
+        url: chrome.runtime.getURL("popup/popup.html?action=edit"
+          + "&folderPath=" + menuData.path.slice(0, -1).join(',')
+          + "&seq=" + menuData.path.slice(-1)),
+        type: "popup",
+        width: 700,
+        height: 500
+      });
+      return editor;
     }
     break;
   }
