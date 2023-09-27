@@ -125,10 +125,17 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
       // possible cross-origin frame
       permRes = await requestFrames(menuData.action, src);
     }
-    if (res[0].result === "ckeditor" || !permRes) {
-      // Unable to paste, open window to requested selection for manual copy/paste
+    if (res[0].result.pasted === false || !permRes) {
+      // // Unable to paste, copy result text to clipboard for manual paste
+      // await navigator.clipboard.write([new ClipboardItem({
+      //   "text/plain": res[0].result.text,
+      //   "text/html": res[0].result.richText,
+      // })]);
+      // // notify user of result
+      // chrome.notifications.create()
+      // open window to requested selection for manual copy/paste
       const editor = chrome.windows.create({
-        url: chrome.runtime.getURL("popup/popup.html?action=edit"
+        url: chrome.runtime.getURL("popup/popup.html?action=copy"
           + "&folderPath=" + menuData.path.slice(0, -1).join(',')
           + "&seq=" + menuData.path.slice(-1)),
         type: "popup",

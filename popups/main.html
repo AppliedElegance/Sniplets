@@ -5,23 +5,13 @@
 <head>
   <title>Snippets</title>
   <meta charset="utf-8" />
-  <link rel="stylesheet" type="text/css" href="popup.css">
+  <link rel="stylesheet" type="text/css" href="main.css">
 </head>
 
 <body>
 
   <!-- Snippets menu -->
   <header id="header">
-    <!-- list around back button allows for dropping items -->
-    <ul id="folder-up"><li class="folder" data-path="">
-      <button type="button" data-action="open-folder">
-        <figure class="icon"><svg role="img" focusable="false">
-          <title>Back</title>
-          <use href="sprites.svg#icon-back"/>
-        </svg></figure>
-      </button>
-    </li></ul>
-
     <div class="menu">
       <input type="file" id="file" name="file">
       <button type="button" data-action="menu" data-dropdown="settings">
@@ -87,6 +77,15 @@
       </ul>
     </div>
 
+    <!-- list around back button allows for drag-dropping items -->
+    <ul id="folder-up"><li class="folder" data-path="">
+      <button type="button" data-action="open-folder">
+        <figure class="path-icon"><svg role="img" focusable="false">
+          <title>Back</title>
+          <use href="sprites.svg#icon-back"/>
+        </svg></figure>
+      </button>
+    </li></ul>
     <h1 class="grow" id="ext-title">Snippets</h1>
 
     <button type="button" class="icon" data-action="toggle-sync">
@@ -122,7 +121,7 @@
     <div id="snippets"></div>
   </main>
   <script src="../shared.js"></script>
-  <script src="popup.js"></script>
+  <script src="main.js"></script>
 
 </body>
 

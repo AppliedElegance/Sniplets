@@ -102,19 +102,15 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
 
   // set up paste code
   const paste = (text) => {
-    // event dispatch for editors that handle their own undo stack like stackoverflow
-    const keyEvent = {
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-    };
-    selNode.dispatchEvent(new KeyboardEvent('keydown', keyEvent));
+    // setup rich text for pasting or updating the clipboard if needed
+    let richText = text;
 
     // execCommand is deprecated but insertText is still supported in chrome as wontfix
     // and produces the most desirable result. See par. 3 in:
     // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
     let pasted = false
     if (selNode.value !== undefined) {
+      // paste plaintext into inputs and textareas
       pasted = document.execCommand('insertText', false, text);
       // forward-compatible alt code, kills the undo stack
       if (!pasted) {
@@ -122,9 +118,10 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
         const selStart = selNode.selectionStart;
         selNode.value = selVal.slice(0, selStart) + text + selVal.slice(selNode.selectionEnd);
         selNode.selectionStart = selNode.selectionEnd = selStart + text.length;
+        pasted = true;
       }
-    } else {
-      // paste into contenteditable as rich text accounting for newlines when not plain-text
+    } else { // contenteditable
+      // process newlines & unlinked text when not set to plain-text
       if (selNode.contentEditable === "true") {
         /**
          * email parser regex breakdown with an added check to ensure it isn't already linked:
@@ -139,7 +136,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
          * * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
          */
         const rxEmail = /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig;
-        text = text.replaceAll(rxEmail, (match) => {
+        richText = richText.replaceAll(rxEmail, (match) => {
           return `<a href="mailto:${ match }">${ match }</a>`;
         })
         /**
@@ -155,7 +152,8 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
          * * (?!<a).*?<\/a>) - ignore urls that are inside an anchor tag
          */
         const rxURL = /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig;
-        text = text.replaceAll(rxURL, (match) => {
+        richText = richText.replaceAll(rxURL, (match) => {
+          // ensure what was picked up evaluates to a proper url (just in case)
           const matchURL = new URL((!match.match(/(?:https?|ftp|chrome|edge|about|file\/):\/\//)) ? "http://" + match : match);
           return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
         })
@@ -168,36 +166,49 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
          * * (?:\r\n|\r|\n) - match newlines no matter how formatted (should always be \n, but just in case)
          */
         const rxNewline = /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g;
-        text = text.replaceAll(rxNewline, (match) => {
+        richText = richText.replaceAll(rxNewline, (match) => {
           return "<br>" + match;
         });
       }
 
-      // note that ckeditor does not allow any programatic inputs unless in the code layout
-      if (selNode.classList.contains("ck")) return "ckeditor";
-
-      pasted = document.execCommand('insertHTML', false, text);
-      // forward-compatible alt code, kills the undo stack
-      if (!pasted) {
-        const sel = window.getSelection();
-        const selRng = sel.getRangeAt(0);
-        console.log(sel, selRng);
-        selRng.deleteContents();
-        selRng.insertNode(document.createTextNode(text));
-        sel.collapseToEnd();
+      // ckeditor does not allow any 3rd party programatic inputs in contenteditable fields but fails silently
+      if (!selNode.classList.contains("ck")) {
+        pasted = document.execCommand('insertHTML', false, richText);
+        // forward-compatible alt code, kills the undo stack
+        if (!pasted) {
+          const sel = window.getSelection();
+          const selRng = sel.getRangeAt(0);
+          console.log(sel, selRng);
+          selRng.deleteContents();
+          selRng.insertNode(document.createTextNode(richText));
+          sel.collapseToEnd();
+          pasted = true;
+        }
       }
     }
 
-    // complete events for stack handling editors
-    selNode.dispatchEvent(new InputEvent('input'), {
-      bubbles: true,
-      composed: true,
-      inputType: "inputFromPaste",
-      data: text,
-    })
+    // event dispatch for editors that handle their own undo stack like stackoverflow
+    if (pasted) {
+      const keyEvent = {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+      };
+      selNode.dispatchEvent(new KeyboardEvent('keydown', keyEvent));
+      selNode.dispatchEvent(new InputEvent('input'), {
+        bubbles: true,
+        composed: true,
+        inputType: "inputFromPaste",
+        data: richText,
+      })
+      selNode.dispatchEvent(new KeyboardEvent('keyup', keyEvent));
+    }
 
-    selNode.dispatchEvent(new KeyboardEvent('keyup', keyEvent));
-    return true;
+    return {
+      pasted: pasted,
+      text: text,
+      richText: richText,
+    };
   }
 
   // TODO: replace modal with popup so the selection won't lose focus
@@ -316,7 +327,7 @@ const requestFrames = async (action, src) => {
   src.func = action;
   await setStorageData({ src: src });
   const requestor = await chrome.windows.create({
-    url: chrome.runtime.getURL("permissions.html"),
+    url: chrome.runtime.getURL("popups/permissions.html"),
     type: "popup",
     width: 480,
     height: 300
@@ -331,7 +342,7 @@ class TreeItem {
   constructor({ name, seq, label } = {}) {
     this.name = name || "New Tree Item";
     this.seq = seq || 1;
-    this.label = label || undefined;
+    this.label = label;
   }
 }
 /**
@@ -342,7 +353,7 @@ class Folder extends TreeItem {
     super({
       name: name || "New Folder",
       seq: seq || 1,
-      label: label || undefined,
+      label: label,
     });
     this.children = children || [];
   }
@@ -355,11 +366,11 @@ class Snippet extends TreeItem {
     super({
       name: name || "New Snippet",
       seq: seq || 1,
-      label: label || undefined,
+      label: label,
     });
     this.content = content || "";
-    this.shortcut = shortcut || undefined;
-    this.sourceURL = sourceURL || undefined;
+    this.shortcut = shortcut;
+    this.sourceURL = sourceURL;
   }
 }
 // Basic snippets data bucket
@@ -458,11 +469,24 @@ class DataBucket {
  * Space object stores snippet groupings in buckets.
  */
 class Space {
+  /**
+   * @param {{ name: string, synced: boolean, data: DataBucket }} params
+   */
   constructor({ name, synced, data } = {}) {
     this.synced = synced || false;
     this.name = name || "Snippets";
     this.data = data || new DataBucket();
     this.path = [];
+  }
+
+  getPathNames() {
+    const pathNames = [];
+    let item = this.data;
+    for (let seq of this.path) {
+      item = item.children.find((i) => i.seq == seq);
+      pathNames.push(item.name);
+    }
+    return pathNames;
   }
 
   async load() {
@@ -542,14 +566,8 @@ class Space {
   getItem(path) {
     try {
       let item = this.data;
-      for (let y of path) {
-        for (let x of item.children) {
-          // possible type difference, loosy comparison
-          if (x.seq == y) {
-            item = x;
-            break;
-          }
-        }
+      for (let seq of path) {
+        item = item.children.find((i) => i.seq == seq);
       }
       return item;
     } catch (e) {
@@ -563,9 +581,14 @@ class Space {
     const snip = this.getItem(path);
     const folder = this.getItem(path.slice(0,-1))
     let snipText = snip.content;
+    const result = {
+      text: snipText,
+      richText: snipText,
+      nosubst: true,
+    }
     
     // skip processing if Clippings [NOSUBST] flag is in the name
-    if (snip.name.slice(0,9) === "[NOSUBST]") return { text: snipText, nosubst: true };
+    if (snip.name.slice(0,9) === "[NOSUBST]") return result;
 
     // process counters, kept track internally to allow use across multiple snippets
     let counterUse = false;
@@ -786,12 +809,12 @@ class Space {
           return folder.name;
       
         default:
-          // popup requesting input values
+          // TODO: popup requesting input values
           return match;
       }
     });
 
-    return { text: snipText, nosubst: false };
+    return result;
   }
 
   getFolderCount(folderPath = this.path) {

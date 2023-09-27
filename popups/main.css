@@ -67,6 +67,12 @@ button {
   padding: 4px;
 }
 
+.path-icon {
+  width: 20px;
+  height: 32px;
+  padding: 8px 0 6px 4px;
+}
+
 .prefix {
   padding: 6px;
 }
@@ -179,7 +185,7 @@ input {
   white-space: nowrap;
 }
 
-figure.control {
+.control {
   margin: 0;
   height: 32px;
   width: 32px;
@@ -238,7 +244,7 @@ h3.label {
 hr {
   margin: 6px 0;
   border: 0;
-  height: 1px;
+  height: .1em;
   background-image: linear-gradient(to right, #ccc, #333, #ccc);
 }
 
