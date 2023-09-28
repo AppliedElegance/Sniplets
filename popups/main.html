@@ -14,53 +14,53 @@
   <header id="header">
     <div class="menu">
       <input type="file" id="file" name="file">
-      <button type="button" data-action="menu" data-dropdown="settings">
-        <figure class="icon"><svg role="img" focusable="false">
+      <button type="button" class="icon" data-action="menu" data-dropdown="settings">
+        <svg role="img" focusable="false">
           <title>Settings</title>
           <use href="sprites.svg#icon-settings"/>
-        </svg></figure>
+        </svg>
       </button>
       <ul class="dropdown card" id="settings">
         <li class="menu-item submenu"><h3>View…</h3>
           <ul class="card" id="view">
-            <li class="menu-item"><button type="button" data-action="toggle-save-path">
-              <figure class="control"><svg role="img" focusable="false">
+            <li class="menu-item"><button type="button" class="control" data-action="toggle-save-path">
+              <svg role="img" focusable="false">
                 <title>Toggle</title>
                 <use href="sprites.svg#control-unchecked"/>
-              </svg></figure>
+              </svg>
               <h3 class="label">Remember last folder</h3>
             </button></li>
-            <li class="menu-item"><button type="button" data-action="toggle-show-source">
-              <figure class="control"><svg role="img" focusable="false">
+            <li class="menu-item"><button type="button" class="control" data-action="toggle-show-source">
+              <svg role="img" focusable="false">
                 <title>Toggle</title>
                 <use href="sprites.svg#control-unchecked"/>
-              </svg></figure>
+              </svg>
               <h3 class="label">Show source urls</h3>
             </button></li>
           </ul>
         </li>
         <li class="menu-item submenu"><h3>Sort…</h3>
           <ul class="card" id="sort">
-            <li class="menu-item"><button type="button" data-action="toggle-folders-first">
-              <figure class="control">
+            <li class="menu-item"><button type="button" class="control" data-action="toggle-folders-first">
+              <div class="icon">
                 <svg role="img" focusable="false">
                   <title>Toggle</title>
                   <use href="sprites.svg#control-checked"/>
                 </svg>
-              </figure>
+              </div>
               <h3 class="label">Group folders at top</h3>
             </button></li>
           </ul>
         </li>
         <li class="menu-item submenu"><h3>Control…</h3>
           <ul class="card" id="sort">
-            <li class="menu-item"><button type="button" data-action="toggle-save-source">
-              <figure class="control">
+            <li class="menu-item"><button type="button" class="control" data-action="toggle-save-source">
+              <div class="icon">
                 <svg role="img" focusable="false">
                   <title>Toggle</title>
                   <use href="sprites.svg#control-checked"/>
                 </svg>
-              </figure>
+              </div>
               <h3 class="label">Save source URLs</h3>
             </button></li>
           </ul>
@@ -77,16 +77,8 @@
       </ul>
     </div>
 
-    <!-- list around back button allows for drag-dropping items -->
-    <ul id="folder-up"><li class="folder" data-path="">
-      <button type="button" data-action="open-folder">
-        <figure class="path-icon"><svg role="img" focusable="false">
-          <title>Back</title>
-          <use href="sprites.svg#icon-back"/>
-        </svg></figure>
-      </button>
-    </li></ul>
-    <h1 class="grow" id="ext-title">Snippets</h1>
+    <!-- Name/path section ul to allow drag/drop -->
+    <ul id="path"></ul>
 
     <button type="button" class="icon" data-action="toggle-sync">
       <svg role="img" focusable="false">
@@ -116,10 +108,11 @@
 
   <!-- Snippets builder -->
   <main>
-    <div class="card" id="tree"></div>
+    <div id="tree" class="card"></div>
     <hr class="vr">
     <div id="snippets"></div>
   </main>
+
   <script src="../shared.js"></script>
   <script src="main.js"></script>
 

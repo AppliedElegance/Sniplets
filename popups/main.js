@@ -35,7 +35,7 @@ const spritesheet = "sprites.svg#";
  * @param {boolean} selected
  * @returns 
  */
-const setSelectionIcon = (setting, selected) =>
+const setControlIcon = (setting, selected) =>
   q$(`[data-action="toggle-${ setting }"] use`)
   .setAttribute('href', `${ spritesheet }control-${selected ? `checked` : `unchecked`}`);
 
@@ -62,47 +62,16 @@ const loadPopup = async () => {
 document.addEventListener('DOMContentLoaded', loadPopup, false);
 
 async function loadSnippets({ buildTree = true, buildList = true, action = null, seq = null } = {}) {
-  // Set the title to the current space and update menu items to match settings
-  $('ext-title').textContent = space.name;
-  // Update sync icon and text
-  q$(`[data-action="toggle-sync"] use`)
-    .setAttribute('href', `${ spritesheet }icon-${space.synced ? `sync` : `local`}`);
-  q$(`[data-action="toggle-sync"] title`)
-    .textContent = `Turn sync ${space.synced ? `off` : `on`}`;
-  // View settings
-  setSelectionIcon('save-path', settings.view.rememberPath);
-  setSelectionIcon('show-source', settings.view.sourceURL);
-  // Sort settings
-  const fot = settings.sort.foldersOnTop; // shorthand
-  setSelectionIcon('folders-first', fot);
-
-  /**
-   * Helper for only grabbing subfolders
-   * @param {*[]} folder 
-   * @returns {Folder[]}
-   */
-  const getSubFolders = (folder) => folder.reduce((folders, item) =>
-    item instanceof Folder ? (folders.push(item), folders) : folders, []
-  );
-
-  /**
-   * Helper for only grabbing snippets
-   * @param {*[]} folder 
-   * @returns {Folder[]}
-   */
-  // const getSnippets = (folder) => folder.reduce((folders, item) =>
-  //   item instanceof Snippet ? (folders.push(item), folders) : folders, []
-  // );
-
   /**
    * Group tree items by type
    * @param {*[]} folder 
-   * @returns {Object}
+   * @returns {Object<string,*[]>}
    */
-  const groupFolderItems = (folder) => folder.reduce((folder, item) => {
-    if (item instanceof Folder) {
+  const groupItems = (folder, type = 'all') => folder.reduce((folder, item) => {
+    const all = type === 'all';
+    if (item instanceof Folder && (all || type === 'folder')) {
       folder.folders.push(item);
-    } else if (item instanceof Snippet) {
+    } else if (item instanceof Snippet && (all || type === 'snippet')) {
       folder.snippets.push(item);
     }
     return folder;
@@ -110,6 +79,13 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
     folders: [],
     snippets: [],
   });
+  
+  /**
+   * Helper for only grabbing subfolders
+   * @param {*[]} folder 
+   * @returns {Folder[]}
+   */
+  const getSubFolders = (folder) => groupItems(folder, 'folder').folders;
 
   /**
    * Helper for element creation including sub-elements
@@ -122,9 +98,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
       if (!attributes[a]) continue; // ignores all falsy values (simplified for usage)
       switch (a) {
       case 'children':
-        for (let child of attributes.children) {
-          element.appendChild(child);
-        }
+        element.append(...attributes.children);
         break;
       
       case 'dataset':
@@ -160,12 +134,172 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
     svg.setAttribute('focusable', false);
     const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
     svgTitle.textContent = title;
-    svg.appendChild(svgTitle);
+    svg.append(svgTitle);
     const svgUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
     svgUse.setAttribute('href', `sprites.svg#${ sprite }`);
     if (fill) svgUse.setAttribute('fill', fill);
-    svg.appendChild(svgUse);
+    svg.append(svgUse);
     return svg;
+  }
+
+  const buildControl = (type, { id, name, value, checked, dataset }) => buildNode('div', {
+    classList: [`menu-item`, `control`],
+    children: [
+      buildNode('input', {
+        type: type,
+        id: id,
+        name: name,
+        value: value,
+        checked: checked,
+        dataset: dataset,
+        visibility: `hidden`,
+      }),
+      buildNode('label', {
+      for: id,
+      children: [
+        buildNode('div', {
+          classList: [`icon`],
+          children: [buildSvg(name, `control-${ type + (checked ? `-checked` : ``) }`)]
+        }),
+        buildNode('h3', { textContent: value }),
+      ],
+    })],
+  });
+  
+  // Update sync icon and text
+  q$(`[data-action="toggle-sync"] use`)
+    .setAttribute('href', `${ spritesheet }icon-${space.synced ? `sync` : `local`}`);
+  q$(`[data-action="toggle-sync"] title`)
+    .textContent = `Turn sync ${space.synced ? `off` : `on`}`;
+  // View settings
+  setControlIcon('save-path', settings.view.rememberPath);
+  setControlIcon('show-source', settings.view.sourceURL);
+  // Sort settings
+  const fot = settings.sort.foldersOnTop; // shorthand
+  setControlIcon('folders-first', fot);
+  
+  // path shorthands
+  let path = space.path;
+  const pathHeader = $('path');
+
+  // set path in header
+  if (path.length) {
+    const pathNames = space.getPathNames();
+    pathHeader.replaceChildren(buildNode('li', {
+      id: `folder-up`,
+      classList: [`folder`],
+      dataset: {
+        seq: path.slice(-2, -1).join(','),
+        path: path.slice(0, -2).join(','),
+      },
+      children: [buildNode('button', {
+        type: `button`,
+        classList: [`icon`],
+        dataset: {
+          action: 'open-folder',
+          target: path.slice(0, -1).join(','),
+        },
+        children: [buildSvg(
+          `Back`,
+          `icon-back`
+        )],
+      })],
+    }));
+    pathHeader.append(buildNode('li', {
+      children: [
+        buildNode('h1', {
+          textContent: `/`,
+        }),
+        buildNode('h1', {
+          textContent: pathNames.pop(),
+        }),
+      ],
+    }));
+    // 
+    const folderUpItem = $('folder-up');
+    const folderUpButton = q$('#folder-up button')
+    // add as many parent folders as possible
+    let fullPath = true;
+    while (pathNames.length) {
+      const i = pathNames.length;
+      const pathName = pathNames.pop();
+      const folderSeq = path.slice(i-1, i).join(',');
+      const folderPath = path.slice(0, i-1).join(',');
+      const folderTarget = path.slice(0, i).join(',')
+
+      const pathItem = buildNode('li', {
+        classList: [`folder`],
+        dataset: {
+          seq: folderSeq,
+          path: folderPath,
+        },
+        children: [
+          buildNode('h1', {
+            textContent: `/`
+          }),
+          buildNode('button', {
+            type: `button`,
+            dataset: {
+              action: 'open-folder',
+              target: folderTarget,
+            },
+            children: [buildNode('h1', {
+              textContent: pathName,
+            })],
+          })
+        ],
+      });
+      console.log(i, pathName, pathItem);
+      folderUpItem.after(pathItem);
+      console.log(pathItem);
+      // undo last append if maximum length is reached and stop
+      if (pathHeader.offsetHeight > 32) {
+        pathItem.remove();
+        folderUpItem.dataset.seq = ``;
+        folderUpItem.dataset.path = `root`;
+        folderUpButton.dataset.target = folderTarget;
+        fullPath = false;
+        break;
+      }
+    }
+    // Include the space name if possible
+    if (fullPath) {
+      folderUpItem.style.display = `none`;
+      const pathSpace = buildNode('li', {
+        classList: [`folder`],
+        dataset: {
+          seq: ``,
+          path: `root`,
+        },
+        children: [
+          buildNode('button', {
+            type: `button`,
+            dataset: {
+              action: 'open-folder',
+              target: ``,
+            },
+            children: [buildNode('h1', {
+              textContent: space.name,
+            })],
+          })
+        ],
+      });
+      folderUpItem.after(pathSpace);
+      // undo last append if maximum length is reached
+      if (pathHeader.offsetHeight > 32) {
+        pathSpace.remove();
+        folderUpItem.style.removeProperty('display');
+        folderUpItem.dataset.seq = ``;
+        folderUpItem.dataset.path = `root`;
+        folderUpButton.dataset.target = ``;
+      }
+    }
+  } else {
+    pathHeader.replaceChildren(buildNode('li', {
+      children: [buildNode('h1', {
+        textContent: space.name,
+      })],
+    }));
   }
 
   if (buildTree) {
@@ -176,13 +310,13 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
      */
     const buildFolderTree = (folders, level) => {
       const isRoot = folders[0] instanceof DataBucket;
-      const path = level.join(',');
+      const folderPath = level.join(',');
 
       // list container with initial drop zone for reordering
       const folderList = buildNode('ul', {
-        id: `folder-${ path }`,
+        id: `folder-${ folderPath }`,
         children: !isRoot && [buildNode('li', {
-          dataset: { path: path, seq: `.5`, },
+          dataset: { path: folderPath, seq: `.5`, },
           classList: [`delimiter`]
         })],
       });
@@ -195,20 +329,21 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
         // create folder list item
         const folderItem = buildNode('li', {
           dataset: {
-            path: path,
+            path: folderPath,
             seq: (isRoot) ? `` : String(folder.seq),
           }
         });
         // add folder details
-        folderItem.appendChild(buildNode('div', {
+        folderItem.append(buildNode('div', {
           classList: [`title`],
           draggable: !isRoot, // TODO: allow root items to be dragged once multiple spaces is implimented
           children: [
             // expand/collapse button only needed if subfolders were found
-            buildNode((expandable) ? 'button' : 'figure', {
-              type: expandable && `button`,
+            buildNode('button', {
+              type: `button`,
+              disabled: !expandable,
               dataset: expandable && { action: `collapse` },
-              classList: [`icon`, `prefix`],
+              classList: [`icon`],
               children: [
                 buildSvg(`Folder`, expandable ? `icon-folder-collapse` : `icon-folder`, folder.label)
               ],
@@ -230,15 +365,15 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
           ],
         }));
         // add sublist if subfolders were found
-        if (expandable) folderItem.appendChild(
+        if (expandable) folderItem.append(
           buildFolderTree(subFolders, (isRoot) ? [] : level.concat([folder.seq]))
         );
         // Add list item to list
-        folderList.appendChild(folderItem);
+        folderList.append(folderItem);
         // Insert dropzone after for reordering
         if (!isRoot) {
-          folderList.appendChild(buildNode('li', {
-            dataset: { path: path, seq: String(folder.seq + .5), },
+          folderList.append(buildNode('li', {
+            dataset: { path: folderPath, seq: String(folder.seq + .5), },
             classList: [`delimiter`]
           }));
         }
@@ -250,22 +385,10 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
   }
 
   if (buildList) {
-    // pull data from current folder for displaying snippets
-    let path = space.path;
-    if (path.length) {
-      q$('#folder-up li').dataset.path = path.slice(0, -2).join(',');
-      q$('#folder-up li').dataset.seq = path.slice(-2, -1).join(',');
-      q$('#folder-up button').dataset.folder = path.slice(0, -1).join(',');
-      $('folder-up').style.display = "block";
-      $('ext-title').textContent = `/ ${ space.getPathNames().pop() }`;
-    } else {
-      $('folder-up').style.display = "none";
-    }
-
     // clear current list and get info
     $('snippets').replaceChildren(buildNode('div', { classList: [`sizer`] }));
     const folder = space.getItem(path).children || [];
-    const groups = fot && groupFolderItems(folder);
+    const groups = fot && groupItems(folder);
 
     /**
      * Builder for listing items depending on their class
@@ -286,7 +409,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
         })
         : buildNode('div');
       titleNode.classList.add(`name`)
-      titleNode.appendChild(buildNode('h2', {
+      titleNode.append(buildNode('h2', {
         seq: item.seq,
         textContent: item.name,
       }));
@@ -300,26 +423,23 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
             classList: [`menu-item`, `submenu`],
             children: [
               buildNode('h3', { textContent: `Colour…` }),
-              buildNode('ul', {
-                classList: [`card`],
-                children: colors.map((color) => buildNode('li', {
-                  classList: [`menu-item`],
-                  children: [buildNode('button', {
-                    type: `button`,
-                    dataset: {
-                      action: `edit`,
-                      seq: item.seq,
-                      field: `label`,
-                      value: color.value,
-                    },
-                    children: [buildNode('figure', {
-                      classList: [`control`],
-                      children: [
-                        buildSvg(color.name, ((color.value === item.label) || (!item.label && (color.name === "Default"))) ? `control-selected` : `control-unselected`),
-                        buildNode('h3', { textContent: color.name }),
-                      ],
-                    })],
-                  })],
+              buildNode('div', {
+                classList: [`submenu`, `card`],
+                children: colors.map((color) => buildControl('radio', {
+                  id: `item${ item.seq }-color-${ color.name }`, 
+                  name: `item${ item.seq }-color`,
+                  value: color.name,
+                  checked: ((color.name === item.label) || (!item.label && (color.name === "Default"))),
+                  dataset: {
+                    action: `edit`,
+                    seq: item.seq,
+                    field: `label`,
+                    value: color.name,
+                    label: item.label,
+                    color: color.name,
+                    item: JSON.stringify(item),
+                    checked: ((color.name === item.label) || (!item.label && (color.name === "Default"))),
+                  }
                 })),
               }),
             ],
@@ -378,14 +498,12 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
             children: [
               buildNode('button', {
                 type: `button`,
+                classList: [`icon`],
                 dataset: {
                   action: `menu`,
                   dropdown: `snipmenu${ item.seq }`,
                 },
-                children: [buildNode('figure', {
-                  classList: [`icon`, `prefix`],
-                  children: [buildSvg(`Menu`, `icon-${ item.constructor.name.toLowerCase() }`, item.label)],
-                })],
+                children: [buildSvg(`Menu`, `icon-${ item.constructor.name.toLowerCase() }`, colors[item.label])],
               }),
               itemMenu,
             ],
@@ -456,7 +574,7 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
     }
 
     if (fot && groups.folders.length) { // group folders at top if set
-      $('snippets').appendChild(buildNode('div', {
+      $('snippets').append(buildNode('div', {
         classList: [`card`],
         children: [buildNode('ul', {
           classList: [`folder-list`],
@@ -488,13 +606,13 @@ async function loadSnippets({ buildTree = true, buildList = true, action = null,
           ])),
         })],
       }));
-      $('snippets').appendChild(buildNode('hr'));
+      $('snippets').append(buildNode('hr'));
     }
 
     // list snippets, including folders if not grouped at top
     const items = fot ? groups.snippets : folder;
     if (items.length) {
-      $('snippets').appendChild(buildNode('ul', {
+      $('snippets').append(buildNode('ul', {
         id: `snippet-list`,
         children: [
           buildNode('li', {
@@ -763,7 +881,7 @@ async function buttonClick(event) {
   
   case 'pop-out':
     chrome.windows.create({
-      url: chrome.runtime.getURL("popups/main.html"),
+      url: window.location.href,
       type: "popup",
       width: 867,
       height: 540

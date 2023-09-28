@@ -34,7 +34,7 @@ h2 {
   font-weight: bold;
   line-height: 24px;
   margin: 0;
-  padding: 0 4px;
+  padding: 0 8px;
   text-align: left;
 }
 
@@ -62,15 +62,38 @@ button {
 }
 
 .icon {
-  width: 32px;
-  height: 32px;
   padding: 4px;
+  font-size: 0;
 }
 
-.path-icon {
-  width: 20px;
+.icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+#path {
+  flex-grow: 1;
+  display: flex;
+}
+
+#path li {
+  display: flex;
+  align-items: center;
+}
+
+#path .icon {
+  width: 24px;
   height: 32px;
-  padding: 8px 0 6px 4px;
+  padding: 8px 4px 6px;
+}
+
+#path h1 {
+  padding: 4px 2px;
+}
+
+#path svg {
+  width: 16px;
+  height: 16px;
 }
 
 .prefix {
@@ -185,15 +208,23 @@ input {
   white-space: nowrap;
 }
 
-.control {
-  margin: 0;
-  height: 32px;
-  width: 32px;
-  padding: 7px;
+.control label {
+  display: flex;
 }
 
-h3.label {
-  padding: 0 12px 0 0;
+.control label h3 {
+  padding-left: 0;
+  flex-grow: 1;
+}
+
+label .icon {
+  margin: 0;
+  padding: 8px 5px 8px 12px;
+}
+
+label .icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .menu-item:hover {

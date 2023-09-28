@@ -15,7 +15,7 @@ const i18n = (message) => chrome.i18n.getMessage(message);
 // Storage helpers. Sync must be explicitly enabled.
 /**
  * Safely stores data to chrome.storage.local (default) or .sync.
- * @param {Object.<string, *>} data - a { key: value } object to store
+ * @param {Object<string, *>} data - a { key: value } object to store
  * @param {boolean} [synced=false] - Whether to store the data in local (false, default) or sync (true).
  * @example
  * // Saves data in sync storage under the name stored in the string variable: key
@@ -34,7 +34,7 @@ const setStorageData = (data, synced = false) => {
  * Safely retrieves storage data from chrome.storage.local (default) or .sync.
  * @param {string} key - The key name for the stored data.
  * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
- * @returns {Promise<Object.<string, *>>} Found data is returned as a { key: value } object.
+ * @returns {Promise<Object<string, *>>} Found data is returned as a { key: value } object.
  * @example
  * // returns { key: value } from local
  * await getStorageData('key');
