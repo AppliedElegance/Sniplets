@@ -13,27 +13,27 @@
   <!-- Snippets menu -->
   <header id="header">
     <div class="menu">
-      <input type="file" id="file" name="file">
-      <button type="button" class="icon" data-action="menu" data-dropdown="settings">
+      <input type="file" id="file" name="file" accept="json">
+      <button type="button" class="icon" data-action="open-popover" data-target="settings">
         <svg role="img" focusable="false">
           <title>Settings</title>
           <use href="sprites.svg#icon-settings"/>
         </svg>
       </button>
-      <ul class="dropdown card" id="settings">
+      <ul class="popover card hidden" id="settings">
         <li class="menu-item submenu"><h3>View…</h3>
           <ul class="card" id="view">
             <li class="menu-item"><button type="button" class="control" data-action="toggle-save-path">
               <svg role="img" focusable="false">
                 <title>Toggle</title>
-                <use href="sprites.svg#control-unchecked"/>
+                <use href="sprites.svg#control-checkbox"/>
               </svg>
               <h3 class="label">Remember last folder</h3>
             </button></li>
             <li class="menu-item"><button type="button" class="control" data-action="toggle-show-source">
               <svg role="img" focusable="false">
                 <title>Toggle</title>
-                <use href="sprites.svg#control-unchecked"/>
+                <use href="sprites.svg#control-checkbox"/>
               </svg>
               <h3 class="label">Show source urls</h3>
             </button></li>
@@ -45,7 +45,7 @@
               <div class="icon">
                 <svg role="img" focusable="false">
                   <title>Toggle</title>
-                  <use href="sprites.svg#control-checked"/>
+                  <use href="sprites.svg#control-checkbox"/>
                 </svg>
               </div>
               <h3 class="label">Group folders at top</h3>
@@ -58,7 +58,7 @@
               <div class="icon">
                 <svg role="img" focusable="false">
                   <title>Toggle</title>
-                  <use href="sprites.svg#control-checked"/>
+                  <use href="sprites.svg#control-checkbox"/>
                 </svg>
               </div>
               <h3 class="label">Save source URLs</h3>
@@ -114,6 +114,7 @@
   </main>
 
   <script src="../shared.js"></script>
+  <script src="nodeBuilders.js"></script>
   <script src="main.js"></script>
 
 </body>

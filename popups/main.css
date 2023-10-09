@@ -32,9 +32,9 @@ h1 {
 h2 {
   font-size: 16px;
   font-weight: bold;
-  line-height: 24px;
+  line-height: 28px;
   margin: 0;
-  padding: 0 8px;
+  padding: 0 6px;
   text-align: left;
 }
 
@@ -67,6 +67,16 @@ button {
 }
 
 .icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+header .icon {
+  padding: 4px;
+  font-size: 0;
+}
+
+header .icon svg {
   width: 24px;
   height: 24px;
 }
@@ -131,10 +141,6 @@ textarea,
   flex-grow: 1;
 }
 
-div.name {
-  padding: 4px;
-}
-
 header {
   gap: 4px;
 }
@@ -173,10 +179,12 @@ input {
   position: relative;
 }
 
+.menu-list,
 .dropdown {
-  display: none;
   position: absolute;
   top: 100%;
+  border: none;
+  padding: 0;
   z-index: 10;
 }
 
@@ -190,15 +198,26 @@ input {
 
 .menu-item {
   min-width: 120px;
-  user-select: none;
+  position: relative;
+  margin: 0;
+  border: none;
+  padding: 0;
 }
 
+legend,
 .menu-item button {
   display: flex;
   width: 100%;
 }
 
+legend {
+  float: left;
+  padding: 0;
+  border: none;
+}
+
 .menu-item h3 {
+  flex-grow: 1;
   font-size: 14px;
   line-height: 32px;
   text-align: left;
@@ -239,12 +258,18 @@ label .icon svg {
   display: none;
 }
 
-.submenu:hover ul {
-  display: block;
+.menu-item > .menu-list,
+.submenu ul {
+  display: none;
   position: absolute;
   top: 0;
   left: 100%;
   margin: 0;
+}
+
+.menu-item:hover > .menu-list,
+.submenu:hover ul {
+  display: block;
 }
 
 .snip-content textarea {
@@ -347,4 +372,8 @@ figure {
   [data-action="pop-out"] {
     display: none;
   }
+}
+
+.hidden {
+  display: none;
 }

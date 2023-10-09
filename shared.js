@@ -2,10 +2,21 @@
 /* global CompressionStream DecompressionStream */
 /* eslint-disable no-unused-vars */
 
+// default colors
+const colors = {
+  "Default": { name: "", value: "", clippings: "" },
+  "Grey": { value: "#808080", clippings: "gray" },
+  "Red": { value: "#FF0000", clippings: "red" },
+  "Orange": { value: "#FFA500", clippings: "orange" },
+  "Yellow": { value: "#FFD700", clippings: "yellow" },
+  "Green": { value: "#32CD32", clippings: "green" },
+  "Blue": { value: "#0000FF", clippings: "blue" },
+  "Violet": { value: "#EE82EE", clippings: "purple" },
+};
+
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} message 
- * @returns {string}
  * @example
  * // returns "Snippet"
  * i18n("app_name")
@@ -936,19 +947,18 @@ class Settings {
 }
 
 // create backup file
-const saveToFile = (filename, text) => {
-  // create URI encoded file link
-  let fileAnchor = document.createElement('a');
-  fileAnchor.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(text);
-  fileAnchor.download = filename;
-  fileAnchor.style.display = 'none';
-
-  // initiate download
-  document.body.appendChild(fileAnchor);
-  fileAnchor.click();
-
-  // clean up
-  fileAnchor.remove();
+async function saveToFile(text, filename) {
+  // Use new experimental API
+  try {
+    const f = await window.showSaveFilePicker({
+      suggestedName: filename || "Snippets.json",
+      types: [
+        { description: "Backup File", accept: { "application/json": [".json"] }, },
+      ],
+    });
+    await f.write(text);
+    await f.close();
+  } catch { /* cancelled */ }
 }
 
 // (re)build context menu for snipping and pasting

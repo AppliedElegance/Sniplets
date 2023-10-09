@@ -40,5 +40,14 @@ module.exports = {
         "saveToFile": false,
         "buildContextMenus": false,
         "i18n": false,
+        "colors": false,
+        "buildNode": false,
+        "buildSvg": false,
+        "buildPopoverMenu": false,
+        "buildMenuItem": false,
+        "buildMenuControl": false,
+        "buildMenuSeparator": false,
+        "buildSubMenu": false,
+        "buildActionIcon": false,
     }
 }

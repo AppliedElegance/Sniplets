@@ -136,7 +136,7 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
       // open window to requested selection for manual copy/paste
       const editor = chrome.windows.create({
         url: chrome.runtime.getURL("popup/popup.html?action=copy"
-          + "&folderPath=" + menuData.path.slice(0, -1).join(',')
+          + "&path=" + menuData.path.slice(0, -1).join(',')
           + "&seq=" + menuData.path.slice(-1)),
         type: "popup",
         width: 700,
