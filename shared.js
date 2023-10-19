@@ -4,7 +4,7 @@
 
 // default colors
 const colors = {
-  "Default": { name: "", value: "", clippings: "" },
+  "Default": { },
   "Grey": { value: "#808080", clippings: "gray" },
   "Red": { value: "#FF0000", clippings: "red" },
   "Orange": { value: "#FFA500", clippings: "orange" },
@@ -38,9 +38,9 @@ const setStorageData = (data, synced = false) => {
   bucket.set(data, () =>
     chrome.runtime.lastError
     ? reject(chrome.runtime.lastError)
-    : resolve()
+    : resolve(),
   ));
-}
+};
 /**
  * Safely retrieves storage data from chrome.storage.local (default) or .sync.
  * @param {string} key - The key name for the stored data.
@@ -59,9 +59,9 @@ const getStorageData = (key, synced = false) => {
     bucket.get(key, result =>
       chrome.runtime.lastError
       ? reject(chrome.runtime.lastError)
-      : resolve(result)
+      : resolve(result),
     ));
-}
+};
 /**
  * Safely removes storage data from chrome.storage.local (default) or .sync.
  * @param {string} key - The key name for the stored data.
@@ -76,9 +76,9 @@ const removeStorageData = (key, synced = false) => {
   bucket.remove(key, () =>
     chrome.runtime.lastError
     ? reject(chrome.runtime.lastError)
-    : resolve()
+    : resolve(),
   ));
-}
+};
 
 /**
  * Ensure script injection errors including permission blocks are always handled gracefully.
@@ -95,14 +95,14 @@ const removeStorageData = (key, synced = false) => {
 const injectScript = async (src) => {
   return chrome.scripting.executeScript(src)
   .catch((e) => { return false; });
-}
+};
 
 /**
  * Injection script workaround for full selectionText with line breaks
  */
 const getFullSelection = () => {
   return window.getSelection().toString();
-}
+};
 
 /**
  * Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
@@ -119,7 +119,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
     // execCommand is deprecated but insertText is still supported in chrome as wontfix
     // and produces the most desirable result. See par. 3 in:
     // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
-    let pasted = false
+    let pasted = false;
     if (selNode.value !== undefined) {
       // paste plaintext into inputs and textareas
       pasted = document.execCommand('insertText', false, text);
@@ -149,7 +149,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
         const rxEmail = /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig;
         richText = richText.replaceAll(rxEmail, (match) => {
           return `<a href="mailto:${ match }">${ match }</a>`;
-        })
+        });
         /**
          * url parser regex breakdown with an added check to ensure it isn't already linked:
          * 
@@ -167,7 +167,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
           // ensure what was picked up evaluates to a proper url (just in case)
           const matchURL = new URL((!match.match(/(?:https?|ftp|chrome|edge|about|file\/):\/\//)) ? "http://" + match : match);
           return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
-        })
+        });
         /**
          * newline parser Regex breakdown ignoring those after a block level tag:
          * 
@@ -211,7 +211,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
         composed: true,
         inputType: "inputFromPaste",
         data: richText,
-      })
+      });
       selNode.dispatchEvent(new KeyboardEvent('keyup', keyEvent));
     }
 
@@ -220,7 +220,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
       text: text,
       richText: richText,
     };
-  }
+  };
 
   // TODO: replace modal with popup so the selection won't lose focus
   // // process custom fields
@@ -314,12 +314,12 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
   // }
 
   return paste(text);
-}
+};
 
 // Request permissions when necessary for cross-origin iframes
 const requestFrames = async (action, src) => {
   const getFrameOrigins = () => {
-    const origins = [window.location.origin + "/*"]
+    const origins = [window.location.origin + "/*"];
     // add src of all iframes on page so user only needs to request permission once
     Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
       if (frame.src) origins.push((new URL(frame.src).origin) + "/*");
@@ -341,30 +341,30 @@ const requestFrames = async (action, src) => {
     url: chrome.runtime.getURL("popups/permissions.html"),
     type: "popup",
     width: 480,
-    height: 300
+    height: 300,
   });
   return requestor;
-}
+};
 
 /**
  * Base constructor for folders, snippets and any future items
  */
 class TreeItem {
-  constructor({ name, seq, label } = {}) {
+  constructor({ name, seq, color } = {}) {
     this.name = name || "New Tree Item";
     this.seq = seq || 1;
-    this.label = label;
+    this.color = color;
   }
 }
 /**
  * Folders contain tree items and can be nested.
  */
 class Folder extends TreeItem {
-  constructor({ name, seq, children, label } = {}) {
+  constructor({ name, seq, children, color } = {}) {
     super({
       name: name || "New Folder",
       seq: seq || 1,
-      label: label,
+      color: color,
     });
     this.children = children || [];
   }
@@ -373,11 +373,11 @@ class Folder extends TreeItem {
  * Snippets are basic text blocks that can be pasted
  */
 class Snippet extends TreeItem {
-  constructor({ name, seq, content, label, shortcut, sourceURL } = {}) {
+  constructor({ name, seq, content, color, shortcut, sourceURL } = {}) {
     super({
       name: name || "New Snippet",
       seq: seq || 1,
-      label: label,
+      color: color,
     });
     this.content = content || "";
     this.shortcut = shortcut;
@@ -574,6 +574,11 @@ class Space {
     return fromItem;
   }
 
+  /**
+   * 
+   * @param {number[]} path - Full path to the tree item
+   * @returns {TreeItem|Folder|Snippet}
+   */
   getItem(path) {
     try {
       let item = this.data;
@@ -590,13 +595,13 @@ class Space {
   async getProcessedSnippet(path) {
     const locale = navigator.language;
     const snip = this.getItem(path);
-    const folder = this.getItem(path.slice(0,-1))
+    const folder = this.getItem(path.slice(0,-1));
     let snipText = snip.content;
     const result = {
       text: snipText,
       richText: snipText,
       nosubst: true,
-    }
+    };
     
     // skip processing if Clippings [NOSUBST] flag is in the name
     if (snip.name.slice(0,9) === "[NOSUBST]") return result;
@@ -623,8 +628,8 @@ class Space {
         // required for ordinal suffixes as not part of Intl yet
         const pr = new Intl.PluralRules(locale, { type: "ordinal" });
         const suffixes = {
-          "en": { "one": "st", "two": "nd", "few": "rd", "other": "th" }
-        }
+          "en": { "one": "st", "two": "nd", "few": "rd", "other": "th" },
+        };
         const datePartsToObject = (obj, item) =>
           (item.type === "literal") ? obj : (obj[item.type] = item.value, obj);
   
@@ -760,7 +765,7 @@ class Space {
           return match;
         });
         return dateString;
-      }
+      };
       const UA = navigator.userAgent;
       let host;
       switch (p1.toUpperCase()) {
@@ -771,13 +776,13 @@ class Space {
               dateStyle: "full",
             }).format(now);
             if (p2.toUpperCase() === "LONG") return new Intl.DateTimeFormat(locale, {
-              dateStyle: "long"
+              dateStyle: "long",
             }).format(now);
             if (p2.toUpperCase() === "MEDIUM") return new Intl.DateTimeFormat(locale, {
-              dateStyle: "medium"
+              dateStyle: "medium",
             }).format(now);
             if (p2.toUpperCase() === "SHORT") return new Intl.DateTimeFormat(locale, {
-              dateStyle: "short"
+              dateStyle: "short",
             }).format(now);
   
             return formattedDateTime(p2, now);
@@ -787,16 +792,16 @@ class Space {
         case "TIME":
           if (p2) {
             if (p2 === "full") return new Intl.DateTimeFormat(locale, {
-              timeStyle: "full"
+              timeStyle: "full",
             }).format(now);
             if (p2 === "long") return new Intl.DateTimeFormat(locale, {
-              timeStyle: "long"
+              timeStyle: "long",
             }).format(now);
             if (p2 === "medium") return new Intl.DateTimeFormat(locale, {
-              timeStyle: "medium"
+              timeStyle: "medium",
             }).format(now);
             if (p2 === "short") return new Intl.DateTimeFormat(locale, {
-              timeStyle: "short"
+              timeStyle: "short",
             }).format(now);
   
             return formattedDateTime(p2, now);
@@ -833,7 +838,7 @@ class Space {
     return folder.children.filter(item => item.children).length;
   }
 
-  sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'], } = {}) {
+  sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'] } = {}) {
     // recursive function in case everything needs to be sorted
     let sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
       if (!data.children)
@@ -855,11 +860,11 @@ class Space {
             sortFolder(child, recursive, by, foldersOnTop, reverse);
         }
       }
-    }
+    };
     if (folderPath[0] === 'all') {
       sortFolder(this.data, true, by, foldersOnTop, reverse);
     } else {
-      sortFolder(this.getItem(folderPath), false, by, foldersOnTop, reverse)
+      sortFolder(this.getItem(folderPath), false, by, foldersOnTop, reverse);
     }
     return this;
   }
@@ -946,21 +951,6 @@ class Settings {
   }
 }
 
-// create backup file
-async function saveToFile(text, filename) {
-  // Use new experimental API
-  try {
-    const f = await window.showSaveFilePicker({
-      suggestedName: filename || "Snippets.json",
-      types: [
-        { description: "Backup File", accept: { "application/json": [".json"] }, },
-      ],
-    });
-    await f.write(text);
-    await f.close();
-  } catch { /* cancelled */ }
-}
-
 // (re)build context menu for snipping and pasting
 const buildContextMenus = async (space) => {
   // clear current
@@ -1020,9 +1010,9 @@ const buildContextMenus = async (space) => {
         menuItem.enabled = false;
         chrome.contextMenus.create(menuItem);
       }
-    }
+    };
     // build paste snippet menu tree
     if (space.data.children)
       buildFolder(space.data.children, menuData);
   }
-}
+};

@@ -8,35 +8,37 @@
  */
 function buildNode(tagName, attributes) {
   const element = document.createElement(tagName);
+
   for (let a in attributes) {
     // ignores falsy values
     if (!attributes[a]) continue;
     switch (a) {
-    case 'children':
-      element.append(...attributes.children);
-      break;
+    case 'children': { // append any valid nodes
+      const children = attributes.children.filter((e) => e);
+      if (children.length) element.append(...children);
+      break; }
     
-    case 'dataset':
-      for (let data in attributes.dataset) {
-        element.dataset[data] = attributes.dataset[data];
+    case 'dataset': // append `data-*` attributes
+      for (let key in attributes.dataset) {
+        element.dataset[key] = attributes.dataset[key];
       }
       break;
 
-    case 'classList':
+    case 'classList': // append classes
       element.classList.add(...attributes.classList);
       break;
 
-    case 'textContent':
+    case 'textContent': // add text content within tag (should not be used along with children)
       element.textContent = attributes.textContent;
       break;
     
-    case 'events':
+    case 'events': // attach event listeners directly to element
       for (let e of attributes.events) {
         element.addEventListener(e.type, e.listener, e.options || false);
       }
       break;
   
-    default:
+    default: // assume remaining attributes can be set directly
       element.setAttribute(a, attributes[a]);
     }
   }
@@ -70,12 +72,12 @@ function buildSvg(title, sprite, fill) {
 }
 
 /**
- * Builder for popover menus, normally with an icon
+ * Builder for popover menus with an icon
  * @param {string} id 
+ * @param {string} sprite 
  * @param {HTMLElement[]} list 
- * @param {HTMLElement} [buttonContents] - Optional overwride for default icon with name `icon-${id}`
  */
-function buildPopoverMenu(id, list, buttonContents) {
+function buildPopoverMenu(id, sprite, list) {
   return buildNode('div', {
     classList: [`menu`],
     children: [
@@ -86,10 +88,7 @@ function buildPopoverMenu(id, list, buttonContents) {
           action: `open-popover`,
           target: id,
         },
-        children: [buttonContents || buildSvg(
-          `${ id }`,
-          `icon-${ id }`
-        )],
+        children: [buildSvg(id, sprite)],
       }),
       buildNode('div', {
         id: id,
@@ -111,9 +110,7 @@ function buildMenuItem(name, dataset) {
     children: [buildNode('button', {
       type: `button`,
       dataset: dataset,
-      children: [buildNode('h3', {
-        textContent: name,
-      })],
+      textContent: name,
     })],
   });
 }
@@ -130,17 +127,24 @@ function buildMenuSeparator() {
  * @param {string} name - Menu name, will be postpended with `…`
  * @param {HTMLElement[]} items - Submenu items
  */
-function buildSubMenu(name, items) {
+function buildSubMenu(name, id, items) {
+  // don't build empty menus
+  if (!items?.length) return;
   return buildNode('fieldset', {
     classList: [`menu-item`],
     children: [
       buildNode('legend', {
-        children: [buildNode('h3', {
-          textContent: `${ name }…`
+        children: [buildNode('button', {
+          textContent: `${ name }…`,
+          dataset: {
+            action: `open-submenu`,
+            target: id,
+          },
         })],
       }),
       buildNode('div', {
-        classList: [`card`, `menu-list`],
+        id: id,
+        classList: [`card`, `menu-list`, `hidden`],
         children: items,
       }),
     ],
@@ -149,32 +153,33 @@ function buildSubMenu(name, items) {
 
 /**
  * Menu item builder for checkbox and radio controls
- * @param {string} type Input type (`checkbox`|`radio`)
- * @param {{name:string,value:string,dataset:Object,checked:boolean}} attributes 
- * @returns 
+ * @param {string} type - Input type (`checkbox`|`radio`)
+ * @param {string} value - Value sent when checked
+ * @param {{name:string,id:string,dataset:Object,checked:boolean}} attributes - At least one of id or dataset?.action is required
  */
-function buildMenuControl(type, id, { name, value, dataset, checked }) {
-  if (![`checkbox`, `radio`].includes(type)) return document.createTextNode(``);
+function buildMenuControl(type, value, { name, id, dataset, checked }) {
+  if (![`checkbox`, `radio`].includes(type)) return;
   return buildNode('p', {
     classList: [`menu-item`, `control`],
     children: [
       buildNode(`input`, {
         type: type,
-        name: name || id,
-        id: id,
+        name: name || id || dataset?.action,
+        id: id || dataset?.action,
         value: value,
         checked: checked,
         dataset: dataset,
         display: `none`,
       }),
       buildNode('label', {
-        for: id,
+        for: id || dataset?.action,
+        tabindex: `0`,
         children: [
           buildNode('div', {
             classList: [`icon`],
             children: [buildSvg(
               value,
-              `control-${ type }${ (checked) ? `-checked` : `` }`
+              `control-${ type }${ (checked) ? `-checked` : `` }`,
             )],
           }),
           buildNode('h3', { textContent: value }),
@@ -184,15 +189,145 @@ function buildMenuControl(type, id, { name, value, dataset, checked }) {
   });
 }
 
-function buildActionIcon(name, action, sprite) {
+function buildActionIcon(name, sprite, dataset) {
   return buildNode('button', {
+    type: `button`,
     classList: [`icon`],
-    dataset: {
-      action: action,
-    },
+    dataset: dataset,
     children: [buildSvg(
       name,
       sprite,
     )],
   });
+}
+
+/**
+ * Builder for TreeItem widgets depending on their extended class
+ * @param {TreeItem} item - Folder or Snippet
+ * @param {TreeItem[]} list - Folder list which includes `item`, for calculating dropzone targets
+ * @returns {HTMLElement[]}
+ */
+function buildItemWidget(item, list, path, settings) {
+  const index = list.indexOf(item);
+  if (index < 0) return;
+  const widget = [];
+  const isFolder = item instanceof Folder;
+  const isSnippet = item instanceof Snippet;
+
+  // widget menu
+  const widgetMenu = buildPopoverMenu(
+    `item-menu-${ item.seq }`,
+    `icon-${ item.constructor.name.toLowerCase() }`,
+    [
+      buildSubMenu(`Colour`, `item-${ item.seq }-color-menu`, Object.keys(colors).map((color, i) =>
+        buildMenuControl('radio', color, {
+          name: `item-${ item.seq }-color`,
+          id: `item-${ item.seq }-color-${ i }`,
+          dataset: {
+            action: `edit`,
+            seq: item.seq,
+            field: `color`,
+          },
+          checked: ((color === item.color) || ((color === "Default") && !item.color)),
+        }),
+      )),
+      buildSubMenu(`Move`, `item-${ item.seq }-move-menu`, list.reduce((a, o, i) => {
+        const l = list.length - 1;
+        const b = (direction) => buildMenuItem(direction, {
+          action: `move`,
+          seq: item.seq,
+          target: o.seq,
+        });
+        if (i === (index - 1)) {
+          a.push(b(`Up`));
+        } else if (i === (index + 1)) {
+          a.push(b(`Down`));
+        } else if (i === 0 && l > 1 && item.seq > list[1].seq) {
+          a.push(b(`To Top`));
+        } else if (i === l && l > 1 && item.seq < list[l-1].seq) {
+          a.push(b(`To Bottom`));
+        }
+        return a;
+      }, [])),
+    ],
+  );
+
+  // only folders can be 'opened'
+  const widgetTitle = buildNode('input', {
+    type: (isFolder) ? `button` : `text`,
+    value: item.name,
+    dataset: {
+      action: (isFolder) ? `open-folder` : `edit`,
+      target: path.concat([item.seq]).join(','),
+      seq: item.seq,
+      field: `name`,
+    },
+    disabled: !isFolder,
+  });
+
+  const widgetActions = buildNode('div', {
+    children: [
+      buildActionIcon(`Rename`, `icon-rename`, {
+        action: `rename`,
+        seq: item.seq,
+      }),
+      buildActionIcon(`Delete`, `icon-delete`, {
+        action: `delete`,
+        seq: item.seq,
+      }),
+    ],
+  });
+
+  const widgetHead = buildNode('div', {
+    classList: [`title`],
+    children: [
+      widgetMenu,
+      widgetTitle,
+      widgetActions,
+    ],
+  });
+
+  widget.push(widgetHead);
+
+  // Separate widget contents from title
+  if (!isFolder) widget.push(buildNode('hr'));
+
+  if (isSnippet) {
+    const widgetBody = buildNode('div', {
+      classList: ['snip-content'],
+      children: [buildNode('textArea', {
+        dataset: {
+          action: `edit`,
+          seq: item.seq,
+          field: `content`,
+        },
+        textContent: item.content,
+      })],
+    });
+    widget.push(widgetBody);
+    if (item.sourceURL && settings.view.sourceURL) {
+      const widgetSource = buildNode('div', {
+        classList: [`source-url`],
+        children: [
+          buildNode('label', {
+            for: `source-${ item.seq }`,
+            textContent: `Source:`,
+          }),
+          buildNode('input', {
+            type: `url`,
+            id: `source-${ item.seq }`,
+            placeholder: `…`,
+            value: item.sourceURL,
+            dataset: {
+              action: `edit`,
+              seq: item.seq,
+              field: `sourceURL`,
+            },
+          }),
+        ],
+      });
+      widget.push(widgetSource);
+    }
+  }
+  return widget;
 }

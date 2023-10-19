@@ -166,13 +166,16 @@ header {
 
 input {
   flex-grow: 1;
-  display: none;
-  border: none;
   font-family: inherit;
   font-size: 16px;
   line-height: 24px;
   font-weight: bold;
-  padding: 4px;
+  color: inherit;
+  margin: 0;
+  border: none;
+  padding: 0 4px;
+  background: none;
+  text-align: left;
 }
 
 .menu {
@@ -204,6 +207,10 @@ input {
   padding: 0;
 }
 
+.menu-item input {
+  display: none;
+}
+
 legend,
 .menu-item button {
   display: flex;
@@ -216,6 +223,7 @@ legend {
   border: none;
 }
 
+.menu-item button,
 .menu-item h3 {
   flex-grow: 1;
   font-size: 14px;
@@ -250,25 +258,14 @@ label .icon svg {
   box-shadow: 0 1px 3px rgba(200,200,150,0.8), 0 3px 5px rgba(200,200,150,0.8)
 }
 
-.submenu {
-  position: relative;
-}
-
-.submenu ul {
-  display: none;
-}
-
-.menu-item > .menu-list,
-.submenu ul {
-  display: none;
+.menu-item > .menu-list {
   position: absolute;
   top: 0;
   left: 100%;
   margin: 0;
 }
 
-.menu-item:hover > .menu-list,
-.submenu:hover ul {
+.menu-item:hover > .menu-list {
   display: block;
 }
 
@@ -292,13 +289,10 @@ label .icon svg {
 .source-url input {
   font: inherit;
   color: inherit;
-  display: block;
-  margin: 0 0 0 4px;
-  padding: 0 4px;
 }
 
 hr {
-  margin: 6px 0;
+  margin: 3px 0;
   border: 0;
   height: .1em;
   background-image: linear-gradient(to right, #ccc, #333, #ccc);

@@ -19,16 +19,6 @@ const space = new Space();
 
 // icons
 const spritesheet = "sprites.svg#";
-// /**
-//  * Set icons for controls
-//  * @param {string} setting
-//  * @param {boolean} selected
-//  * @returns 
-//  */
-// function setControlIcon(setting, selected) {
-//   q$(`[data-action="toggle-${ setting }"]`).labels[0].querySelector('use')
-//   .setAttribute('href', `${ spritesheet }control-checkbox${selected ? `-checked` : ``}`);
-// }
 
 // init
 const loadPopup = async () => {
@@ -42,14 +32,22 @@ const loadPopup = async () => {
   document.addEventListener('click', handleClick, false);
   document.addEventListener('focusin', adjustTextArea, false);
   document.addEventListener('input', adjustTextArea, false);
+  // document.addEventListener('keyup', handleKeyup, false);
   document.addEventListener('change', inputChange, false);
-  document.addEventListener('focusout', inputActions, false);
+  // document.addEventListener('focusout', inputActions, false);
   document.addEventListener('dragstart', handleDragDrop, false);
+  // Object.keys(window).forEach(key => {
+  //   if (/^on/.test(key)) {
+  //     document.addEventListener(key.slice(2), event => {
+  //       console.log(key, event);
+  //     });
+  //   }
+  // });
   // check for url parameters and load snippets accordingly
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = new URLSearchParams(location.search);
   space.path = urlParams.get('path')?.split(',') || [];
-  loadSnippets({ action: urlParams.get('action') || null, seq: urlParams.get('seq') || null });
-}
+  loadSnippets({ header: true, action: urlParams.get('action'), seq: urlParams.get('seq') });
+};
 document.addEventListener('DOMContentLoaded', loadPopup, false);
 
 /**
@@ -79,44 +77,32 @@ const getSubFolders = (folder) => groupItems(folder, 'folder').folders;
 
 function buildHeader() {
   // popover settings menu
-  const settingsMenu = buildPopoverMenu('settings', [
-    buildSubMenu(`View`, [
-      buildMenuControl('checkbox', `remember-path`, {
-        value: `Remember last open folder`,
-        dataset: {
-          action: `toggle-remember-path`,
-        },
+  const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, [
+    buildSubMenu(`View`, `settings-view`, [
+      buildMenuControl('checkbox', `Remember last open folder`, {
+        dataset: { action: `toggle-remember-path` },
         checked: settings.view.rememberPath,
       }),
-      buildMenuControl('checkbox', `show-source`, {
-        value: `Show source URLs`,
-        dataset: {
-          action: `toggle-show-source`,
-        },
+      buildMenuControl('checkbox', `Show source URLs`, {
+        dataset: { action: `toggle-show-source` },
         checked: settings.view.sourceURL,
       }),
     ]),
-    buildSubMenu(`Sort`, [
-      buildMenuControl('checkbox', `folders-first`, {
-        value: `Group folders at top`,
-        dataset: {
-          action: `toggle-folders-first`,
-        },
+    buildSubMenu(`Sort`, `settings-sort`, [
+      buildMenuControl('checkbox', `Group folders at top`, {
+        dataset: { action: `toggle-folders-first` },
         checked: settings.sort.foldersOnTop,
       }),
     ]),
-    buildSubMenu(`Behaviour`, [
-      buildMenuControl('checkbox', `save-source`, {
-        value: `Save source URLs`,
-        dataset: {
-          action: `toggle-save-source`,
-        },
+    buildSubMenu(`Behaviour`, `settings-behaviour`, [
+      buildMenuControl('checkbox', `Save source URLs`, {
+        dataset: { action: `toggle-save-source` },
         checked: settings.control.saveSource,
       }),
     ]),
-    buildSubMenu('Backups', [
-      buildMenuItem(`Full Backup`, { action: `backup`, target: `space`}),
-      buildMenuItem(`Backup for Clippings`, { action: `backup`, target: `clippings61`}),
+    buildSubMenu('Backups', `settings-backup`, [
+      buildMenuItem(`Full Backup`, { action: `backup`, target: `space` }),
+      buildMenuItem(`Backup for Clippings`, { action: `backup`, target: `clippings61` }),
       buildMenuSeparator(),
       buildMenuItem(`Restore`, { action: `restore` }),
       buildMenuItem(`Clear All Data`, { action: `clear-data-all` }),
@@ -126,33 +112,122 @@ function buildHeader() {
   const path = buildNode('nav', {
     id: `path`,
     children: [buildNode('h1', {
-      textContent: `Snippets`
+      textContent: `Snippets`,
     })],
   });
   // quick actions
   const quickActionMenu = buildNode('div', {
     id: `quick-actions`,
     children: [
-      buildActionIcon(`Sync`, `toggle-sync`, `icon-${ space.synced ? `sync` : `local` }`),
-      buildActionIcon(`New Folder`, `new-folder`, `icon-add-folder`),
-      buildActionIcon(`New Snippet`, `new-snippet`, `icon-add-snippet`),
-      buildActionIcon(`Pop Out`, `pop-out`, `icon-pop-out`),
-    ]
+      buildActionIcon(
+        `${ space.synced ? `Stop syncing` : `Start syncing` }`,
+        `icon-${ space.synced ? `sync` : `local` }`,
+        {
+          action: `toggle-sync`,
+        },
+      ),
+      buildActionIcon(`New Folder`, `icon-add-folder`, {
+        action: `new-folder`,
+      }),
+      buildActionIcon(`New Snippet`, `icon-add-snippet`, {
+        action: `new-snippet`,
+      }),
+      buildActionIcon(`Pop Out`, `icon-pop-out`, {
+        action: `pop-out`,
+      }),
+    ],
   });
   // put header together
   $('header').replaceChildren(
     settingsMenu,
     path,
-    quickActionMenu
+    quickActionMenu,
   );
 }
 
-// function buildTree() {}
-// function buildList(action, seq) {}
+function buildTree() {
+  /**
+   * Build folder tree for pop-out window (recursive function)
+   * @param {Folder[]} folders 
+   * @param {int[]} level 
+   */
+  function buildFolderList(folders, level) {
+    const isRoot = folders[0] instanceof DataBucket;
+    const path = level.join(',');
 
-async function loadSnippets({ header = true, buildTree = true, buildList = true, action = null, seq = null } = {}) {
-  if (header) buildHeader();
+    // list container with initial drop zone for reordering
+    const folderList = buildNode('ul', {
+      id: `folder-${ path }`,
+      children: !isRoot && [buildNode('li', {
+        dataset: { path: path, seq: `.5` },
+        classList: [`delimiter`],
+      })],
+    });
 
+    // add each folder with a following drop-zone for reordering
+    for (let folder of folders) {
+      // check for subfolders
+      const subFolders = getSubFolders(folder.children);
+      const collapsible = subFolders.length > 0;
+      // create folder list item
+      const folderItem = buildNode('li', {
+        dataset: {
+          path: path,
+          seq: (isRoot) ? `` : String(folder.seq),
+        },
+      });
+      // add folder details
+      folderItem.append(buildNode('div', {
+        classList: [`title`],
+        draggable: !isRoot, // TODO: allow root items to be dragged once multiple spaces is implimented
+        children: [
+          // expand/collapse button only available if subfolders were found
+          buildNode('button', {
+            type: `button`,
+            disabled: !collapsible,
+            dataset: collapsible && { action: `collapse` },
+            classList: [`icon`],
+            children: [
+              buildSvg(`Folder`, collapsible ? `icon-folder-collapse` : `icon-folder`, folder.label),
+            ],
+          }),
+          // folder name
+          buildNode('button', {
+            type: `button`,
+            classList: [`name`],
+            dataset: {
+              action: `open-folder`,
+              target: (isRoot) ? `` : level.concat([folder.seq]).join(','),
+            },
+            children: [
+              buildNode('h2', {
+                textContent: (isRoot) ? space.name : folder.name,
+              }),
+            ],
+          }),
+        ],
+      }));
+      // add sublist if subfolders were found
+      if (collapsible) folderItem.append(
+        buildFolderList(subFolders, (isRoot) ? [] : level.concat([folder.seq])),
+      );
+      // Add list item to list
+      folderList.append(folderItem);
+      // Insert dropzone after for reordering
+      if (!isRoot) {
+        folderList.append(buildNode('li', {
+          dataset: { path: path, seq: String(folder.seq + .5) },
+          classList: [`delimiter`],
+        }));
+      }
+    }
+    return folderList;
+  }
+  // start building from the root
+  $('tree').replaceChildren(buildFolderList([space.data], ['root']));
+}
+
+function buildList() {
   // shorthands
   const path = space.path;
   const pathHeader = $('path');
@@ -161,47 +236,40 @@ async function loadSnippets({ header = true, buildTree = true, buildList = true,
   // set path in header
   if (path.length) {
     const pathNames = space.getPathNames();
-    pathHeader.replaceChildren(buildNode('li', {
-      id: `folder-up`,
-      classList: [`folder`],
-      dataset: {
-        seq: path.slice(-2, -1).join(','),
-        path: path.slice(0, -2).join(','),
-      },
-      children: [buildNode('button', {
-        type: `button`,
-        classList: [`icon`],
+    pathHeader.replaceChildren(
+      buildNode('li', {
+        id: `folder-up`,
+        classList: [`folder`],
         dataset: {
+          seq: path.slice(-2, -1).join(','),
+          path: path.slice(0, -2).join(','),
+        },
+        children: [buildActionIcon(`Back`, `icon-back`, {
           action: 'open-folder',
           target: path.slice(0, -1).join(','),
-        },
-        children: [buildSvg(
-          `Back`,
-          `icon-back`
-        )],
-      })],
-    }));
-    pathHeader.append(buildNode('li', {
-      children: [
-        buildNode('h1', {
-          textContent: `/`,
-        }),
-        buildNode('h1', {
-          textContent: pathNames.pop(),
-        }),
-      ],
-    }));
-    // 
-    const folderUpItem = $('folder-up');
-    const folderUpButton = q$('#folder-up button')
+        })],
+      }),
+      buildNode('li', {
+        children: [
+          buildNode('h1', {
+            textContent: `/`,
+          }),
+          buildNode('h1', {
+            textContent: pathNames.pop(),
+          }),
+        ],
+      }),
+    );
     // add as many parent folders as possible
+    const folderUpItem = $('folder-up');
+    const folderUpButton = q$('#folder-up button');
     let fullPath = true;
     while (pathNames.length) {
       const i = pathNames.length;
       const pathName = pathNames.pop();
       const folderSeq = path.slice(i-1, i).join(',');
       const path = path.slice(0, i-1).join(',');
-      const folderTarget = path.slice(0, i).join(',')
+      const folderTarget = path.slice(0, i).join(',');
 
       const pathItem = buildNode('li', {
         classList: [`folder`],
@@ -211,7 +279,7 @@ async function loadSnippets({ header = true, buildTree = true, buildList = true,
         },
         children: [
           buildNode('h1', {
-            textContent: `/`
+            textContent: `/`,
           }),
           buildNode('button', {
             type: `button`,
@@ -222,7 +290,7 @@ async function loadSnippets({ header = true, buildTree = true, buildList = true,
             children: [buildNode('h1', {
               textContent: pathName,
             })],
-          })
+          }),
         ],
       });
       folderUpItem.after(pathItem);
@@ -255,7 +323,7 @@ async function loadSnippets({ header = true, buildTree = true, buildList = true,
             children: [buildNode('h1', {
               textContent: space.name,
             })],
-          })
+          }),
         ],
       });
       folderUpItem.after(pathSpace);
@@ -275,336 +343,99 @@ async function loadSnippets({ header = true, buildTree = true, buildList = true,
       })],
     }));
   }
+  // clear current list and get info
+  $('snippets').replaceChildren(buildNode('div', { classList: [`sizer`] }));
+  const folder = space.getItem(path).children || [];
+  const groups = fot && groupItems(folder);
 
-  if (buildTree) {
-    /**
-     * Build folder tree for pop-out window (recursive function)
-     * @param {Folder[]} folders 
-     * @param {int[]} level 
-     */
-    const buildFolderTree = (folders, level) => {
-      const isRoot = folders[0] instanceof DataBucket;
-      const path = level.join(',');
+  if (fot && groups.folders.length) { // group folders at top if set
+    $('snippets').append(buildNode('div', {
+      classList: [`card`],
+      children: [buildNode('ul', {
+        classList: [`folder-list`],
+        children: [
+          buildNode('li', { // leading dropzone
+            classList: [`delimiter`],
+            dataset: {
+              seq: `.5`,
+              path: path,
+            },
+          }),
+        ].concat(groups.folders.flatMap((folder, i, a) => [
+            buildNode('li', { // folder item
+              classList: [`folder`],
+              dataset: {
+                seq: folder.seq,
+                path: path,
+              },
+              children: buildItemWidget(folder, groups.folders, path, settings),
+            }),
+            buildNode('li', { // trailing dropzone
+              classList: [(i < a.length - 1) ? `separator` : `delimiter`],
+              dataset: {
+                seq: String(folder.seq + .5),
+                path: path,
+              },
+              children: (i < a.length - 1) && [buildNode('hr')],
+            }),
+        ])),
+      })],
+    }));
+    $('snippets').append(buildNode('hr'));
+  }
 
-      // list container with initial drop zone for reordering
-      const folderList = buildNode('ul', {
-        id: `folder-${ path }`,
-        children: !isRoot && [buildNode('li', {
-          dataset: { path: path, seq: `.5`, },
-          classList: [`delimiter`]
-        })],
-      });
-
-      // add each folder with a following drop-zone for reordering
-      for (let folder of folders) {
-        // check for subfolders
-        const subFolders = getSubFolders(folder.children);
-        const expandable = subFolders.length;
-        // create folder list item
-        const folderItem = buildNode('li', {
+  // list snippets, including folders if not grouped at top
+  const items = fot ? groups.snippets : folder;
+  if (items.length) {
+    $('snippets').append(buildNode('ul', {
+      id: `snippet-list`,
+      children: [
+        buildNode('li', {
+          classList: [`delimiter`],
           dataset: {
+            seq: .5,
             path: path,
-            seq: (isRoot) ? `` : String(folder.seq),
-          }
-        });
-        // add folder details
-        folderItem.append(buildNode('div', {
-          classList: [`title`],
-          draggable: !isRoot, // TODO: allow root items to be dragged once multiple spaces is implimented
-          children: [
-            // expand/collapse button only needed if subfolders were found
-            buildNode('button', {
-              type: `button`,
-              disabled: !expandable,
-              dataset: expandable && { action: `collapse` },
-              classList: [`icon`],
-              children: [
-                buildSvg(`Folder`, expandable ? `icon-folder-collapse` : `icon-folder`, folder.label)
-              ],
-            }),
-            // folder name
-            buildNode('button', {
-              type: `button`,
-              classList: [`name`],
-              dataset: {
-                action: `open-folder`,
-                target: (isRoot) ? `` : level.concat([folder.seq]).join(',')
-              },
-              children: [
-                buildNode('h2', {
-                  textContent: (isRoot) ? space.name : folder.name
-                })
-              ],
-            })
-          ],
-        }));
-        // add sublist if subfolders were found
-        if (expandable) folderItem.append(
-          buildFolderTree(subFolders, (isRoot) ? [] : level.concat([folder.seq]))
-        );
-        // Add list item to list
-        folderList.append(folderItem);
-        // Insert dropzone after for reordering
-        if (!isRoot) {
-          folderList.append(buildNode('li', {
-            dataset: { path: path, seq: String(folder.seq + .5), },
-            classList: [`delimiter`]
-          }));
-        }
-      }
-      return folderList;
-    }
-    // start building from the root
-    $('tree').replaceChildren(buildFolderTree([space.data], ['root']));
-  }
-
-  if (buildList) {
-    // clear current list and get info
-    $('snippets').replaceChildren(buildNode('div', { classList: [`sizer`] }));
-    const folder = space.getItem(path).children || [];
-    const groups = fot && groupItems(folder);
-
-    /**
-     * Builder for listing items depending on their class
-     * @param {TreeItem} item - Folder or Snippet
-     * @param {TreeItem[]} list - list which includes `item`, for calculating dropzone targets
-     * @returns {HTMLElement[]}
-     */
-    const buildNodesForItem = (item, list) => {
-      const itemNodes = [];
-      // only folders are clickable
-      const titleNode = (item instanceof Folder)
-        ? buildNode('button', {
-          type: `button`,
-          dataset: {
-            action: `open-folder`,
-            target: path.concat([item.seq]).join(','),
           },
-        })
-        : buildNode('div');
-      titleNode.classList.add(`name`)
-      titleNode.append(buildNode('h2', {
-        seq: item.seq,
-        textContent: item.name,
-      }));
-
-      // item settings and position
-      const menuID = `snipmenu${ item.seq }`;
-      const itemMenu = buildNode('fieldset', {
-        id: menuID,
-        classList: [`card`, `menu-list`, `popover`, `hidden`],
-        children: [
-          buildSubMenu(`Colour`, Object.keys(colors).map((color) =>
-            buildMenuControl('radio', `item${ item.seq }-color-${ color }`, {
-              name: `item${ item.seq }-color`,
-              value: color,
-              dataset: {
-                action: `edit`,
-                seq: item.seq,
-                field: `label`,
-              },
-              checked: ((color === item.label) || (!item.label && (color === "Default"))),
-            })
-          )),
-          buildSubMenu('Move', ['top', 'up', 'down', 'bottom'].map((direction, i) => {
-            if ((i < 2 && item.seq === list[0].seq) || (i > 1 && item.seq === list[list.length - 1].seq)) {
-              return null;
-            }
-            let target = ``
-            switch (direction) {
-              case 'top':
-                target = list[0].seq;
-                break;
-              case 'up':
-                target = item.seq - 1;
-                break;
-              case 'down':
-                target = item.seq + 1;
-                break;
-              case 'bottom':
-                target = list[list.length - 1].seq;
-                break;
-            }
-            return buildMenuItem([`To Top`, `Up`, `Down`, `To Bottom`][i], {
-              action: `move`,
-              seq: item.seq,
-              target: target,
-            });
-          }).filter(e => e)),
-        ],
-      })
-
-      // build header line
-      const itemHead = buildNode('div', {
-        classList: [`title`],
-        draggable: true,
-        children: [
-          buildNode('div', {
-            classList: [`menu`],
-            children: [
-              buildNode('button', {
-                type: `button`,
-                classList: [`icon`],
-                dataset: {
-                  action: `open-popover`,
-                  target: menuID,
-                },
-                children: [buildSvg(
-                  `Menu`,
-                  `icon-${ item.constructor.name.toLowerCase() }`,
-                  colors[item.label]?.value
-                )],
-              }),
-              itemMenu,
-            ],
-          }),
-          titleNode,
-          buildNode('input', {
-            type: `text`,
-            dataset: {
-              action: `edit`,
-              seq: item.seq,
-              field: `name`,
-            },
-            value: item.name,
-          }),
-          buildNode('button', {
-            type: `button`,
-            classList: [`icon`],
-            dataset: {
-              action: `rename`,
-              seq: item.seq,
-            },
-            children: [buildSvg(`Rename`, `icon-rename`)],
-          }),
-          buildNode('button', {
-            type: `button`,
-            classList: [`icon`],
-            dataset: {
-              action: `delete`,
-              seq: item.seq,
-              name: item.name,
-            },
-            children: [buildSvg(`Delete`, `icon-delete`)],
-          }),
-        ],
-      });
-      itemNodes.push(itemHead);
-      if (item instanceof Snippet) { // include editor
-        itemNodes.push(buildNode('hr'));
-        itemNodes.push(buildNode('div', {
-          classList: [`snip-content`],
-          children: [buildNode('textarea', {
-            dataset: {
-              action: `edit`,
-              seq: item.seq,
-              field: `content`,
-            },
-            textContent: item.content,
+        }),
+      ].concat(items.flatMap((item) => [
+        buildNode('li', {
+          classList: [item.constructor.name.toLowerCase()],
+          dataset: {
+            seq: item.seq,
+            path: path,
+          },
+          children: [buildNode('div', {
+            classList: [`card`],
+            children: buildItemWidget(item, items, path, settings),
           })],
-        }));
-        if (settings.view.sourceURL) itemNodes.push(buildNode('div', {
-          classList: [`source-url`],
-          children: [
-            buildNode('label', { textContent: `Source: ` }),
-            buildNode('input', {
-              type: `url`,
-              dataset: {
-                action: `edit`,
-                seq: item.seq,
-                field: `sourceURL`,
-              },
-              placeholder: `unknown…`,
-              value: item.sourceURL,
-            }),
-          ]
-        }));
-      }
-      return itemNodes;
-    }
+        }),
+        buildNode('li', {
+          classList: [`delimiter`],
+          dataset: {
+            seq: item.seq + .5,
+            path: path,
+          },
+        }),
+      ])),
+    }));
 
-    if (fot && groups.folders.length) { // group folders at top if set
-      $('snippets').append(buildNode('div', {
-        classList: [`card`],
-        children: [buildNode('ul', {
-          classList: [`folder-list`],
-          children: [
-            buildNode('li', { // leading dropzone
-              classList: [`delimiter`],
-              dataset: {
-                seq: `.5`,
-                path: path
-              },
-            }),
-          ].concat(groups.folders.flatMap((folder, i, a) => [
-              buildNode('li', { // folder item
-                classList: [`folder`],
-                dataset: {
-                  seq: folder.seq,
-                  path: path,
-                },
-                children: buildNodesForItem(folder, groups.folders),
-              }),
-              buildNode('li', { // trailing dropzone
-                classList: [(i < a.length - 1) ? `separator` : `delimiter`],
-                dataset: {
-                  seq: String(folder.seq + .5),
-                  path: path,
-                },
-                children: (i < a.length - 1) && [buildNode('hr')],
-              }),
-          ])),
-        })],
-      }));
-      $('snippets').append(buildNode('hr'));
-    }
-
-    // list snippets, including folders if not grouped at top
-    const items = fot ? groups.snippets : folder;
-    if (items.length) {
-      $('snippets').append(buildNode('ul', {
-        id: `snippet-list`,
-        children: [
-          buildNode('li', {
-            classList: [`delimiter`],
-            dataset: {
-              seq: .5,
-              path: path,
-            },
-          })
-        ].concat(items.flatMap((item) => [
-          buildNode('li', {
-            classList: [item.constructor.name.toLowerCase()],
-            dataset: {
-              seq: item.seq,
-              path: path,
-            },
-            children: [buildNode('div', {
-              classList: [`card`],
-              children: buildNodesForItem(item, items),
-            })],
-          }),
-          buildNode('li', {
-            classList: [`delimiter`],
-            dataset: {
-              seq: item.seq + .5,
-              path: path,
-            },
-          }),
-        ]))
-      }));
-
-      // keep items to a reasonable height
-      for (let textarea of $('snippets').getElementsByTagName('textarea'))
-        adjustTextArea(textarea, 160);
-    }
+    // keep items to a reasonable height
+    console.log(`buildList`);
+    for (let textarea of $('snippets').getElementsByTagName('textarea'))
+      adjustTextArea(textarea, 160);
   }
+}
+
+async function loadSnippets({ header = false, tree = true, list = true, action = null, seq = null } = {}) {
+  if (header) buildHeader();
+  if (tree) buildTree();
+  if (list) buildList();
 
   // check for requested actions
   switch (action) {
   case 'copy':
   case 'edit': {
-    let editArea = q$('#snippets textarea[data-seq="' + parseInt(seq) + '"]');
+    const editArea = q$('#snippets textarea[data-seq="' + parseInt(seq) + '"]');
     if (editArea) {
       editArea.focus();
       editArea.selectionStart = editArea.selectionEnd = editArea.value.length;
@@ -612,9 +443,8 @@ async function loadSnippets({ header = true, buildTree = true, buildList = true,
     break;
   }
   case 'rename': {
-    let renameButton = q$('#snippets button[data-action="rename"][data-seq="' + parseInt(seq) + '"]');
-    if (renameButton)
-      renameButton.click();
+    const renameButton = q$('#snippets button[data-action="rename"][data-seq="' + parseInt(seq) + '"]');
+    if (renameButton) renameButton.click();
     break;
   }
   default:
@@ -638,30 +468,29 @@ function adjustTextArea(textarea, limit = false) {
   }
 }
 
-// button handling
+// click handling
 async function handleClick(event) {
-  const src = event.target.closest('[data-action]');
-  const data = src?.dataset;
-  const url = new URL(window.location);
+  const target = event.target.closest('[data-action]');
+  // const url = new URL(location.href);
 
-  // open and close menus & modals as needed
+  // close menus & modals as needed
   for (let popover of document.querySelectorAll('.popover')) {
-    if (data?.action === `open-popover`
-      && popover.id === data?.target
-      && popover.classList.contains(`hidden`)
-      ) {
-      popover.classList.remove(`hidden`);
-    } else {
+    if (!popover.parentElement.contains(target)
+    || ![`open-popover`, `open-submenu`].includes(target.dataset.action)) {
       popover.classList.add(`hidden`);
     }
   }
 
   // end here if the clicked item doesn't have an action
-  if (!src) return;
+  if (!target) return;
 
-  // find parent list item in case needed
-  const item = src.closest('li');
-  const pq = query => item.querySelector(query);
+  // handle the action
+  console.log(target);
+  handleAction(target);
+
+  // // find parent list item in case needed
+  // const widget = src.closest('li');
+  // const wq = query => widget.querySelector(query);
 
   // if (document.activeElement !== document.body)
   //   document.activeElement.blur();
@@ -676,201 +505,216 @@ async function handleClick(event) {
   //   await setStorageData(data);
   // }
   
-  switch (data.action) {
-  case 'backup': {
-    let backup = {};
-    if (data.target === 'clippings61') {
-      backup = {
-        version: "6.1",
-        createdBy: "Clippings/wx",
-        userClippingsRoot: backup.data.children
-      }
-    } else if (data.target === 'space') {
-      backup = {
-        version: "0.9",
-        createdBy: "Snippets",
-        space: space,
-      }
-      delete backup.space.path;
-    }
-    const now = new Date;
-    saveToFile(JSON.stringify(backup), `snippets-backup-${ now.toISOString().slice(0,16) }.json`);
-    break; }
+  // switch (data.action) {
+  // case 'backup': {
+  //   let backup = {};
+  //   if (data.target === 'clippings61') {
+  //     backup = {
+  //       version: "6.1",
+  //       createdBy: "Clippings/wx",
+  //       userClippingsRoot: backup.data.children,
+  //     };
+  //   } else if (data.target === 'space') {
+  //     backup = {
+  //       version: "0.9",
+  //       createdBy: "Snippets",
+  //       space: space,
+  //     };
+  //     delete backup.space.path;
+  //   }
+  //   const now = new Date;
+  //   try {
+  //     const f = await window.showSaveFilePicker({
+  //       suggestedName: `snippets-backup-${ now.toISOString().slice(0,16) }.json`,
+  //       types: [{
+  //         description: "Backup File",
+  //         accept: { "application/json": [".json"] },
+  //       }],
+  //     });
+  //     const ws = await f.createWritable();
+  //     await ws.write(JSON.stringify(backup));
+  //     await ws.close();
+  //   } catch { /* assume cancelled */ }
+  //   break; }
   
-  case 'restore': {
-    if (space.data.children.length && !confirm("Careful, this will completely replace whatever snippets you already have."))
-      break;
-    // TODO: use new open picker API
-    try {
-      const [fileHandle] = await window.showOpenFilePicker({ types: [{
-        description: "Snippets or Clippings JSON backup",
-        accept: { "application/jason": ".json" },
-      }] });
-      const fileData = await fileHandle.getFile();
-      const fileContents = await fileData.text();
-      const data = new DataBucket(JSON.parse(fileContents));
-      if (!data) {
-        alert("The data could not be restored, please check the file and try again.");
-        break;
-      }
-      space.data = data;
-      space.save();
-      loadSnippets();
-    } catch { /* cancelled */ }
-    // $('file').dataset.action = 'restore';
-    // $('file').click();
-    // setCurrentSpace();
-    break; }
+  // case 'restore': {
+  //   if (space.data.children.length && !confirm("Careful, this will completely replace whatever snippets you already have."))
+  //     break;
+  //   try {
+  //     const [fileHandle] = await window.showOpenFilePicker({ types: [{
+  //       description: "Snippets or Clippings JSON backup",
+  //       accept: { "application/jason": ".json" },
+  //     }] });
+  //     const fileData = await fileHandle.getFile();
+  //     const fileContents = await fileData.text();
+  //     const data = JSON.parse(fileContents);
+  //     if (data.userClippingsRoot) { // check for clippings data
+  //       space.data = new DataBucket({ children: data.userClippingsRoot });
+  //     } else if (data.space) {
+  //       space.data = new DataBucket(data.space.data);
+  //     } else {
+  //       alert("The data could not be restored, please check the file and try again.");
+  //       break;
+  //     }
+  //     space.save();
+  //     loadSnippets();
+  //   } catch { /* assume cancelled */ }
+  //   // setCurrentSpace();
+  //   break; }
   
-  case 'open-folder': {
-    // update url for ease of navigating
-    if (data.target.length) {
-      url.searchParams.set('path', data.target);
-    } else {
-      url.searchParams.delete('path');
-    }
-    // clear any action info
-    url.searchParams.delete('action');
-    url.searchParams.delete('seq');
-    // push new url location to history
-    window.history.pushState({}, '', url);
-    // load new folder
-    space.path.length = 0;
-    if (data.target.length) {
-      space.path.push(...data.target.split(','));
-    }
-    // setCurrentSpace();
-    loadSnippets({buildTree: false});
-    break; }
+  // case 'open-folder': {
+  //   // update url for ease of navigating
+  //   if (data.target.length) {
+  //     url.searchParams.set('path', data.target);
+  //   } else {
+  //     url.searchParams.delete('path');
+  //   }
+  //   // clear any action info
+  //   url.searchParams.delete('action');
+  //   url.searchParams.delete('seq');
+  //   // push new url location to history
+  //   history.pushState({}, '', url);
+  //   // load new folder
+  //   space.path.length = 0;
+  //   if (data.target.length) {
+  //     space.path.push(...data.target.split(','));
+  //   }
+  //   // setCurrentSpace();
+  //   loadSnippets({tree: false});
+  //   break; }
 
-  case 'clear-data-all': {
-    if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
-    await chrome.storage.local.clear();
-    await chrome.storage.sync.clear();
-    // reinitialize
-    settings.init();
-    await settings.save();
-    await space.pivot(settings.defaultSpace);
-    await space.save();
-    loadPopup();
-    break;
-  }
+  // case 'clear-data-all': {
+  //   if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
+  //   await chrome.storage.local.clear();
+  //   await chrome.storage.sync.clear();
+  //   // reinitialize
+  //   settings.init();
+  //   await settings.save();
+  //   await space.pivot(settings.defaultSpace);
+  //   await space.save();
+  //   loadPopup();
+  //   break;
+  // }
 
-  case 'toggle-remember-path':
-    settings.view.rememberPath = !settings.view.rememberPath;
-    settings.save();
-    // setCurrentSpace();
-    loadSnippets({ buildTree: false, buildList: false });
-    break;
+  // case 'toggle-remember-path':
+  //   settings.view.rememberPath = !settings.view.rememberPath;
+  //   settings.save();
+  //   // setCurrentSpace();
+  //   loadSnippets({ tree: false, list: false });
+  //   break;
 
-  case 'toggle-show-source':
-    settings.view.sourceURL = !settings.view.sourceURL;
-    settings.save();
-    loadSnippets({ buildTree: false });
-    break;
+  // case 'toggle-show-source':
+  //   settings.view.sourceURL = !settings.view.sourceURL;
+  //   settings.save();
+  //   loadSnippets({ tree: false });
+  //   break;
   
-  case 'toggle-folders-first':
-    // swap folders first or not
-    settings.sort.foldersOnTop = !settings.sort.foldersOnTop;
-    settings.save();
-    if (settings.sort.foldersOnTop)
-      space.sort(settings.sort);
-    space.save();
-    loadSnippets();
-    break;
+  // case 'toggle-folders-first':
+  //   // swap folders first or not
+  //   settings.sort.foldersOnTop = !settings.sort.foldersOnTop;
+  //   settings.save();
+  //   if (settings.sort.foldersOnTop)
+  //     space.sort(settings.sort);
+  //   space.save();
+  //   loadSnippets();
+  //   break;
   
-  case 'toggle-save-source':
-    // swap saving source on snip actions or not
-    settings.control.saveSource = !settings.control.saveSource;
-    settings.save();
-    // TODO: confirm whether to delete existing sources
-    break;
+  // case 'toggle-save-source':
+  //   // swap saving source on snip actions or not
+  //   settings.control.saveSource = !settings.control.saveSource;
+  //   settings.save();
+  //   // TODO: confirm whether to delete existing sources
+  //   break;
 
-  case 'toggle-sync':
-    if (await space.shift({ synced: !space.synced })) {
-      // update current/default spaces if necessary
-      if (settings.defaultSpace.name === space.name) {
-        settings.defaultSpace.synced = space.synced;
-        settings.save();
-      }
-    }
-    // setCurrentSpace();
-    loadSnippets({ buildTree: false, buildList: false });
-    break;
+  // case 'toggle-sync':
+  //   if (await space.shift({ synced: !space.synced })) {
+  //     // update current/default spaces if necessary
+  //     if (settings.defaultSpace.name === space.name) {
+  //       settings.defaultSpace.synced = space.synced;
+  //       settings.save();
+  //     }
+  //   }
+  //   // setCurrentSpace();
+  //   loadSnippets({ tree: false, list: false });
+  //   break;
   
-  case 'new-snippet': {
-    let newSnippet = space.addItem(new Snippet());
-    space.save();
-    loadSnippets({ buildTree: false, action: 'rename', seq: newSnippet.seq });
-    break; }
+  // case 'new-snippet': {
+  //   let newSnippet = space.addItem(new Snippet());
+  //   space.save();
+  //   loadSnippets({ tree: false, action: 'rename', seq: newSnippet.seq });
+  //   break; }
   
-  case 'new-folder': {
-    let newFolder = space.addItem(new Folder());
-    if (settings.sort.foldersOnTop) space.sort(settings.sort);
-    space.save();
-    loadSnippets({ action: 'rename', seq: newFolder.seq });
-    break; }
+  // case 'new-folder': {
+  //   let newFolder = space.addItem(new Folder());
+  //   if (settings.sort.foldersOnTop) space.sort(settings.sort);
+  //   space.save();
+  //   loadSnippets({ action: 'rename', seq: newFolder.seq });
+  //   break; }
   
-  case 'delete':
-    if(confirm("You’re about to delete “" + data.name + "”… Please confirm.")) {
-      space.deleteItem(data.seq);
-      space.save();
-      loadSnippets();
-    }
-    break;
+  // case 'delete':
+  //   if(confirm("You’re about to delete “" + data.name + "”… Please confirm.")) {
+  //     space.deleteItem(data.seq);
+  //     space.save();
+  //     loadSnippets();
+  //   }
+  //   break;
   
-  case 'rename':
-    // swap display and input elements so name can be updated
-    pq('.title').draggable = false;
-    pq('.name').style.display = 'none';
-    pq('input').style.display = 'block';
-    pq('input').focus();
-    pq('input').select();
-    break;
+  // case 'rename': {
+  //   // change button inputs to text if needed and enable/focus
+  //   const input = wq('input');
+  //   input.type = `text`;
+  //   input.disabled = false;
+  //   input.focus();
+  //   input.select();
+  //   break; }
 
-  case 'edit':
-    space.editItem({
-      seq: data.seq,
-      field: data.field,
-      value: data.value,
-    })
-    space.save();
-    loadSnippets();
-    break;
+  // case 'edit':
+  //   // handle defaults
+  //   if (src.value === 'Default') {
+  //     if (data.field === 'label') src.value = undefined;
+  //   }
+  //   space.editItem({
+  //     seq: data.seq,
+  //     field: data.field,
+  //     value: src.value,
+  //   });
+  //   space.save();
+  //   loadSnippets();
+  //   break;
 
-  case 'move':
-    space.moveItem({
-      fromSeq: data.seq,
-      toSeq: data.target,
-    })
-    space.save();
-    loadSnippets();
-    break;
+  // case 'move':
+  //   space.moveItem({
+  //     fromSeq: data.seq,
+  //     toSeq: data.target,
+  //   });
+  //   space.save();
+  //   loadSnippets();
+  //   break;
   
-  case 'pop-out':
-    chrome.windows.create({
-      url: window.location.href,
-      type: "popup",
-      width: 867,
-      height: 540
-    });
-    window.close();
-    break;
+  // case 'pop-out':
+  //   chrome.windows.create({
+  //     url: location.href,
+  //     type: "popup",
+  //     width: 867,
+  //     height: 540,
+  //   });
+  //   window.close();
+  //   break;
   
-  case 'collapse':
-    pq('ul').style.display = 'none';
-    src.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-expand`);
-    src.dataset.action = 'expand';
-    break;
+  // case 'collapse':
+  //   wq('ul').style.display = 'none';
+  //   src.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-expand`);
+  //   src.dataset.action = 'expand';
+  //   break;
   
-  case 'expand':
-    pq('ul').style.removeProperty('display');
-    src.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-collapse`);
-    src.dataset.action = 'collapse';
-    break;
+  // case 'expand':
+  //   wq('ul').style.removeProperty('display');
+  //   src.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-collapse`);
+  //   src.dataset.action = 'collapse';
+  //   break;
   
-  default:
-  }
+  // default:
+  // }
 }
 
 // input handling
@@ -878,57 +722,9 @@ function inputChange(event) {
   // helpers
   const target = event.target;
   const action = target.dataset.action;
-
-  // for file inputs first
-  if (target.type === 'file' && target.files.length) {
-    const file = target.files[0];
-    const reader = new FileReader();
-    reader.onerror = function (e) {
-      console.error(e);
-      alert("Sorry, unable to load file." + "/n" + target.error.code);
-    }
-    reader.onload = async function () {
-      switch (action) {
-      case 'restore': {
-        try {
-          var obj = JSON.parse(reader.result);
-          if (obj.createdBy.slice(0, 9) === "Clippings") {
-            space.data.children = space.data.restructure(obj.userClippingsRoot);
-          } else if (obj.createdBy === "Snippets") {
-            switch (obj.version) {
-            case "0.8":
-              space.data = space.data.restructure(obj.data);
-              break;
-
-            case "0.9":
-              await space.pivot(obj.space);
-              break;
-          
-            default:
-              break;
-            }
-          }
-          space.sort(settings.sort);
-          space.save();
-          // space.path.length = 0;
-          loadSnippets();
-        } catch (e) {
-          console.error(e);
-          alert("Unsupported file…/n" + e);
-        }
-        break; }
-      
-      case 'import': {
-        alert("That does nothing yet.");
-        break; }
-
-      default: {
-        // do nothing
-      }}
-    }
-    reader.readAsText(file);
-  } else if (action === 'edit') {
-    space.editItem({
+  
+  if (action === 'edit') {
+    const item = space.editItem({
       seq: target.dataset.seq,
       field: target.dataset.field,
       value: target.value,
@@ -936,10 +732,8 @@ function inputChange(event) {
     if (target.type === 'checkbox') {
       const icon = target.parentElement.querySelector('use');
       icon.setAttribute('href', `${ spritesheet }control-checkbox${ target.checked ? `-checked` : `` }`);
-    }
-    if (target.type === 'radio') {
+    } else if (target.type === 'radio') {
       const controls = target.closest('fieldset').querySelectorAll('.control');
-      console.log(controls);
       for (let control of controls) {
         const isChecked = control.querySelector('input').checked;
         control.querySelector('use').setAttribute('href', `${ spritesheet }control-radio${ isChecked ? `-checked` : `` }`);
@@ -948,47 +742,56 @@ function inputChange(event) {
     if (target.dataset.field === 'label') {
       const icon = target.closest('.menu').querySelector('use');
       icon.setAttribute('fill', colors[target.value].value);
+    } else if (target.dataset.field === 'name') {
+      if (item instanceof Folder) {
+        target.type = `button`;
+      } else {
+        target.disabled = true;
+      }
     }
     space.save();
   }
 }
-function inputActions(event) {
-  // helpers
-  const target = event.target;
-  let item = target;
-  while (item && (item.tagName !== 'LI')) {
-    item = item.parentElement;
-  }
-  const pq = q => item.querySelector(q);
-  // actions as the field loses focus
-  if (['INPUT', 'TEXTAREA'].includes(target.tagName)) {
-    switch (target.dataset.field) {
-    case 'name':
-      // put back title
-      target.style.display = 'none';
-      if (!item) break;
-      pq('.name h2').textContent = target.value;
-      pq('.name').style.display = 'block';
-      pq('.title').draggable = true;
-      // reload folder tree if necessary
-      if (item.classList.contains('folder')) loadSnippets({ buildList: false });
-      break;
 
-    case 'content':
-      adjustTextArea(target, true);
-      break;
+// // focusout event helper
+// function inputActions(event) {
+//   // helpers
+//   const target = event.target;
+//   const item = target.closest('li');
+
+//   console.log(event, target, item);
+//   const pq = q => item.querySelector(q);
+//   // actions as the field loses focus
+//   if (['INPUT', 'TEXTAREA'].includes(target.tagName)) {
+//     switch (target.dataset.field) {
+//     case 'name':
+//       // put back title
+//       target.style.display = 'none';
+//       if (!item) break;
+//       pq('.name h2').textContent = target.value;
+//       pq('.name').style.display = 'block';
+//       pq('.title').draggable = true;
+//       // reload folder tree if necessary
+//       if (item.classList.contains('folder')) loadSnippets({ list: false });
+//       break;
+
+//     case 'content':
+//       console.log(event);
+//       adjustTextArea(target, true);
+//       break;
   
-    default:
-      break;
-    }
-  }
-}
+//     default:
+//       break;
+//     }
+//   }
+// }
 
 /**
  * drag and drop reordering of snippets so they can be put in folders
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
+  console.log(event);
   event.dataTransfer.effectAllowed = "move";
   // picked up item
   var item = event.target;
@@ -1026,7 +829,7 @@ function handleDragDrop(event) {
       target = target.parentElement;
     if (target)
       event.preventDefault();
-  }
+  };
 
   let dragOver = function (event) {
     // make sure there's another list item to drop on
@@ -1059,7 +862,7 @@ function handleDragDrop(event) {
       dropTarget = null;
       event.preventDefault();
     }
-  }
+  };
 
   let drop = async function (event) {
     // place the contents in a folder or swap positions
@@ -1110,9 +913,9 @@ function handleDragDrop(event) {
       dragEnd();
       loadSnippets();
     }
-  }
+  };
 
-  let dragEnd = function () {
+  function dragEnd() {
     // clean up styling
     if (dropTarget) dropTarget.classList.remove(...dropClasses);
 
@@ -1133,7 +936,7 @@ function handleDragDrop(event) {
       for (let child of item.children) {
         child.style.removeProperty('display');
       }
-      item.classList.remove('placeholder')
+      item.classList.remove('placeholder');
     }
   
     // allow for garbage collection
@@ -1152,4 +955,243 @@ function handleDragDrop(event) {
   document.addEventListener('dragover', dragOver, false);
   document.addEventListener('drop', drop, false);
   document.addEventListener('dragend', dragEnd, false);
+}
+
+/**
+ * Action handler for various inputs
+ * @param {HTMLElement} target 
+ * @returns 
+ */
+async function handleAction(target) {
+  const dataset = target.dataset;
+  if (!dataset.action) return;
+  switch (dataset.action) {
+    // open menus
+    case 'open-popover': 
+    case 'open-submenu': {
+      const t = $(dataset.target);
+      // clean up submenus
+      const topMenu = target.closest('.popover') || t;
+      for (let submenu of topMenu.querySelectorAll('.menu-list')) {
+        if (!(submenu === t || submenu.contains(t))) {
+          submenu.classList.add(`hidden`);
+        }
+      }
+      // open/close menu or submenu
+      if (t.classList.contains(`hidden`)) {
+        t.classList.remove(`hidden`);
+      } else {
+        t.classList.add(`hidden`);
+      }
+      break; }
+    // backup/restore/clear all data
+    case 'clear-data-all':
+      if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
+      await chrome.storage.local.clear();
+      await chrome.storage.sync.clear();
+      // reinitialize
+      settings.init();
+      await settings.save();
+      await space.pivot(settings.defaultSpace);
+      await space.save();
+      loadPopup();
+      break;
+
+    case 'backup': {
+      const backup = {};
+      if (dataset.target === 'clippings61') {
+        backup.version = "6.1";
+        backup.createdBy = "Clippings/wx";
+        backup.userClippingsRoot = JSON.stringify(space.data.children);
+        backup.userClippingsRoot.replaceAll(/"color":/u, `"label":`);
+      } else if (dataset.target === 'space') {
+        backup.version = "1.0";
+        backup.createdBy = "Snippets";
+        backup.space = JSON.stringify(space);
+      }
+      const now = new Date;
+      try {
+        const f = await window.showSaveFilePicker({
+          suggestedName: `snippets-backup-${ now.toISOString().slice(0,16) }.json`,
+          types: [{
+            description: "Backup File",
+            accept: { "application/json": [".json"] },
+          }],
+        });
+        const ws = await f.createWritable();
+        await ws.write(JSON.stringify(backup));
+        await ws.close();
+      } catch { /* assume cancelled */ }
+      break; }
+    
+    case 'restore': {
+      if (space.data.children.length && !confirm("Careful, this will completely replace whatever snippets you already have."))
+        break;
+      try {
+        const [fileHandle] = await window.showOpenFilePicker({ types: [{
+          description: "Snippets or Clippings JSON backup",
+          accept: { "application/jason": ".json" },
+        }] });
+        const fileData = await fileHandle.getFile();
+        const fileContents = await fileData.text();
+        const data = JSON.parse(fileContents);
+        if (data.userClippingsRoot) { // check for clippings data
+          space.data = new DataBucket({ children: data.userClippingsRoot });
+        } else if (data.space) {
+          space.data = new DataBucket(data.space.data);
+        } else {
+          alert("The data could not be restored, please check the file and try again.");
+          break;
+        }
+        space.save();
+        loadSnippets();
+      } catch { /* assume cancelled */ }
+      // setCurrentSpace();
+      break; }
+  
+    // settings
+    case 'toggle-remember-path':
+      settings.view.rememberPath = !settings.view.rememberPath;
+      settings.save();
+      // setCurrentSpace();
+      // loadSnippets({ tree: false, list: false });
+      break;
+  
+    case 'toggle-show-source':
+      settings.view.sourceURL = !settings.view.sourceURL;
+      settings.save();
+      loadSnippets({ tree: false });
+      break;
+    
+    case 'toggle-folders-first':
+      // swap folders first or not
+      settings.sort.foldersOnTop = !settings.sort.foldersOnTop;
+      settings.save();
+      if (settings.sort.foldersOnTop)
+        space.sort(settings.sort);
+      space.save();
+      loadSnippets({ tree: false });
+      break;
+    
+    case 'toggle-save-source':
+      // swap saving source on snip actions or not
+      settings.control.saveSource = !settings.control.saveSource;
+      settings.save();
+      // TODO: confirm whether to delete existing sources
+      break;
+
+    case 'toggle-sync':
+      if (await space.shift({ synced: !space.synced })) {
+        // update current/default spaces if necessary
+        if (settings.defaultSpace.name === space.name) {
+          settings.defaultSpace.synced = space.synced;
+          settings.save();
+        }
+      }
+      // setCurrentSpace();
+      loadSnippets({ tree: false, list: false });
+      break;
+    
+    // add/edit/delete items
+    case 'new-snippet': {
+      let newSnippet = space.addItem(new Snippet());
+      space.save();
+      loadSnippets({ tree: false, action: 'rename', seq: newSnippet.seq });
+      break; }
+    
+    case 'new-folder': {
+      let newFolder = space.addItem(new Folder());
+      if (settings.sort.foldersOnTop) space.sort(settings.sort);
+      space.save();
+      loadSnippets({ action: 'rename', seq: newFolder.seq });
+      break; }
+    
+    case 'delete':
+      if(confirm("You’re about to delete “" + dataset.name + "”… Please confirm.")) {
+        space.deleteItem(dataset.seq);
+        space.save();
+        loadSnippets();
+      }
+      break;
+    
+    case 'rename': {
+      // change button inputs to text if needed and enable/focus
+      const input = target.closest('li').querySelector('input[data-field="name"]');
+      input.type = `text`;
+      input.disabled = false;
+      input.focus();
+      input.select();
+      break; }
+  
+    case 'edit':
+      // handle defaults
+      if (dataset.value === 'Default') {
+        if (dataset.field === 'label') dataset.value = undefined;
+      }
+      space.editItem({
+        seq: dataset.seq,
+        field: dataset.field,
+        value: dataset.value,
+      });
+      space.save();
+      loadSnippets({ tree: target instanceof Folder });
+      break;
+  
+    case 'move':
+      space.moveItem({
+        fromSeq: dataset.seq,
+        toSeq: dataset.target,
+      });
+      space.save();
+      loadSnippets({ tree: target instanceof Folder });
+      break;
+    
+    // interface controls
+    case 'pop-out':
+      chrome.windows.create({
+        url: location.href,
+        type: "popup",
+        width: 867,
+        height: 540,
+      });
+      window.close();
+      break;
+    
+    case 'open-folder': {
+      // update url for ease of navigating
+      const url = new URL(location.href);
+      if (dataset.target.length) {
+        url.searchParams.set('path', dataset.target);
+      } else {
+        url.searchParams.delete('path');
+      }
+      // clear any action info
+      url.searchParams.delete('action');
+      url.searchParams.delete('seq');
+      // push new url location to history
+      history.pushState({}, '', url);
+      // load new folder
+      space.path.length = 0;
+      if (dataset.target.length) {
+        space.path.push(...dataset.target.split(','));
+      }
+      // setCurrentSpace();
+      loadSnippets({tree: false});
+      break; }
+    
+    case 'collapse':
+      target.closest('li').querySelector('ul').classList.add(`hidden`);
+      target.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-expand`);
+      target.dataset.action = 'expand';
+      break;
+    
+    case 'expand':
+      target.closest('li').querySelector('ul').classList.remove(`hidden`);
+      target.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-collapse`);
+      target.dataset.action = 'collapse';
+      break;
+  
+    default:
+      break;
+  }
 }
