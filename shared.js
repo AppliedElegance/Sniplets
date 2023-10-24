@@ -1,17 +1,16 @@
 /* All shared functions. */
-/* global CompressionStream DecompressionStream */
 /* eslint-disable no-unused-vars */
 
 // default colors
 const colors = {
   "Default": { },
   "Grey": { value: "#808080", clippings: "gray" },
-  "Red": { value: "#FF0000", clippings: "red" },
+  "Red": { value: "#D0312D", clippings: "red" },
   "Orange": { value: "#FFA500", clippings: "orange" },
   "Yellow": { value: "#FFD700", clippings: "yellow" },
-  "Green": { value: "#32CD32", clippings: "green" },
-  "Blue": { value: "#0000FF", clippings: "blue" },
-  "Violet": { value: "#EE82EE", clippings: "purple" },
+  "Green": { value: "#3CB043", clippings: "green" },
+  "Blue": { value: "#3457D5", clippings: "blue" },
+  "Purple": { value: "#A32CC4", clippings: "purple" },
 };
 
 /**
@@ -189,7 +188,6 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
         if (!pasted) {
           const sel = window.getSelection();
           const selRng = sel.getRangeAt(0);
-          console.log(sel, selRng);
           selRng.deleteContents();
           selRng.insertNode(document.createTextNode(richText));
           sel.collapseToEnd();
@@ -386,9 +384,9 @@ class Snippet extends TreeItem {
 }
 // Basic snippets data bucket
 class DataBucket {
-  constructor({ version, timestamp, children, counters } = {}) {
+  constructor({ version, children, counters } = {}) {
     this.version = version || "1.0";
-    this.timestamp = timestamp || Date.now();
+    this.timestamp = Date.now();
     this.children = children || [];
     this.counters = counters || { startVal: 0 };
 
@@ -481,7 +479,11 @@ class DataBucket {
  */
 class Space {
   /**
-   * @param {{ name: string, synced: boolean, data: DataBucket }} params
+   * @param {{
+   *   name: string
+   *   synced: boolean
+   *   data: DataBucket
+   * }} args
    */
   constructor({ name, synced, data } = {}) {
     this.synced = synced || false;
@@ -500,13 +502,25 @@ class Space {
     return pathNames;
   }
 
-  async load() {
-    // check for and load data if found
-    const data = await getStorageData(this.name, this.synced);
-    if (!data[this.name]) return;
-    this.data = new DataBucket(data[this.name]);
-    await this.data.parse();
-    return this.data;
+  /**
+   * 
+   * @param {{
+   *   name: string
+   *   synced: boolean
+   * }} args - Name & storage bucket location
+   * @returns 
+   */
+  async load({ name, synced }) {
+    const bucket = await getStorageData(
+      name || this.name,
+      synced || this.synced,
+    );
+    const data = bucket[name || this.name];
+    if (!data) return;
+    this.name = name;
+    this.synced = synced;
+    this.data = new DataBucket(data);
+    return await this.data.parse();
   }
 
   async save() {
@@ -514,6 +528,7 @@ class Space {
     if (!this.name.length) return;
 
     // gzip compression adds about 8x more storage space
+    console.log(this.data);
     const dataBucket = new DataBucket(this.data);
     await dataBucket.compress();
 
@@ -900,50 +915,59 @@ class Space {
     return success;
   }
 
+  /**
+   * Reuse the space object
+   * @param {{
+   *   name: string
+   *   synced: boolean
+   *   data: DataBucket
+   *   path: number[]
+   * }} args
+   */
   async pivot({ name, synced, data, path }) {
+    console.log(name, synced, data, path);
+    if (!(data instanceof DataBucket)) {
+      data = new DataBucket(data);
+      data.parse();
+      console.log(data);
+    }
     this.name = name;
     this.synced = synced;
-    this.data = data ? new DataBucket(data).parse() : new DataBucket();
+    this.data = data;
     this.path = path || [];
-    return await this.load();
+    return;
   }
 }
 
 class Settings {
-  constructor() {
-    this.init();
-  }
-
-  init({
-    defaultSpace = { name: "Snippets", synced: false },
-    view = {
+  init({ defaultSpace, view, sort, control } = {}) {
+    this.defaultSpace = defaultSpace || {
+      name: "Snippets",
+      synced: false,
+    };
+    this.sort = sort || {
+      by: 'seq',
+      groupBy: null,
+      foldersOnTop: true,
+    };
+    this.view = view || {
       rememberPath: false,
       sourceURL: false,
-    },
-    sort = {
-      by: 'seq',
-      foldersOnTop: true,
-    },
-    control = {
+    };
+    this.control = control || {
       saveSource: true,
-    },
-  } = {}) {
-    this.defaultSpace = defaultSpace;
-    this.sort = sort;
-    this.view = view;
-    this.control = control;
+    };
   }
 
   async load() {
     let { settings } = await getStorageData('settings', true);
-    if (settings) {
-      // legacy checks
-      if (settings.foldersOnTop) {
+    // legacy check
+    if (settings?.foldersOnTop) {
         settings.sort = { foldersOnTop: settings.foldersOnTop };
         delete settings.foldersOnTop;
-      }
-      this.init(settings);
     }
+    this.init(settings);
+    return this;
   }
 
   async save() {

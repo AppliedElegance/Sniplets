@@ -254,6 +254,7 @@ label .icon svg {
   height: 16px;
 }
 
+input:focus + label,
 .menu-item:hover {
   box-shadow: 0 1px 3px rgba(200,200,150,0.8), 0 3px 5px rgba(200,200,150,0.8)
 }
@@ -276,6 +277,7 @@ label .icon svg {
   font-size: 15px;
   line-height: 19px;
   background: #fff;
+  transition: height 1s;
 }
 
 .source-url {

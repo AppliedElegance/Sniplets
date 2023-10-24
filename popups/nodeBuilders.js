@@ -77,18 +77,13 @@ function buildSvg(title, sprite, fill) {
  * @param {string} sprite 
  * @param {HTMLElement[]} list 
  */
-function buildPopoverMenu(id, sprite, list) {
+function buildPopoverMenu(id, sprite, color, list) {
   return buildNode('div', {
     classList: [`menu`],
     children: [
-      buildNode('button', {
-        type: `button`,
-        classList: [`icon`],
-        dataset: {
-          action: `open-popover`,
-          target: id,
-        },
-        children: [buildSvg(id, sprite)],
+      buildActionIcon(`Open ${ id } Menu`, sprite, color, {
+        action: `open-popover`,
+        target: id,
       }),
       buildNode('div', {
         id: id,
@@ -135,6 +130,7 @@ function buildSubMenu(name, id, items) {
     children: [
       buildNode('legend', {
         children: [buildNode('button', {
+          type: `button`,
           textContent: `${ name }…`,
           dataset: {
             action: `open-submenu`,
@@ -155,7 +151,12 @@ function buildSubMenu(name, id, items) {
  * Menu item builder for checkbox and radio controls
  * @param {string} type - Input type (`checkbox`|`radio`)
  * @param {string} value - Value sent when checked
- * @param {{name:string,id:string,dataset:Object,checked:boolean}} attributes - At least one of id or dataset?.action is required
+ * @param {{
+ *   name: string
+ *   id: string
+ *   dataset: Object
+ *   checked: boolean
+ * }} attributes - At least one of id or dataset?.action is required
  */
 function buildMenuControl(type, value, { name, id, dataset, checked }) {
   if (![`checkbox`, `radio`].includes(type)) return;
@@ -189,7 +190,7 @@ function buildMenuControl(type, value, { name, id, dataset, checked }) {
   });
 }
 
-function buildActionIcon(name, sprite, dataset) {
+function buildActionIcon(name, sprite, color, dataset) {
   return buildNode('button', {
     type: `button`,
     classList: [`icon`],
@@ -197,6 +198,7 @@ function buildActionIcon(name, sprite, dataset) {
     children: [buildSvg(
       name,
       sprite,
+      color,
     )],
   });
 }
@@ -218,6 +220,7 @@ function buildItemWidget(item, list, path, settings) {
   const widgetMenu = buildPopoverMenu(
     `item-menu-${ item.seq }`,
     `icon-${ item.constructor.name.toLowerCase() }`,
+    colors[item.color]?.value || `inherit`,
     [
       buildSubMenu(`Colour`, `item-${ item.seq }-color-menu`, Object.keys(colors).map((color, i) =>
         buildMenuControl('radio', color, {
@@ -267,11 +270,11 @@ function buildItemWidget(item, list, path, settings) {
 
   const widgetActions = buildNode('div', {
     children: [
-      buildActionIcon(`Rename`, `icon-rename`, {
+      buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
         action: `rename`,
         seq: item.seq,
       }),
-      buildActionIcon(`Delete`, `icon-delete`, {
+      buildActionIcon(`Delete`, `icon-delete`, colors.Red.value, {
         action: `delete`,
         seq: item.seq,
       }),

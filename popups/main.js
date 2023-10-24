@@ -16,68 +16,77 @@ const q$ = (query) => document.querySelector(query);
 // globals for settings and keeping track of the current folder
 const settings = new Settings();
 const space = new Space();
-
-// icons
-const spritesheet = "sprites.svg#";
+async function setCurrentSpace() {
+  // current and default space must be synced if they have the same name
+  const loc = {
+    name: space.name,
+    synced: space.synced,
+  };
+  if (loc.name === settings.defaultSpace.name) {
+    settings.defaultSpace = loc;
+    settings.save();
+  }
+  return await setStorageData({ currentSpace: loc }, false);
+}
 
 // init
-const loadPopup = async () => {
+async function loadPopup() {
   // load up settings
   await settings.load();
+
   // load up the current space or fall back to default
   let { currentSpace } = await getStorageData('currentSpace');
-  if (!currentSpace) currentSpace = settings.defaultSpace;
-  await space.pivot(currentSpace);
+  await space.load(currentSpace || settings.defaultSpace);
+  if (!currentSpace) setCurrentSpace();
+
   // set up listeners
   document.addEventListener('click', handleClick, false);
-  document.addEventListener('focusin', adjustTextArea, false);
-  document.addEventListener('input', adjustTextArea, false);
-  // document.addEventListener('keyup', handleKeyup, false);
-  document.addEventListener('change', inputChange, false);
+  document.addEventListener('keydown', handleKeydown, false);
+  document.addEventListener('keyup', handleKeyup, false);
+  document.addEventListener('change', handleChange, false);
+  // document.addEventListener('focusin', adjustTextArea, false);
+  // document.addEventListener('input', adjustTextArea, false);
   // document.addEventListener('focusout', inputActions, false);
   document.addEventListener('dragstart', handleDragDrop, false);
-  // Object.keys(window).forEach(key => {
-  //   if (/^on/.test(key)) {
-  //     document.addEventListener(key.slice(2), event => {
-  //       console.log(key, event);
-  //     });
-  //   }
-  // });
+
   // check for url parameters and load snippets accordingly
   const urlParams = new URLSearchParams(location.search);
   space.path = urlParams.get('path')?.split(',') || [];
-  loadSnippets({ header: true, action: urlParams.get('action'), seq: urlParams.get('seq') });
-};
+  loadSnippets({ action: urlParams.get('action'), seq: urlParams.get('seq') });
+}
 document.addEventListener('DOMContentLoaded', loadPopup, false);
 
 /**
  * Helper for grouping tree items by type
- * @param {*[]} folder 
- * @returns {Object<string,*[]>}
+ * @param {(Folder|Snippet)[]} list 
+ * @param {string} type - accepts 'all' or the specific type of TreeItem
+ * @returns {Object}
+ * @example
+ * // itemGroups will have separate properties .folder & . containing only
+ * // subfolders of the space.children root folder
+ * const itemGroups = groupItems(space.children, 'type');
  */
-const groupItems = (folder, type = 'all') => folder.reduce((folder, item) => {
-  const all = type === 'all';
-  if (item instanceof Folder && (all || type === 'folder')) {
-    folder.folders.push(item);
-  } else if (item instanceof Snippet && (all || type === 'snippet')) {
-    folder.snippets.push(item);
+const groupItems = (list, by = settings.sort.groupBy) => list.reduce((groups, item) => {
+  if (!by) {
+    (groups.all ||= []).push(item);
   }
-  return folder;
-}, {
-  folders: [],
-  snippets: [],
-});
+  const group = by === 'type'
+  ? item.constructor.name.toLowerCase()
+  : item[by];
+  (groups[group] ||= []).push(item);
+  return groups;
+}, {});
 
 /**
  * Helper for only grabbing subfolders
  * @param {*[]} folder 
  * @returns {Folder[]}
  */
-const getSubFolders = (folder) => groupItems(folder, 'folder').folders;
+const getSubFolders = (folder) => groupItems(folder, 'type').folder;
 
 function buildHeader() {
   // popover settings menu
-  const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, [
+  const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, `inherit`, [
     buildSubMenu(`View`, `settings-view`, [
       buildMenuControl('checkbox', `Remember last open folder`, {
         dataset: { action: `toggle-remember-path` },
@@ -120,19 +129,18 @@ function buildHeader() {
     id: `quick-actions`,
     children: [
       buildActionIcon(
-        `${ space.synced ? `Stop syncing` : `Start syncing` }`,
+        space.synced ? `Stop syncing` : `Start syncing`,
         `icon-${ space.synced ? `sync` : `local` }`,
-        {
-          action: `toggle-sync`,
-        },
-      ),
-      buildActionIcon(`New Folder`, `icon-add-folder`, {
+        `inherit`, {
+        action: `toggle-sync`,
+      }),
+      buildActionIcon(`New Folder`, `icon-add-folder`, `inherit`, {
         action: `new-folder`,
       }),
-      buildActionIcon(`New Snippet`, `icon-add-snippet`, {
+      buildActionIcon(`New Snippet`, `icon-add-snippet`, `inherit`, {
         action: `new-snippet`,
       }),
-      buildActionIcon(`Pop Out`, `icon-pop-out`, {
+      buildActionIcon(`Pop Out`, `icon-pop-out`, `inherit`, {
         action: `pop-out`,
       }),
     ],
@@ -168,7 +176,6 @@ function buildTree() {
     for (let folder of folders) {
       // check for subfolders
       const subFolders = getSubFolders(folder.children);
-      const collapsible = subFolders.length > 0;
       // create folder list item
       const folderItem = buildNode('li', {
         dataset: {
@@ -184,11 +191,11 @@ function buildTree() {
           // expand/collapse button only available if subfolders were found
           buildNode('button', {
             type: `button`,
-            disabled: !collapsible,
-            dataset: collapsible && { action: `collapse` },
+            disabled: !subFolders,
+            dataset: subFolders && { action: `collapse` },
             classList: [`icon`],
             children: [
-              buildSvg(`Folder`, collapsible ? `icon-folder-collapse` : `icon-folder`, folder.label),
+              buildSvg(`Folder`, subFolders ? `icon-folder-collapse` : `icon-folder`, colors[folder.color]?.value || `inherit`),
             ],
           }),
           // folder name
@@ -208,7 +215,7 @@ function buildTree() {
         ],
       }));
       // add sublist if subfolders were found
-      if (collapsible) folderItem.append(
+      if (subFolders) folderItem.append(
         buildFolderList(subFolders, (isRoot) ? [] : level.concat([folder.seq])),
       );
       // Add list item to list
@@ -244,7 +251,7 @@ function buildList() {
           seq: path.slice(-2, -1).join(','),
           path: path.slice(0, -2).join(','),
         },
-        children: [buildActionIcon(`Back`, `icon-back`, {
+        children: [buildActionIcon(`Back`, `icon-back`, `inherit`, {
           action: 'open-folder',
           target: path.slice(0, -1).join(','),
         })],
@@ -346,9 +353,9 @@ function buildList() {
   // clear current list and get info
   $('snippets').replaceChildren(buildNode('div', { classList: [`sizer`] }));
   const folder = space.getItem(path).children || [];
-  const groups = fot && groupItems(folder);
+  const groupedItems = fot && groupItems(folder, 'type');
 
-  if (fot && groups.folders.length) { // group folders at top if set
+  if (fot && groupedItems.folder) { // group folders at top if set
     $('snippets').append(buildNode('div', {
       classList: [`card`],
       children: [buildNode('ul', {
@@ -361,14 +368,14 @@ function buildList() {
               path: path,
             },
           }),
-        ].concat(groups.folders.flatMap((folder, i, a) => [
+        ].concat(groupedItems.folder.flatMap((folder, i, a) => [
             buildNode('li', { // folder item
               classList: [`folder`],
               dataset: {
                 seq: folder.seq,
                 path: path,
               },
-              children: buildItemWidget(folder, groups.folders, path, settings),
+              children: buildItemWidget(folder, groupedItems.folder, path, settings),
             }),
             buildNode('li', { // trailing dropzone
               classList: [(i < a.length - 1) ? `separator` : `delimiter`],
@@ -385,8 +392,8 @@ function buildList() {
   }
 
   // list snippets, including folders if not grouped at top
-  const items = fot ? groups.snippets : folder;
-  if (items.length) {
+  const items = fot ? groupedItems.snippet : folder;
+  if (items) {
     $('snippets').append(buildNode('ul', {
       id: `snippet-list`,
       children: [
@@ -420,16 +427,15 @@ function buildList() {
     }));
 
     // keep items to a reasonable height
-    console.log(`buildList`);
     for (let textarea of $('snippets').getElementsByTagName('textarea'))
       adjustTextArea(textarea, 160);
   }
 }
 
-async function loadSnippets({ header = false, tree = true, list = true, action = null, seq = null } = {}) {
-  if (header) buildHeader();
-  if (tree) buildTree();
-  if (list) buildList();
+function loadSnippets({ action = null, seq = null } = {}) {
+  buildHeader();
+  buildTree();
+  buildList();
 
   // check for requested actions
   switch (action) {
@@ -468,289 +474,98 @@ function adjustTextArea(textarea, limit = false) {
   }
 }
 
-// click handling
+/**
+ * Click handler
+ * @param {Event} event 
+ */
 async function handleClick(event) {
+  console.log(event, event.target);
+  // ignore labels (handled on inputs)
+  if (event.target.tagName === 'LABEL') return;
+
   const target = event.target.closest('[data-action]');
-  // const url = new URL(location.href);
+  console.log(target);
 
   // close menus & modals as needed
   for (let popover of document.querySelectorAll('.popover')) {
-    if (!popover.parentElement.contains(target)
+    console.log(popover);
+    if (!target
+    || !popover.parentElement.contains(target)
     || ![`open-popover`, `open-submenu`].includes(target.dataset.action)) {
+      console.log("Hidden");
       popover.classList.add(`hidden`);
     }
   }
 
-  // end here if the clicked item doesn't have an action
-  if (!target) return;
+  // end here if the clicked node doesn't have an action or isn't a button (will be handled with onchange instead)
+  console.log(target, target.type !== 'button');
+  if (!target || target.type !== 'button') return;
 
   // handle the action
-  console.log(target);
   handleAction(target);
-
-  // // find parent list item in case needed
-  // const widget = src.closest('li');
-  // const wq = query => widget.querySelector(query);
-
-  // if (document.activeElement !== document.body)
-  //   document.activeElement.blur();
-  // const setCurrentSpace = async function () {
-  //   const data = { currentSpace: {
-  //     name: space.name,
-  //     synced: space.synced
-  //   }};
-  //   if (settings.view.rememberPath) {
-  //     data.currentSpace.path = space.path;
-  //   }
-  //   await setStorageData(data);
-  // }
-  
-  // switch (data.action) {
-  // case 'backup': {
-  //   let backup = {};
-  //   if (data.target === 'clippings61') {
-  //     backup = {
-  //       version: "6.1",
-  //       createdBy: "Clippings/wx",
-  //       userClippingsRoot: backup.data.children,
-  //     };
-  //   } else if (data.target === 'space') {
-  //     backup = {
-  //       version: "0.9",
-  //       createdBy: "Snippets",
-  //       space: space,
-  //     };
-  //     delete backup.space.path;
-  //   }
-  //   const now = new Date;
-  //   try {
-  //     const f = await window.showSaveFilePicker({
-  //       suggestedName: `snippets-backup-${ now.toISOString().slice(0,16) }.json`,
-  //       types: [{
-  //         description: "Backup File",
-  //         accept: { "application/json": [".json"] },
-  //       }],
-  //     });
-  //     const ws = await f.createWritable();
-  //     await ws.write(JSON.stringify(backup));
-  //     await ws.close();
-  //   } catch { /* assume cancelled */ }
-  //   break; }
-  
-  // case 'restore': {
-  //   if (space.data.children.length && !confirm("Careful, this will completely replace whatever snippets you already have."))
-  //     break;
-  //   try {
-  //     const [fileHandle] = await window.showOpenFilePicker({ types: [{
-  //       description: "Snippets or Clippings JSON backup",
-  //       accept: { "application/jason": ".json" },
-  //     }] });
-  //     const fileData = await fileHandle.getFile();
-  //     const fileContents = await fileData.text();
-  //     const data = JSON.parse(fileContents);
-  //     if (data.userClippingsRoot) { // check for clippings data
-  //       space.data = new DataBucket({ children: data.userClippingsRoot });
-  //     } else if (data.space) {
-  //       space.data = new DataBucket(data.space.data);
-  //     } else {
-  //       alert("The data could not be restored, please check the file and try again.");
-  //       break;
-  //     }
-  //     space.save();
-  //     loadSnippets();
-  //   } catch { /* assume cancelled */ }
-  //   // setCurrentSpace();
-  //   break; }
-  
-  // case 'open-folder': {
-  //   // update url for ease of navigating
-  //   if (data.target.length) {
-  //     url.searchParams.set('path', data.target);
-  //   } else {
-  //     url.searchParams.delete('path');
-  //   }
-  //   // clear any action info
-  //   url.searchParams.delete('action');
-  //   url.searchParams.delete('seq');
-  //   // push new url location to history
-  //   history.pushState({}, '', url);
-  //   // load new folder
-  //   space.path.length = 0;
-  //   if (data.target.length) {
-  //     space.path.push(...data.target.split(','));
-  //   }
-  //   // setCurrentSpace();
-  //   loadSnippets({tree: false});
-  //   break; }
-
-  // case 'clear-data-all': {
-  //   if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
-  //   await chrome.storage.local.clear();
-  //   await chrome.storage.sync.clear();
-  //   // reinitialize
-  //   settings.init();
-  //   await settings.save();
-  //   await space.pivot(settings.defaultSpace);
-  //   await space.save();
-  //   loadPopup();
-  //   break;
-  // }
-
-  // case 'toggle-remember-path':
-  //   settings.view.rememberPath = !settings.view.rememberPath;
-  //   settings.save();
-  //   // setCurrentSpace();
-  //   loadSnippets({ tree: false, list: false });
-  //   break;
-
-  // case 'toggle-show-source':
-  //   settings.view.sourceURL = !settings.view.sourceURL;
-  //   settings.save();
-  //   loadSnippets({ tree: false });
-  //   break;
-  
-  // case 'toggle-folders-first':
-  //   // swap folders first or not
-  //   settings.sort.foldersOnTop = !settings.sort.foldersOnTop;
-  //   settings.save();
-  //   if (settings.sort.foldersOnTop)
-  //     space.sort(settings.sort);
-  //   space.save();
-  //   loadSnippets();
-  //   break;
-  
-  // case 'toggle-save-source':
-  //   // swap saving source on snip actions or not
-  //   settings.control.saveSource = !settings.control.saveSource;
-  //   settings.save();
-  //   // TODO: confirm whether to delete existing sources
-  //   break;
-
-  // case 'toggle-sync':
-  //   if (await space.shift({ synced: !space.synced })) {
-  //     // update current/default spaces if necessary
-  //     if (settings.defaultSpace.name === space.name) {
-  //       settings.defaultSpace.synced = space.synced;
-  //       settings.save();
-  //     }
-  //   }
-  //   // setCurrentSpace();
-  //   loadSnippets({ tree: false, list: false });
-  //   break;
-  
-  // case 'new-snippet': {
-  //   let newSnippet = space.addItem(new Snippet());
-  //   space.save();
-  //   loadSnippets({ tree: false, action: 'rename', seq: newSnippet.seq });
-  //   break; }
-  
-  // case 'new-folder': {
-  //   let newFolder = space.addItem(new Folder());
-  //   if (settings.sort.foldersOnTop) space.sort(settings.sort);
-  //   space.save();
-  //   loadSnippets({ action: 'rename', seq: newFolder.seq });
-  //   break; }
-  
-  // case 'delete':
-  //   if(confirm("You’re about to delete “" + data.name + "”… Please confirm.")) {
-  //     space.deleteItem(data.seq);
-  //     space.save();
-  //     loadSnippets();
-  //   }
-  //   break;
-  
-  // case 'rename': {
-  //   // change button inputs to text if needed and enable/focus
-  //   const input = wq('input');
-  //   input.type = `text`;
-  //   input.disabled = false;
-  //   input.focus();
-  //   input.select();
-  //   break; }
-
-  // case 'edit':
-  //   // handle defaults
-  //   if (src.value === 'Default') {
-  //     if (data.field === 'label') src.value = undefined;
-  //   }
-  //   space.editItem({
-  //     seq: data.seq,
-  //     field: data.field,
-  //     value: src.value,
-  //   });
-  //   space.save();
-  //   loadSnippets();
-  //   break;
-
-  // case 'move':
-  //   space.moveItem({
-  //     fromSeq: data.seq,
-  //     toSeq: data.target,
-  //   });
-  //   space.save();
-  //   loadSnippets();
-  //   break;
-  
-  // case 'pop-out':
-  //   chrome.windows.create({
-  //     url: location.href,
-  //     type: "popup",
-  //     width: 867,
-  //     height: 540,
-  //   });
-  //   window.close();
-  //   break;
-  
-  // case 'collapse':
-  //   wq('ul').style.display = 'none';
-  //   src.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-expand`);
-  //   src.dataset.action = 'expand';
-  //   break;
-  
-  // case 'expand':
-  //   wq('ul').style.removeProperty('display');
-  //   src.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-collapse`);
-  //   src.dataset.action = 'collapse';
-  //   break;
-  
-  // default:
-  // }
 }
 
-// input handling
-function inputChange(event) {
-  // helpers
-  const target = event.target;
-  const action = target.dataset.action;
-  
-  if (action === 'edit') {
-    const item = space.editItem({
-      seq: target.dataset.seq,
-      field: target.dataset.field,
-      value: target.value,
-    });
-    if (target.type === 'checkbox') {
-      const icon = target.parentElement.querySelector('use');
-      icon.setAttribute('href', `${ spritesheet }control-checkbox${ target.checked ? `-checked` : `` }`);
-    } else if (target.type === 'radio') {
-      const controls = target.closest('fieldset').querySelectorAll('.control');
-      for (let control of controls) {
-        const isChecked = control.querySelector('input').checked;
-        control.querySelector('use').setAttribute('href', `${ spritesheet }control-radio${ isChecked ? `-checked` : `` }`);
-      }
-    }
-    if (target.dataset.field === 'label') {
-      const icon = target.closest('.menu').querySelector('use');
-      icon.setAttribute('fill', colors[target.value].value);
-    } else if (target.dataset.field === 'name') {
-      if (item instanceof Folder) {
-        target.type = `button`;
-      } else {
-        target.disabled = true;
-      }
-    }
-    space.save();
+/**
+ * Keydown handler
+ * @param {Event} event 
+ */
+function handleKeydown(event) {
+  if (event.target.tagName === 'LABEL' && event.key === ' ') {
+    // prevent scroll behaviour when a label is 'clicked' with a spacebar
+    event.preventDefault();
   }
+}
+
+/**
+ * Keyup handler
+ * @param {Event} event 
+ */
+function handleKeyup(event) {
+  if (event.target.tagName === 'LABEL' && event.key === ' ') {
+    // accept spacebar input on label as if it was clicked
+    event.target.click();
+  }
+}
+
+/**
+ * Input change handler
+ * @param {Event} event 
+ */
+function handleChange(event) {
+  if (!event.target.dataset.action) return;
+  handleAction(event.target);
+  // // helpers
+  // const target = event.target;
+  // const action = target.dataset.action;
+  
+  // if (action === 'edit') {
+  //   const item = space.editItem({
+  //     seq: target.dataset.seq,
+  //     field: target.dataset.field,
+  //     value: target.value,
+  //   });
+  //   if (target.type === 'checkbox') {
+  //     const icon = target.parentElement.querySelector('use');
+  //     icon.setAttribute('href', `${ spritesheet }control-checkbox${ target.checked ? `-checked` : `` }`);
+  //   } else if (target.type === 'radio') {
+  //     const controls = target.closest('fieldset').querySelectorAll('.control');
+  //     for (let control of controls) {
+  //       const isChecked = control.querySelector('input').checked;
+  //       control.querySelector('use').setAttribute('href', `${ spritesheet }control-radio${ isChecked ? `-checked` : `` }`);
+  //     }
+  //   }
+  //   if (target.dataset.field === 'color') {
+  //     const icon = target.closest('.menu').querySelector('use');
+  //     icon.setAttribute('fill', colors[target.value].value);
+  //   } else if (target.dataset.field === 'name') {
+  //     if (item instanceof Folder) {
+  //       target.type = `button`;
+  //     } else {
+  //       target.disabled = true;
+  //     }
+  //   }
+  //   space.save();
+  // }
 }
 
 // // focusout event helper
@@ -791,7 +606,6 @@ function inputChange(event) {
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
-  console.log(event);
   event.dataTransfer.effectAllowed = "move";
   // picked up item
   var item = event.target;
@@ -964,7 +778,7 @@ function handleDragDrop(event) {
  */
 async function handleAction(target) {
   const dataset = target.dataset;
-  if (!dataset.action) return;
+  dataset.value ||= target.value;
   switch (dataset.action) {
     // open menus
     case 'open-popover': 
@@ -972,9 +786,12 @@ async function handleAction(target) {
       const t = $(dataset.target);
       // clean up submenus
       const topMenu = target.closest('.popover') || t;
+      console.log(target, dataset, topMenu, t);
       for (let submenu of topMenu.querySelectorAll('.menu-list')) {
+        console.log(submenu);
         if (!(submenu === t || submenu.contains(t))) {
           submenu.classList.add(`hidden`);
+          console.log(submenu.contains(t));
         }
       }
       // open/close menu or submenu
@@ -1003,7 +820,7 @@ async function handleAction(target) {
         backup.version = "6.1";
         backup.createdBy = "Clippings/wx";
         backup.userClippingsRoot = JSON.stringify(space.data.children);
-        backup.userClippingsRoot.replaceAll(/"color":/u, `"label":`);
+        backup.userClippingsRoot.replaceAll(/"color":"(.*?)"/u, (match, p1) => `"label":"${ colors[p1].clippings }"`);
       } else if (dataset.target === 'space') {
         backup.version = "1.0";
         backup.createdBy = "Snippets";
@@ -1038,15 +855,15 @@ async function handleAction(target) {
         if (data.userClippingsRoot) { // check for clippings data
           space.data = new DataBucket({ children: data.userClippingsRoot });
         } else if (data.space) {
-          space.data = new DataBucket(data.space.data);
+          await space.pivot(data.space);
+          space.save();
         } else {
           alert("The data could not be restored, please check the file and try again.");
           break;
         }
-        space.save();
         loadSnippets();
+        setCurrentSpace();
       } catch { /* assume cancelled */ }
-      // setCurrentSpace();
       break; }
   
     // settings
@@ -1119,6 +936,7 @@ async function handleAction(target) {
       const input = target.closest('li').querySelector('input[data-field="name"]');
       input.type = `text`;
       input.disabled = false;
+      input.dataset.action = `edit`;
       input.focus();
       input.select();
       break; }
@@ -1126,7 +944,7 @@ async function handleAction(target) {
     case 'edit':
       // handle defaults
       if (dataset.value === 'Default') {
-        if (dataset.field === 'label') dataset.value = undefined;
+        if (dataset.field === 'color') dataset.value = undefined;
       }
       space.editItem({
         seq: dataset.seq,

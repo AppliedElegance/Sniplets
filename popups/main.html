@@ -10,112 +10,20 @@
 
 <body>
 
-  <!-- Snippets menu -->
-  <header id="header">
-    <div class="menu">
-      <input type="file" id="file" name="file" accept="json">
-      <button type="button" class="icon" data-action="open-popover" data-target="settings">
-        <svg role="img" focusable="false">
-          <title>Settings</title>
-          <use href="sprites.svg#icon-settings"/>
-        </svg>
-      </button>
-      <ul class="popover card hidden" id="settings">
-        <li class="menu-item submenu"><h3>View…</h3>
-          <ul class="card" id="view">
-            <li class="menu-item"><button type="button" class="control" data-action="toggle-save-path">
-              <svg role="img" focusable="false">
-                <title>Toggle</title>
-                <use href="sprites.svg#control-checkbox"/>
-              </svg>
-              <h3 class="label">Remember last folder</h3>
-            </button></li>
-            <li class="menu-item"><button type="button" class="control" data-action="toggle-show-source">
-              <svg role="img" focusable="false">
-                <title>Toggle</title>
-                <use href="sprites.svg#control-checkbox"/>
-              </svg>
-              <h3 class="label">Show source urls</h3>
-            </button></li>
-          </ul>
-        </li>
-        <li class="menu-item submenu"><h3>Sort…</h3>
-          <ul class="card" id="sort">
-            <li class="menu-item"><button type="button" class="control" data-action="toggle-folders-first">
-              <div class="icon">
-                <svg role="img" focusable="false">
-                  <title>Toggle</title>
-                  <use href="sprites.svg#control-checkbox"/>
-                </svg>
-              </div>
-              <h3 class="label">Group folders at top</h3>
-            </button></li>
-          </ul>
-        </li>
-        <li class="menu-item submenu"><h3>Control…</h3>
-          <ul class="card" id="sort">
-            <li class="menu-item"><button type="button" class="control" data-action="toggle-save-source">
-              <div class="icon">
-                <svg role="img" focusable="false">
-                  <title>Toggle</title>
-                  <use href="sprites.svg#control-checkbox"/>
-                </svg>
-              </div>
-              <h3 class="label">Save source URLs</h3>
-            </button></li>
-          </ul>
-        </li>
-        <li class="separator"><hr></li>
-        <li class="menu-item submenu"><h3>Backup…</h3>
-          <ul class="card" id="backup">
-            <li class="menu-item"><button type="button" data-action="backup" data-target="space"><h3>Full</h3></button></li>
-            <li class="menu-item"><button type="button" data-action="backup" data-target="clippings61"><h3>Clippings Compatible</h3></button></li>
-          </ul>
-        </li>
-        <li class="menu-item"><button type="button" data-action="restore"><h3>Restore…</h3></button></li>
-        <li class="menu-item"><button type="button" data-action="clear-data-all"><h3>Clear all data</h3></button></li>
-      </ul>
-    </div>
+<!-- Snippets menu -->
+<header id="header">
+</header>
 
-    <!-- Name/path section ul to allow drag/drop -->
-    <ul id="path"></ul>
+<!-- Snippets builder -->
+<main>
+  <div id="tree" class="card"></div>
+  <hr class="vr">
+  <div id="snippets"></div>
+</main>
 
-    <button type="button" class="icon" data-action="toggle-sync">
-      <svg role="img" focusable="false">
-        <title>Sync</title>
-        <use href="sprites.svg#icon-sync"/>
-      </svg>
-    </button>
-    <button type="button" class="icon" data-action="new-folder">
-      <svg role="img" focusable="false">
-        <title>New Folder</title>
-        <use href="sprites.svg#icon-add-folder"/>
-      </svg>
-    </button>
-    <button type="button" class="icon" data-action="new-snippet">
-      <svg role="img" focusable="false">
-        <title>New Snippet</title>
-        <use href="sprites.svg#icon-add-snippet"/>
-      </svg>
-    </button>
-    <button type="button" class="icon" data-action="pop-out">
-      <svg role="img" focusable="false">
-        <title>Pop Out</title>
-        <use href="sprites.svg#icon-pop-out"/>
-      </svg>
-    </button>
-  </header>
-
-  <!-- Snippets builder -->
-  <main>
-    <div id="tree" class="card"></div>
-    <hr class="vr">
-    <div id="snippets"></div>
-  </main>
-
-  <script src="../shared.js"></script>
-  <script src="nodeBuilders.js"></script>
-  <script src="main.js"></script>
+<script src="../shared.js"></script>
+<script src="nodeBuilders.js"></script>
+<script src="main.js"></script>
 
 </body>
 

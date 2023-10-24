@@ -1,12 +1,14 @@
 {
   "compilerOptions": {
     "module": "esnext",
-    "target": "esnext"
+    "target": "esnext",
+    "allowUnreachableCode": false
   },
   "exclude": ["node_modules", "**/node_modules/*"],
   "typeAcquisition": {
     "include": [
-      "chrome"
+      "chrome",
+      "@types/wicg-file-system-access"
     ]
   }
 }
