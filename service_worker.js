@@ -26,10 +26,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     // check for current space in case of reinstall
     const { currentSpace } = await getStorageData('currentSpace');
     if (currentSpace) {
-      await space.pivot(currentSpace);
+      await space.load(currentSpace);
     } else {
-      const data = await space.pivot(settings.defaultSpace);
-      if (!data) {
+      if (!(await space.load(settings.defaultSpace))) {
         await space.save();
       }
     }
@@ -62,7 +61,7 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
   const src = {
     target: {
       tabId: tab.id,
-    }
+    },
   };
   if (data.frameId) src.target.frameIds = [data.frameId];
 
@@ -109,7 +108,7 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
       url: chrome.runtime.getURL("popup/popup.html?action=edit&seq=" + snip.seq),
       type: "popup",
       width: 700,
-      height: 500
+      height: 500,
     });
     break;
   }
@@ -140,7 +139,7 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
           + "&seq=" + menuData.path.slice(-1)),
         type: "popup",
         width: 700,
-        height: 500
+        height: 500,
       });
       return editor;
     }
@@ -157,11 +156,12 @@ chrome.contextMenus.onClicked.addListener(async function(data, tab) {
 chrome.storage.onChanged.addListener(async function(changes, namespace) {
   for (let key in changes) {
     // maybe we made some data change to the space and need to rebuild the context menus
-    let change = changes[key].newValue;
-    if (change && Object.hasOwn(change, 'children')) {
-      change = new DataBucket(change);
-      await change.parse();
-      buildContextMenus(new Space({ name: key, synced: (namespace === 'sync'), data: change }));
+    let newVal = changes[key].newValue;
+    if (newVal && Object.hasOwn(newVal, 'children')) {
+      newVal = new DataBucket(newVal);
+      await newVal.parse();
+      console.log("Building context menus...", newVal);
+      buildContextMenus(new Space({ name: key, synced: (namespace === 'sync'), data: newVal }));
     }
   }
 });

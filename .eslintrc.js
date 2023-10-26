@@ -46,6 +46,7 @@ module.exports = {
         "buildContextMenus": false,
         "buildNode": false,
         "buildSvg": false,
+        "toggleChecked": false,
         "buildPopoverMenu": false,
         "buildMenuItem": false,
         "buildMenuControl": false,
@@ -53,5 +54,6 @@ module.exports = {
         "buildSubMenu": false,
         "buildActionIcon": false,
         "buildItemWidget": false,
+        "buildTreeWidget": false,
     },
 };

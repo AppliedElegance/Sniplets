@@ -72,6 +72,18 @@ function buildSvg(title, sprite, fill) {
 }
 
 /**
+ * Toggle checked state of a control's SVG icon
+ * @param {SVGUseElement} useNode - the `use` element of the SVG icon
+ * @param {boolean} [check] - optional force option
+ */
+function toggleChecked(useNode, check) {
+  const sprite = useNode.href.baseVal;
+  const isChecked = sprite.slice(-8) === `-checked`;
+  if (isChecked === check) return;
+  useNode.setAttribute('href', (isChecked) ? sprite.slice(0, -8) : `${ sprite }-checked`);
+}
+
+/**
  * Builder for popover menus with an icon
  * @param {string} id 
  * @param {string} sprite 
@@ -261,16 +273,15 @@ function buildItemWidget(item, list, path, settings) {
     value: item.name,
     dataset: {
       action: (isFolder) ? `open-folder` : `edit`,
-      target: path.concat([item.seq]).join(','),
+      target: isFolder && path.concat([item.seq]).join(','),
       seq: item.seq,
       field: `name`,
     },
-    disabled: !isFolder,
   });
 
   const widgetActions = buildNode('div', {
     children: [
-      buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
+      (isFolder) && buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
         action: `rename`,
         seq: item.seq,
       }),
@@ -333,4 +344,38 @@ function buildItemWidget(item, list, path, settings) {
     }
   }
   return widget;
+}
+
+function buildTreeWidget(collapsible, color, target, text) {
+  console.log(collapsible, color, target, text);
+  return buildNode('div', {
+    classList: [`title`],
+    draggable: true,
+    children: [
+      // expand/collapse button only available if subfolders were found
+      buildNode('button', {
+        type: `button`,
+        disabled: collapsible,
+        dataset: collapsible && { action: `collapse` },
+        classList: [`icon`],
+        children: [
+          buildSvg(`Folder`, collapsible ? `icon-folder-collapse` : `icon-folder`, color),
+        ],
+      }),
+      // folder name
+      buildNode('button', {
+        type: `button`,
+        classList: [`name`],
+        dataset: {
+          action: `open-folder`,
+          target: target,
+        },
+        children: [
+          buildNode('h2', {
+            textContent: text,
+          }),
+        ],
+      }),
+    ],
+  });
 }

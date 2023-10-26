@@ -119,9 +119,9 @@ function buildHeader() {
   ]);
   // path navigation (filled in properly when a folder is loaded)
   const path = buildNode('nav', {
+    children: [buildNode('ul', {
     id: `path`,
-    children: [buildNode('h1', {
-      textContent: `Snippets`,
+      children: [buildNode('li', { textContent: `Snippets` })],
     })],
   });
   // quick actions
@@ -184,36 +184,12 @@ function buildTree() {
         },
       });
       // add folder details
-      folderItem.append(buildNode('div', {
-        classList: [`title`],
-        draggable: !isRoot, // TODO: allow root items to be dragged once multiple spaces is implimented
-        children: [
-          // expand/collapse button only available if subfolders were found
-          buildNode('button', {
-            type: `button`,
-            disabled: !subFolders,
-            dataset: subFolders && { action: `collapse` },
-            classList: [`icon`],
-            children: [
-              buildSvg(`Folder`, subFolders ? `icon-folder-collapse` : `icon-folder`, colors[folder.color]?.value || `inherit`),
-            ],
-          }),
-          // folder name
-          buildNode('button', {
-            type: `button`,
-            classList: [`name`],
-            dataset: {
-              action: `open-folder`,
-              target: (isRoot) ? `` : level.concat([folder.seq]).join(','),
-            },
-            children: [
-              buildNode('h2', {
-                textContent: (isRoot) ? space.name : folder.name,
-              }),
-            ],
-          }),
-        ],
-      }));
+      folderItem.append(buildTreeWidget(
+        !!subFolders,
+        colors[folder.color]?.value || `inherit`,
+        (isRoot) ? `` : level.concat([folder.seq]).join(','),
+        (isRoot) ? space.name : folder.name,
+      ));
       // add sublist if subfolders were found
       if (subFolders) folderItem.append(
         buildFolderList(subFolders, (isRoot) ? [] : level.concat([folder.seq])),
@@ -450,7 +426,15 @@ function loadSnippets({ action = null, seq = null } = {}) {
   }
   case 'rename': {
     const renameButton = q$('#snippets button[data-action="rename"][data-seq="' + parseInt(seq) + '"]');
-    if (renameButton) renameButton.click();
+    if (renameButton) {
+      renameButton.click();
+    } else { // not a folder
+      const nameInput = q$('#snippets input[data-field="name"][data-seq="' + parseInt(seq) + '"]');
+      if (nameInput) {
+        nameInput.focus();
+        nameInput.select();
+      }
+    }
     break;
   }
   default:
@@ -479,26 +463,22 @@ function adjustTextArea(textarea, limit = false) {
  * @param {Event} event 
  */
 async function handleClick(event) {
-  console.log(event, event.target);
   // ignore labels (handled on inputs)
   if (event.target.tagName === 'LABEL') return;
 
   const target = event.target.closest('[data-action]');
-  console.log(target);
 
   // close menus & modals as needed
   for (let popover of document.querySelectorAll('.popover')) {
-    console.log(popover);
     if (!target
     || !popover.parentElement.contains(target)
     || ![`open-popover`, `open-submenu`].includes(target.dataset.action)) {
-      console.log("Hidden");
       popover.classList.add(`hidden`);
     }
   }
 
-  // end here if the clicked node doesn't have an action or isn't a button (will be handled with onchange instead)
-  console.log(target, target.type !== 'button');
+  // end here if the clicked node doesn't have an action or isn't a button
+  // (will be handled with onchange instead)
   if (!target || target.type !== 'button') return;
 
   // handle the action
@@ -532,40 +512,35 @@ function handleKeyup(event) {
  * @param {Event} event 
  */
 function handleChange(event) {
-  if (!event.target.dataset.action) return;
-  handleAction(event.target);
-  // // helpers
-  // const target = event.target;
-  // const action = target.dataset.action;
+  // helpers
+  const target = event.target;
+  const dataset = target.dataset;
+
+  // handle action
+  if (!dataset.action) return;
+  handleAction(target);
   
-  // if (action === 'edit') {
-  //   const item = space.editItem({
-  //     seq: target.dataset.seq,
-  //     field: target.dataset.field,
-  //     value: target.value,
-  //   });
-  //   if (target.type === 'checkbox') {
-  //     const icon = target.parentElement.querySelector('use');
-  //     icon.setAttribute('href', `${ spritesheet }control-checkbox${ target.checked ? `-checked` : `` }`);
-  //   } else if (target.type === 'radio') {
-  //     const controls = target.closest('fieldset').querySelectorAll('.control');
-  //     for (let control of controls) {
-  //       const isChecked = control.querySelector('input').checked;
-  //       control.querySelector('use').setAttribute('href', `${ spritesheet }control-radio${ isChecked ? `-checked` : `` }`);
-  //     }
-  //   }
-  //   if (target.dataset.field === 'color') {
-  //     const icon = target.closest('.menu').querySelector('use');
-  //     icon.setAttribute('fill', colors[target.value].value);
-  //   } else if (target.dataset.field === 'name') {
-  //     if (item instanceof Folder) {
-  //       target.type = `button`;
-  //     } else {
-  //       target.disabled = true;
-  //     }
-  //   }
-  //   space.save();
-  // }
+  // update menu if needed
+  if (dataset.action === 'edit') {
+    if (target.type === 'checkbox') {
+      toggleChecked(target.parentElement.querySelector('use'));
+    } else if (target.type === 'radio') {
+      const controls = target.closest('fieldset').querySelectorAll('.control');
+      for (let control of controls) {
+        toggleChecked(control.querySelector('use'), control.querySelector('input').checked);
+      }
+    }
+    if (dataset.field === 'color') {
+      const icon = target.closest('.menu').querySelector('use');
+      icon.setAttribute('fill', colors[dataset.value || target.value].value);
+    } else if (dataset.field === 'name') {
+      if (dataset.target) {
+        target.type = `button`;
+        dataset.action = `open-folder`;
+        target.blur();
+      }
+    }
+  }
 }
 
 // // focusout event helper
@@ -574,7 +549,6 @@ function handleChange(event) {
 //   const target = event.target;
 //   const item = target.closest('li');
 
-//   console.log(event, target, item);
 //   const pq = q => item.querySelector(q);
 //   // actions as the field loses focus
 //   if (['INPUT', 'TEXTAREA'].includes(target.tagName)) {
@@ -591,7 +565,6 @@ function handleChange(event) {
 //       break;
 
 //     case 'content':
-//       console.log(event);
 //       adjustTextArea(target, true);
 //       break;
   
@@ -720,12 +693,13 @@ function handleDragDrop(event) {
         if (mover.fromSeq === mover.toSeq)
           return dragEnd();
       }
-      space.moveItem(mover);
+      const movedItem = space.moveItem(mover);
       space.sort(settings.sort);
       space.save();
       event.preventDefault();
       dragEnd();
-      loadSnippets();
+      buildList();
+      if (movedItem instanceof Folder) buildTree();
     }
   };
 
@@ -778,7 +752,8 @@ function handleDragDrop(event) {
  */
 async function handleAction(target) {
   const dataset = target.dataset;
-  dataset.value ||= target.value;
+  const value = dataset.value || target.value;
+
   switch (dataset.action) {
     // open menus
     case 'open-popover': 
@@ -786,12 +761,9 @@ async function handleAction(target) {
       const t = $(dataset.target);
       // clean up submenus
       const topMenu = target.closest('.popover') || t;
-      console.log(target, dataset, topMenu, t);
       for (let submenu of topMenu.querySelectorAll('.menu-list')) {
-        console.log(submenu);
         if (!(submenu === t || submenu.contains(t))) {
           submenu.classList.add(`hidden`);
-          console.log(submenu.contains(t));
         }
       }
       // open/close menu or submenu
@@ -809,7 +781,7 @@ async function handleAction(target) {
       // reinitialize
       settings.init();
       await settings.save();
-      await space.pivot(settings.defaultSpace);
+      space.pivot(new Space(settings.defaultSpace));
       await space.save();
       loadPopup();
       break;
@@ -870,14 +842,12 @@ async function handleAction(target) {
     case 'toggle-remember-path':
       settings.view.rememberPath = !settings.view.rememberPath;
       settings.save();
-      // setCurrentSpace();
-      // loadSnippets({ tree: false, list: false });
       break;
   
     case 'toggle-show-source':
       settings.view.sourceURL = !settings.view.sourceURL;
       settings.save();
-      loadSnippets({ tree: false });
+      buildList();
       break;
     
     case 'toggle-folders-first':
@@ -887,14 +857,14 @@ async function handleAction(target) {
       if (settings.sort.foldersOnTop)
         space.sort(settings.sort);
       space.save();
-      loadSnippets({ tree: false });
+      buildList();
       break;
     
     case 'toggle-save-source':
       // swap saving source on snip actions or not
       settings.control.saveSource = !settings.control.saveSource;
-      settings.save();
       // TODO: confirm whether to delete existing sources
+      settings.save();
       break;
 
     case 'toggle-sync':
@@ -906,18 +876,18 @@ async function handleAction(target) {
         }
       }
       // setCurrentSpace();
-      loadSnippets({ tree: false, list: false });
+      loadSnippets();
       break;
     
     // add/edit/delete items
     case 'new-snippet': {
-      let newSnippet = space.addItem(new Snippet());
+      const newSnippet = space.addItem(new Snippet());
       space.save();
-      loadSnippets({ tree: false, action: 'rename', seq: newSnippet.seq });
+      loadSnippets({ action: 'rename', seq: newSnippet.seq });
       break; }
     
     case 'new-folder': {
-      let newFolder = space.addItem(new Folder());
+      const newFolder = space.addItem(new Folder());
       if (settings.sort.foldersOnTop) space.sort(settings.sort);
       space.save();
       loadSnippets({ action: 'rename', seq: newFolder.seq });
@@ -925,9 +895,10 @@ async function handleAction(target) {
     
     case 'delete':
       if(confirm("You’re about to delete “" + dataset.name + "”… Please confirm.")) {
-        space.deleteItem(dataset.seq);
+        const deletedItem = space.deleteItem(dataset.seq);
         space.save();
-        loadSnippets();
+        buildList();
+        if (deletedItem instanceof Folder) buildTree();
       }
       break;
     
@@ -935,34 +906,48 @@ async function handleAction(target) {
       // change button inputs to text if needed and enable/focus
       const input = target.closest('li').querySelector('input[data-field="name"]');
       input.type = `text`;
-      input.disabled = false;
       input.dataset.action = `edit`;
       input.focus();
       input.select();
       break; }
   
-    case 'edit':
+    case 'edit': {
       // handle defaults
-      if (dataset.value === 'Default') {
-        if (dataset.field === 'color') dataset.value = undefined;
-      }
-      space.editItem({
+      const edit = {
         seq: dataset.seq,
         field: dataset.field,
-        value: dataset.value,
-      });
+        value: value,
+      };
+      if (['Default', '', null].includes(value)
+      && ['color', 'shortcut', 'sourceURL'].includes(dataset.field)) {
+        delete edit.value;
+      }
+      const item = space.editItem(edit);
+      console.log(item, dataset);
       space.save();
-      loadSnippets({ tree: target instanceof Folder });
-      break;
+      // update tree if changes were made to a folder
+      if (item instanceof Folder) {
+        const treeItem = $('tree').querySelector(`li[data-path="${ dataset.path || space.path }"][data-seq="${ dataset.seq }"]`);
+        if (treeItem) {
+          treeItem.replaceChildren(buildTreeWidget(
+            !!getSubFolders(item.children),
+            colors[item.color]?.value || `inherit`,
+            space.path.concat(item.seq).join(','),
+            item.name,
+          ));
+        }
+      }
+      break; }
   
-    case 'move':
-      space.moveItem({
+    case 'move': {
+      const movedItem = space.moveItem({
         fromSeq: dataset.seq,
         toSeq: dataset.target,
       });
       space.save();
-      loadSnippets({ tree: target instanceof Folder });
-      break;
+      buildList();
+      if (movedItem instanceof Folder) buildTree();
+      break; }
     
     // interface controls
     case 'pop-out':
@@ -994,19 +979,19 @@ async function handleAction(target) {
         space.path.push(...dataset.target.split(','));
       }
       // setCurrentSpace();
-      loadSnippets({tree: false});
+      buildList();
       break; }
     
     case 'collapse':
       target.closest('li').querySelector('ul').classList.add(`hidden`);
       target.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-expand`);
-      target.dataset.action = 'expand';
+      dataset.action = 'expand';
       break;
     
     case 'expand':
       target.closest('li').querySelector('ul').classList.remove(`hidden`);
       target.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-collapse`);
-      target.dataset.action = 'collapse';
+      dataset.action = 'collapse';
       break;
   
     default:

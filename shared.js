@@ -3,14 +3,14 @@
 
 // default colors
 const colors = {
-  "Default": { },
-  "Grey": { value: "#808080", clippings: "gray" },
-  "Red": { value: "#D0312D", clippings: "red" },
-  "Orange": { value: "#FFA500", clippings: "orange" },
-  "Yellow": { value: "#FFD700", clippings: "yellow" },
-  "Green": { value: "#3CB043", clippings: "green" },
-  "Blue": { value: "#3457D5", clippings: "blue" },
-  "Purple": { value: "#A32CC4", clippings: "purple" },
+  "Default": {  },
+  "Red": { value: "#D0312D", clippings: "red", square: "🟥 ", circle: "🔴 ", heart: "❤ " },
+  "Orange": { value: "#FFA500", clippings: "orange", square: "🟧 ", circle: "🟠 ", heart: "🧡 " },
+  "Yellow": { value: "#FFD700", clippings: "yellow", square: "🟨 ", circle: "🟡 ", heart: "💛 " },
+  "Green": { value: "#3CB043", clippings: "green", square: "🟩 ", circle: "🟢 ", heart: "💚 " },
+  "Blue": { value: "#3457D5", clippings: "blue", square: "🟦 ", circle: "🔵 ", heart: "💙 " },
+  "Purple": { value: "#A32CC4", clippings: "purple", square: "🟪 ", circle: "🟣 ", heart: "💜 " },
+  "Grey": { value: "#808080", clippings: "gray", square: "⬜ ", circle: "⚪ ", heart: "🤍 " },
 };
 
 /**
@@ -441,7 +441,7 @@ class DataBucket {
     // check if already compressed and otherwise just cast contents appropriately
     if (typeof this.children !== 'string') {
       this.children = this.restructure();
-      return false;
+      return this;
     }
 
     // decode base64 to gzip binary
@@ -459,7 +459,7 @@ class DataBucket {
     const dataBlob = await new Response(stream).blob();
     // return decompressed and deserialized text
     this.children = this.restructure(JSON.parse(await dataBlob.text()));
-    return true;
+    return this;
   }
 
   /**
@@ -507,10 +507,10 @@ class Space {
    * @param {{
    *   name: string
    *   synced: boolean
-   * }} args - Name & storage bucket location
+   * }} args - Name & storage bucket location (reloads current space if empty)
    * @returns 
    */
-  async load({ name, synced }) {
+  async load({ name, synced } = {}) {
     const bucket = await getStorageData(
       name || this.name,
       synced || this.synced,
@@ -528,7 +528,6 @@ class Space {
     if (!this.name.length) return;
 
     // gzip compression adds about 8x more storage space
-    console.log(this.data);
     const dataBucket = new DataBucket(this.data);
     await dataBucket.compress();
 
@@ -562,7 +561,7 @@ class Space {
     let folder = this.getItem(folderPath).children;
     let item = this.getItem(folderPath.concat([seq]));
     folder.splice(folder.indexOf(item), 1);
-    return folder;
+    return item;
   }
 
   moveItem({ fromPath = this.path, fromSeq, toPath = this.path, toSeq }) {
@@ -925,11 +924,11 @@ class Space {
    * }} args
    */
   async pivot({ name, synced, data, path }) {
-    console.log(name, synced, data, path);
     if (!(data instanceof DataBucket)) {
       data = new DataBucket(data);
-      data.parse();
-      console.log(data);
+      if (!(await data.parse())) {
+        throw new Error(`Unable to parse data, cancelling pivot...\n${data}`);
+      }
     }
     this.name = name;
     this.synced = synced;
@@ -939,24 +938,46 @@ class Space {
   }
 }
 
+/**
+ * Settings object for persisting as window global
+ */
 class Settings {
-  init({ defaultSpace, view, sort, control } = {}) {
-    this.defaultSpace = defaultSpace || {
-      name: "Snippets",
-      synced: false,
-    };
-    this.sort = sort || {
-      by: 'seq',
-      groupBy: null,
-      foldersOnTop: true,
-    };
-    this.view = view || {
-      rememberPath: false,
-      sourceURL: false,
-    };
-    this.control = control || {
-      saveSource: true,
-    };
+  /**
+   * @param {Object} settings 
+   * @param {Object} settings.defaultSpace 
+   * @param {string} settings.defaultSpace.name 
+   * @param {boolean} settings.defaultSpace.synced 
+   * @param {Object} settings.sort
+   * @param {string} settings.sort.by
+   * @param {string} settings.sort.groupBy
+   * @param {boolean} settings.sort.foldersOnTop
+   * @param {Object} settings.view 
+   * @param {boolean} settings.view.rememberPath
+   * @param {boolean} settings.view.sourceURL
+   * @param {Object} settings.control 
+   * @param {boolean} settings.control.saveSource
+   */
+  constructor(settings) {
+    this.init(settings);
+  }
+
+  /**
+   * Take provided settings and initialise the remaining settings
+   * @param {Object} settings 
+   */
+  init({ defaultSpace, sort, view, control } = {}) {
+    this.defaultSpace = {};
+    this.defaultSpace.name = defaultSpace?.name || "Snippets";
+    this.defaultSpace.synced = defaultSpace?.synced || true;
+    this.sort = {};
+    this.sort.by = sort?.by || 'seq';
+    this.sort.groupBy = sort?.groupBy || null;
+    this.sort.foldersOnTop = sort?.foldersOnTop || true;
+    this.view = {};
+    this.view.rememberPath = view?.rememberPath || false;
+    this.view.sourceURL = view?.sourceURL || false;
+    this.control = {};
+    this.control.saveSource = control?.saveSource || true;
   }
 
   async load() {
@@ -967,7 +988,6 @@ class Settings {
         delete settings.foldersOnTop;
     }
     this.init(settings);
-    return this;
   }
 
   async save() {
@@ -978,7 +998,7 @@ class Settings {
 // (re)build context menu for snipping and pasting
 const buildContextMenus = async (space) => {
   // clear current
-  await chrome.contextMenus.removeAll();
+  await new Promise((resolve) => chrome.contextMenus.removeAll(() => resolve()));
   let menuData = {
     space: {
       name: space.name,
@@ -1006,7 +1026,7 @@ const buildContextMenus = async (space) => {
     });
 
     // recursive function for snippet tree
-    let buildFolder = async function(folder, parentData) {
+    const buildFolder = async (folder, parentData) => {
       let menuItem = {
         "contexts": ["editable"],
         "parentId": JSON.stringify(parentData),
@@ -1018,14 +1038,12 @@ const buildContextMenus = async (space) => {
           menuData.path = parentData.path.concat([item.seq]) ?? [item.seq];
           menuItem.id = JSON.stringify(menuData);
           // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
-          menuItem.title = ((item instanceof Folder)
-                         ? "📁 "
-                         : "📝 ")
+          menuItem.title = ((item instanceof Folder) ? "📁 " : "📝 ")
+                         + (colors[item.color]?.circle || "")
                          + item.name.replace("&", "&&")
-                         + "\xA0\xA0\xA0\xA0";
+                         + "\xA0\xA0\xA0\xA0"; // padding for nicer display
           chrome.contextMenus.create(menuItem);
-          if (item instanceof Folder)
-            buildFolder(item.children, menuData);
+          if (item instanceof Folder) buildFolder(item.children, menuData);
         });
       } else {
         menuData.path = parentData.path.concat(['empty']);
@@ -1036,7 +1054,6 @@ const buildContextMenus = async (space) => {
       }
     };
     // build paste snippet menu tree
-    if (space.data.children)
-      buildFolder(space.data.children, menuData);
+    if (space.data.children) buildFolder(space.data.children, menuData);
   }
 };

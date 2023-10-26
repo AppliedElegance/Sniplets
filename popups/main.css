@@ -81,8 +81,11 @@ header .icon svg {
   height: 24px;
 }
 
-#path {
+nav {
   flex-grow: 1;
+}
+
+#path {
   display: flex;
 }
 
