@@ -83,12 +83,12 @@ const removeStorageData = (key, synced = false) => {
  * Ensure script injection errors including permission blocks are always handled gracefully.
  * Requires the ["scripting"] permission.
  * @param {Object} src - The details of the script to inject.
- * @param {InjectionTarget} [src.target] - Details specifying the target into which to inject the script.
- * @param {string[]} [src.files] - The path of the JS or CSS files to inject, relative to the extension's root directory. Exactly one of files and func must be specified.
- * @param {void} [src.func] - A JavaScript function to inject. This function will be serialized, and then deserialized for injection. This means that any bound parameters and execution context will be lost. Exactly one of files and func must be specified.
- * @param {*[]} [src.args] - The arguments to carry into a provided function. This is only valid if the func parameter is specified. These arguments must be JSON-serializable.
- * @param {boolean} [src.injectImmediately] - Whether the injection should be triggered in the target as soon as possible. Note that this is not a guarantee that injection will occur prior to page load, as the page may have already loaded by the time the script reaches the target.
- * @param {ExecutionWorld} [src.world] - The JavaScript "world" to run the script in. Defaults to ISOLATED.
+ * @param {InjectionTarget} src.target - Details specifying the target into which to inject the script.
+ * @param {string[]} src.files - The path of the JS or CSS files to inject, relative to the extension's root directory. Exactly one of files and func must be specified.
+ * @param {void} src.func - A JavaScript function to inject. This function will be serialized, and then deserialized for injection. This means that any bound parameters and execution context will be lost. Exactly one of files and func must be specified.
+ * @param {*[]} src.args - The arguments to carry into a provided function. This is only valid if the func parameter is specified. These arguments must be JSON-serializable.
+ * @param {boolean} src.injectImmediately - Whether the injection should be triggered in the target as soon as possible. Note that this is not a guarantee that injection will occur prior to page load, as the page may have already loaded by the time the script reaches the target.
+ * @param {ExecutionWorld} src.world - The JavaScript "world" to run the script in. Defaults to ISOLATED.
  * @returns {Promise<InjectionResult[]>|boolean}
  */
 const injectScript = async (src) => {
@@ -132,7 +132,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
       }
     } else { // contenteditable
       // process newlines & unlinked text when not set to plain-text
-      if (selNode.contentEditable === "true") {
+      if (selNode.contentEditable === "true" & !nosubst) {
         /**
          * email parser regex breakdown with an added check to ensure it isn't already linked:
          * 
@@ -142,7 +142,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
          * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable ending characters
          * * |[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]) - allowable single character
          * * @ - defining email character
-         * * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - url
+         * * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - domain
          * * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
          */
         const rxEmail = /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig;
@@ -483,13 +483,11 @@ class Space {
    *   name: string
    *   synced: boolean
    *   data: DataBucket
-   * }} args
+   *   path: number[]|string
+   * }} details - Space will be empty until `load()` or `init()` are called unless provided
    */
-  constructor({ name, synced, data } = {}) {
-    this.synced = synced || false;
-    this.name = name || "Snippets";
-    this.data = data || new DataBucket();
-    this.path = [];
+  constructor(details) {
+    if (details) this.init(details);
   }
 
   getPathNames() {
@@ -511,21 +509,26 @@ class Space {
    * @returns 
    */
   async load({ name, synced } = {}) {
+    console.log("Loading space...", name, synced, typeof synced);
     const bucket = await getStorageData(
       name || this.name,
       synced || this.synced,
     );
+    console.log("Getting data from bucket...", bucket);
     const data = bucket[name || this.name];
+    console.log("Confirming data...", data);
     if (!data) return;
-    this.name = name;
-    this.synced = synced;
-    this.data = new DataBucket(data);
-    return await this.data.parse();
+    await this.init({
+      name: name,
+      synced: synced,
+      data: data,
+    });
+    return true;
   }
 
   async save() {
     // make sure the space has been initialized
-    if (!this.name.length) return;
+    if (!this.name?.length) return;
 
     // gzip compression adds about 8x more storage space
     const dataBucket = new DataBucket(this.data);
@@ -614,11 +617,11 @@ class Space {
     const result = {
       text: snipText,
       richText: snipText,
-      nosubst: true,
+      nosubst: snip.name.slice(0,9) === "[NOSUBST]",
     };
     
-    // skip processing if Clippings [NOSUBST] flag is in the name
-    if (snip.name.slice(0,9) === "[NOSUBST]") return result;
+    // skip processing if Clippings [NOSUBST] flag is prepended to the name
+    if (result.nosubst) return result;
 
     // process counters, kept track internally to allow use across multiple snippets
     let counterUse = false;
@@ -870,7 +873,7 @@ class Space {
       this.sequence(data);
       if (recursive) {
         for (let child of data.children) {
-          if (child.children && child.children.length)
+          if (child.children?.length)
             sortFolder(child, recursive, by, foldersOnTop, reverse);
         }
       }
@@ -894,24 +897,50 @@ class Space {
   }
 
   async shift({ name = this.name, synced = this.synced }) {
-    // if wanting to sync, check for sync size constraints
-    const dataBucket = new DataBucket(this.data);
-    await dataBucket.compress();
+    if (synced === this.synced) { // check for rename issues
+      // passthrough if no changes are needed
+      if (name === this.name) return true;
 
-    if (synced && !dataBucket.syncable(this.name)) {
-      alert("The current snippets data is too large to sync.");
-      return false;
+      // check if name already exists in current location
+      const targetSpace = await getStorageData(name, synced);
+      if (targetSpace[name]) {
+        // confirm overwrite
+        if (!confirm(`The name ${ name } already exists. Do you want to overwrite it? This cannot be undone.`)) {
+          return false;
+        }
+      }
+    } else if (synced) { // check for sync issues
+      // check for sync size constraints
+      const dataBucket = new DataBucket(this.data);
+      await dataBucket.compress();
+      if (!dataBucket.syncable(name)) {
+        alert("Sorry, the current snippets data is too large to sync.");
+        return false;
+      }
     }
-    const oldName = this.name,
-        oldSynced = this.synced;
-    this.name = name;
-    this.synced = synced;
-    let success = await this.save();
-    if (success) {
-      // remove old data
-      removeStorageData(oldName, oldSynced);
+
+    // get old space data
+    const oldSpace = { name: this.name, synced: this.synced };
+
+    // update current space details
+    this.name = name, this.synced = synced;
+
+    // tell all instances about the shift if necessary
+    if (synced || oldSpace.synced) {
+      setStorageData({ shift: {
+        oldSpace: oldSpace,
+        newSpace: { name: name, synced: synced },
+      } }, true);
     }
-    return success;
+
+    // carry out shift unless stopping sync as that has special handling in listener
+    if (synced >= oldSpace.synced) {
+      // attempt to move the space
+      if (!await this.save()) return false;
+      removeStorageData(oldSpace.name, oldSpace.synced);
+    }
+
+    return true;
   }
 
   /**
@@ -920,21 +949,37 @@ class Space {
    *   name: string
    *   synced: boolean
    *   data: DataBucket
-   *   path: number[]
-   * }} args
+   *   path: number[]|string
+   * }} details
    */
-  async pivot({ name, synced, data, path }) {
+  async init({ name, synced, data, path } = {}) {
+    // check defaults if either name or synced are blank
+    const settings = new Settings();
+    if (!name || !synced) await settings.load();
+    
+    // make sure data is parsed correctly
+    console.log("Checking data integrity...");
     if (!(data instanceof DataBucket)) {
       data = new DataBucket(data);
+      console.log("Parsing data...", data);
       if (!(await data.parse())) {
-        throw new Error(`Unable to parse data, cancelling pivot...\n${data}`);
+        throw new Error(`Unable to parse data, cancelling initialization...\n${ data }`);
       }
     }
-    this.name = name;
-    this.synced = synced;
+
+    // make sure path is correct or reset otherwise
+    if (typeof path === 'string') path = path.split(',').filter((v) => !isNaN(v));
+    if (!Array.isArray(path)) path = [];
+
+    // update properties
+    console.log("Updating details...", name, synced, data, path);
+    this.name = name || settings.defaultSpace.name;
+    this.synced = synced || settings.defaultSpace.synced;
     this.data = data;
-    this.path = path || [];
-    return;
+    this.path = path;
+
+    console.log("Space initialised.", this);
+    return true;
   }
 }
 
@@ -958,7 +1003,7 @@ class Settings {
    * @param {boolean} settings.control.saveSource
    */
   constructor(settings) {
-    this.init(settings);
+    if (settings) this.init(settings);
   }
 
   /**
@@ -982,12 +1027,17 @@ class Settings {
 
   async load() {
     let { settings } = await getStorageData('settings', true);
+    if (!settings) return settings; // return errors as-is
+
     // legacy check
-    if (settings?.foldersOnTop) {
+    if (settings.foldersOnTop) {
         settings.sort = { foldersOnTop: settings.foldersOnTop };
         delete settings.foldersOnTop;
     }
+
+    // upgrade settings object as needed and return the object
     this.init(settings);
+    return this;
   }
 
   async save() {
@@ -996,7 +1046,7 @@ class Settings {
 }
 
 // (re)build context menu for snipping and pasting
-const buildContextMenus = async (space) => {
+async function buildContextMenus(space) {
   // clear current
   await new Promise((resolve) => chrome.contextMenus.removeAll(() => resolve()));
   let menuData = {
@@ -1056,4 +1106,4 @@ const buildContextMenus = async (space) => {
     // build paste snippet menu tree
     if (space.data.children) buildFolder(space.data.children, menuData);
   }
-};
+}

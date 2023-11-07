@@ -72,6 +72,24 @@ function buildSvg(title, sprite, fill) {
 }
 
 /**
+ * Replace the sprite of a contained icon
+ * @param {HTMLElement} target - Element containing the icon's `use` tag
+ * @param {string} sprite - Name of the sprite
+ */
+function setSvgSprite(target, sprite) {
+  target.querySelector('use').setAttribute('href', `sprites.svg#${ sprite }`);
+}
+
+/**
+ * Replace the fill color of a contained icon
+ * @param {HTMLElement} target - Element containing the icon's `use` tag
+ * @param {string} fill - color to use for the icon
+ */
+function setSvgFill(target, fill) {
+  target.querySelector('use').setAttribute('fill', fill);
+}
+
+/**
  * Toggle checked state of a control's SVG icon
  * @param {SVGUseElement} useNode - the `use` element of the SVG icon
  * @param {boolean} [check] - optional force option
@@ -273,11 +291,11 @@ function buildItemWidget(item, list, path, settings) {
     value: item.name,
     dataset: {
       action: (isFolder) ? `open-folder` : `edit`,
-      target: isFolder && path.concat([item.seq]).join(','),
       seq: item.seq,
       field: `name`,
     },
   });
+  if (isFolder) widgetTitle.target = path.concat([item.seq]).join(',');
 
   const widgetActions = buildNode('div', {
     children: [
@@ -347,7 +365,6 @@ function buildItemWidget(item, list, path, settings) {
 }
 
 function buildTreeWidget(collapsible, color, target, text) {
-  console.log(collapsible, color, target, text);
   return buildNode('div', {
     classList: [`title`],
     draggable: true,

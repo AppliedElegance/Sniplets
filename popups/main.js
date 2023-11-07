@@ -33,11 +33,17 @@ async function setCurrentSpace() {
 async function loadPopup() {
   // load up settings
   await settings.load();
+  console.log("Settings loaded...", settings);
 
   // load up the current space or fall back to default
+  console.log("Retrieving current space...");
   let { currentSpace } = await getStorageData('currentSpace');
+  console.log("Loading current space...", currentSpace, settings.defaultSpace);
   await space.load(currentSpace || settings.defaultSpace);
+  console.log("Updating current space if necessary...");
   if (!currentSpace) setCurrentSpace();
+  console.log("Loading snippets");
+  loadSnippets();
 
   // set up listeners
   document.addEventListener('click', handleClick, false);
@@ -50,9 +56,10 @@ async function loadPopup() {
   document.addEventListener('dragstart', handleDragDrop, false);
 
   // check for url parameters and load snippets accordingly
-  const urlParams = new URLSearchParams(location.search);
-  space.path = urlParams.get('path')?.split(',') || [];
-  loadSnippets({ action: urlParams.get('action'), seq: urlParams.get('seq') });
+  const urlParams = Object.fromEntries(new URLSearchParams(location.search));
+  console.log(urlParams);
+  space.path = urlParams.path?.split(',') || [];
+  if (urlParams) handleAction(urlParams);
 }
 document.addEventListener('DOMContentLoaded', loadPopup, false);
 
@@ -129,7 +136,7 @@ function buildHeader() {
     id: `quick-actions`,
     children: [
       buildActionIcon(
-        space.synced ? `Stop syncing` : `Start syncing`,
+        space.synced ? `Stop syncing.` : `Start syncing.`,
         `icon-${ space.synced ? `sync` : `local` }`,
         `inherit`, {
         action: `toggle-sync`,
@@ -408,38 +415,10 @@ function buildList() {
   }
 }
 
-function loadSnippets({ action = null, seq = null } = {}) {
+function loadSnippets() {
   buildHeader();
   buildTree();
   buildList();
-
-  // check for requested actions
-  switch (action) {
-  case 'copy':
-  case 'edit': {
-    const editArea = q$('#snippets textarea[data-seq="' + parseInt(seq) + '"]');
-    if (editArea) {
-      editArea.focus();
-      editArea.selectionStart = editArea.selectionEnd = editArea.value.length;
-    }
-    break;
-  }
-  case 'rename': {
-    const renameButton = q$('#snippets button[data-action="rename"][data-seq="' + parseInt(seq) + '"]');
-    if (renameButton) {
-      renameButton.click();
-    } else { // not a folder
-      const nameInput = q$('#snippets input[data-field="name"][data-seq="' + parseInt(seq) + '"]');
-      if (nameInput) {
-        nameInput.focus();
-        nameInput.select();
-      }
-    }
-    break;
-  }
-  default:
-    // do nothing
-  }
 }
 
 // auto-adjust the heights of input textareas
@@ -531,9 +510,12 @@ function handleChange(event) {
       }
     }
     if (dataset.field === 'color') {
-      const icon = target.closest('.menu').querySelector('use');
-      icon.setAttribute('fill', colors[dataset.value || target.value].value);
+      setSvgFill(
+        target.closest('.menu'),
+        colors[dataset.value || target.value].value,
+      );
     } else if (dataset.field === 'name') {
+      console.log(dataset);
       if (dataset.target) {
         target.type = `button`;
         dataset.action = `open-folder`;
@@ -747,14 +729,28 @@ function handleDragDrop(event) {
 
 /**
  * Action handler for various inputs
- * @param {HTMLElement} target 
+ * @param {HTMLElement|Object} target 
  * @returns 
  */
 async function handleAction(target) {
-  const dataset = target.dataset;
+  console.log(target, target.dataset, target.action);
+  const dataset = target.dataset || target;
   const value = dataset.value || target.value;
 
   switch (dataset.action) {
+    // window open actions
+    case 'focus':
+      target = q$(`#snippets [data-field=${ dataset.field }][data-seq="${ dataset.seq }"]`);
+      if (!target) break;
+      // check for folder renaming
+      if (dataset.field === 'name' && target.type === 'button') {
+        target.parentElement.querySelector('[action="rename"]').click();
+      } else if (target.hasAttribute('value')) {
+        target.focus();
+        target.selectionStart = target.selectionEnd = target.value.length;
+      }
+      break;
+
     // open menus
     case 'open-popover': 
     case 'open-submenu': {
@@ -781,7 +777,7 @@ async function handleAction(target) {
       // reinitialize
       settings.init();
       await settings.save();
-      space.pivot(new Space(settings.defaultSpace));
+      space.init(settings.defaultSpace);
       await space.save();
       loadPopup();
       break;
@@ -821,18 +817,26 @@ async function handleAction(target) {
           description: "Snippets or Clippings JSON backup",
           accept: { "application/jason": ".json" },
         }] });
+        console.log('Grabbed file', fileHandle);
         const fileData = await fileHandle.getFile();
+        console.log('Grabbed data', fileData);
         const fileContents = await fileData.text();
+        console.log('Grabbed contents', fileContents);
         const data = JSON.parse(fileContents);
+        console.log('Parsed data', data);
         if (data.userClippingsRoot) { // check for clippings data
           space.data = new DataBucket({ children: data.userClippingsRoot });
+          console.log("Updated data", space.data);
         } else if (data.space) {
-          await space.pivot(data.space);
+          console.log("Resetting current space info", data.space);
+          await space.init(data.space);
+          console.log("Saving space info", space);
           space.save();
         } else {
           alert("The data could not be restored, please check the file and try again.");
           break;
         }
+        console.log("Loading snippets...");
         loadSnippets();
         setCurrentSpace();
       } catch { /* assume cancelled */ }
@@ -874,28 +878,30 @@ async function handleAction(target) {
           settings.defaultSpace.synced = space.synced;
           settings.save();
         }
+        setCurrentSpace();
+        buildHeader();
       }
-      // setCurrentSpace();
-      loadSnippets();
       break;
     
     // add/edit/delete items
     case 'new-snippet': {
       const newSnippet = space.addItem(new Snippet());
       space.save();
-      loadSnippets({ action: 'rename', seq: newSnippet.seq });
+      loadSnippets();
+      handleAction({ action: 'focus', seq: newSnippet.seq, field: 'name' });
       break; }
     
     case 'new-folder': {
       const newFolder = space.addItem(new Folder());
       if (settings.sort.foldersOnTop) space.sort(settings.sort);
       space.save();
-      loadSnippets({ action: 'rename', seq: newFolder.seq });
+      loadSnippets();
+      handleAction({ action: 'rename', seq: newFolder.seq, field: 'name' });
       break; }
     
     case 'delete':
-      if(confirm("You’re about to delete “" + dataset.name + "”… Please confirm.")) {
-        const deletedItem = space.deleteItem(dataset.seq);
+      if(confirm("Would you would like to delete this snippet? This action cannot be undone.")) {
+        const deletedItem = space.deleteItem({ seq: dataset.seq });
         space.save();
         buildList();
         if (deletedItem instanceof Folder) buildTree();
@@ -984,13 +990,13 @@ async function handleAction(target) {
     
     case 'collapse':
       target.closest('li').querySelector('ul').classList.add(`hidden`);
-      target.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-expand`);
+      setSvgSprite(target, 'icon-folder-expand');
       dataset.action = 'expand';
       break;
     
     case 'expand':
       target.closest('li').querySelector('ul').classList.remove(`hidden`);
-      target.querySelector('use').setAttribute('href', `sprites.svg#icon-folder-collapse`);
+      setSvgSprite(target, 'icon-folder-collapse');
       dataset.action = 'collapse';
       break;
   
