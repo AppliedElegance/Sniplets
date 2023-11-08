@@ -141,25 +141,22 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   }
 
   case 'paste': {
+    console.log("Getting processed snippet", menuData);
     const snip = await space.getProcessedSnippet(menuData.path);
-    // inject paste code
+    console.log("Injecting paste code", snip);
     src.func = pasteSnippet;
     src.args = [snip];
     const res = await injectScript(src);
+    console.log("Checking for success", res);
     let permRes = true;
     if (!res) {
+      console.log("Requesting permission");
       // possible cross-origin frame
       permRes = await requestFrames(menuData.action, src);
+      console.log(permRes);
     }
-    if (!permRes || res[0].result.pasted === false) {
-      // // Unable to paste, copy result text to clipboard for manual paste
-      // await navigator.clipboard.write([new ClipboardItem({
-      //   "text/plain": res[0].result.text,
-      //   "text/html": res[0].result.richText,
-      // })]);
-      // // notify user of result
-      // chrome.notifications.create()
-      // open window to requested selection for manual copy/paste
+    if (!permRes || (res[0]?.result && !res[0].result.pasted)) {
+      // // Unable to paste, open window to requested selection for manual copy/paste
       const editor = chrome.windows.create({
         url: chrome.runtime.getURL("popups/main.html?action=copy"
           + "&path=" + menuData.path.slice(0, -1).join(',')

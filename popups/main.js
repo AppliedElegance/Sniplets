@@ -42,6 +42,9 @@ async function loadPopup() {
   await space.load(currentSpace || settings.defaultSpace);
   console.log("Updating current space if necessary...");
   if (!currentSpace) setCurrentSpace();
+
+  // load the page
+  document.documentElement.lang = navigator.language;
   console.log("Loading snippets");
   loadSnippets();
 
@@ -739,6 +742,17 @@ async function handleAction(target) {
 
   switch (dataset.action) {
     // window open actions
+    case 'copy': {
+      // get requested item
+      const snip = space.getProcessedSnippet(dataset.target);
+      if (snip) {
+        // copy result text to clipboard for manual paste
+        await navigator.clipboard.write([new ClipboardItem({
+          "text/plain": snip.content,
+          "text/html": snip.richText,
+        })]);
+      }
+      /* falls through */ }
     case 'focus':
       target = q$(`#snippets [data-field=${ dataset.field }][data-seq="${ dataset.seq }"]`);
       if (!target) break;
@@ -909,7 +923,7 @@ async function handleAction(target) {
       break;
     
     case 'rename': {
-      // change button inputs to text if needed and enable/focus
+      // change input type to text if needed and enable/focus
       const input = target.closest('li').querySelector('input[data-field="name"]');
       input.type = `text`;
       input.dataset.action = `edit`;

@@ -79,6 +79,60 @@ const removeStorageData = (key, synced = false) => {
   ));
 };
 
+// RichText processors
+/**
+ * Place anchor tags around emails if not already linked
+ * 
+ * * (?<!<[^>]*) - ignore emails inside tag defs
+ * * (?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable starting characters
+ * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]* - allowable characters
+ * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable ending characters
+ * * |[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]) - allowable single character
+ * * @ - defining email character
+ * * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - domain
+ * * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
+ * 
+ * @param {string} text
+ */
+const linkEmails = (text) => text.replaceAll(
+  /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
+  (match) => `<a href="mailto:${ match }">${ match }</a>`);
+/**
+ * Place anchor tags around urls if not already linked
+ * 
+ * * (?<!<[^>]*| - ignore urls inside tag defs
+ * * [.+@a-zA-Z0-9]) - ignore emails pt1
+ * * (?:(https?|ftp|chrome|edge|about|file\/):\/\/)? - only match openable urls if a protocol is included (file has one more slash indicating the root folder)
+ * * (?:(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+) - find url sequences or ipv4 addresses (ipv6 is too complicated for a single line regex)
+ * * (?::[0-9]+)? - include port references
+ * * (?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)? - include allowed characters in subfolders
+ * * (?![.+@a-zA-Z0-9]| - ignore emails pt2
+ * * (?!<a).*?<\/a>) - ignore urls that are inside an anchor tag
+ * 
+ * @param {string} text
+ */
+const linkURLs = (text) => text.replaceAll(
+  /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig,
+  (match, p1) => {
+    // ensure what was picked up evaluates to a proper url (just in case)
+    console.log(match, p1);
+    const matchURL = new URL(((!p1) ? `http://` : ``) + match);
+    return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
+  });
+/**
+ * Add HTML line break tags where appropriate
+ * 
+ * * (?<!<\/? - don't match if specific tags are found before a newline
+ * * (?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+? - inline tags are okay to add breaks after
+ * * (?:>| .*>)) - allow for opening tags with options
+ * * (?:\r\n|\r|\n) - match newlines no matter how formatted (should always be \n, but just in case)
+ * 
+ * @param {string} text
+ */
+const tagNewlines = (text) => text.replaceAll(
+  /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g,
+  (match) => `<br>${ match }`);
+
 /**
  * Ensure script injection errors including permission blocks are always handled gracefully.
  * Requires the ["scripting"] permission.
@@ -105,15 +159,19 @@ const getFullSelection = () => {
 
 /**
  * Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
+ * @param {Snippet} snip
+ * @param {string} richText
  */
-const pasteSnippet = async ({ text, nosubst = false }) => {
+const pasteSnippet = async (snip) => {
   // get clicked element
   const selNode = document.activeElement;
+  console.log(snip, selNode);
 
   // set up paste code
-  const paste = (text) => {
+  function paste(text, richText) {
     // setup rich text for pasting or updating the clipboard if needed
-    let richText = text;
+    richText ||= text;
+    console.log(text);
 
     // execCommand is deprecated but insertText is still supported in chrome as wontfix
     // and produces the most desirable result. See par. 3 in:
@@ -131,55 +189,8 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
         pasted = true;
       }
     } else { // contenteditable
-      // process newlines & unlinked text when not set to plain-text
-      if (selNode.contentEditable === "true" & !nosubst) {
-        /**
-         * email parser regex breakdown with an added check to ensure it isn't already linked:
-         * 
-         * * (?<!<[^>]*) - ignore emails inside tag defs
-         * * (?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable starting characters
-         * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]* - allowable characters
-         * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable ending characters
-         * * |[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]) - allowable single character
-         * * @ - defining email character
-         * * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - domain
-         * * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
-         */
-        const rxEmail = /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig;
-        richText = richText.replaceAll(rxEmail, (match) => {
-          return `<a href="mailto:${ match }">${ match }</a>`;
-        });
-        /**
-         * url parser regex breakdown with an added check to ensure it isn't already linked:
-         * 
-         * * (?<!<[^>]*| - ignore urls inside tag defs
-         * * [.+@a-zA-Z0-9]) - ignore emails pt1
-         * * (?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)? - only match openable urls if a protocol is included (file has one more slash indicating the root folder)
-         * * (?:(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+) - find url sequences or ipv4 addresses (ipv6 is too complicated for a single line regex)
-         * * (?::[0-9]+)? - include port references
-         * * (?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)? - include allowed characters in subfolders
-         * * (?![.+@a-zA-Z0-9]| - ignore emails pt2
-         * * (?!<a).*?<\/a>) - ignore urls that are inside an anchor tag
-         */
-        const rxURL = /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(?:https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig;
-        richText = richText.replaceAll(rxURL, (match) => {
-          // ensure what was picked up evaluates to a proper url (just in case)
-          const matchURL = new URL((!match.match(/(?:https?|ftp|chrome|edge|about|file\/):\/\//)) ? "http://" + match : match);
-          return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
-        });
-        /**
-         * newline parser Regex breakdown ignoring those after a block level tag:
-         * 
-         * * (?<!<\/? - don't match if specific tags are found before a newline
-         * * (?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+? - inline tags are okay to add breaks after
-         * * (?:>| .*>)) - allow for opening tags with options
-         * * (?:\r\n|\r|\n) - match newlines no matter how formatted (should always be \n, but just in case)
-         */
-        const rxNewline = /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g;
-        richText = richText.replaceAll(rxNewline, (match) => {
-          return "<br>" + match;
-        });
-      }
+      // check for plain-text setting
+      if (selNode.contentEditable === "plaintext-only") richText = text;
 
       // ckeditor does not allow any 3rd party programatic inputs in contenteditable fields but fails silently
       if (!selNode.classList.contains("ck")) {
@@ -218,7 +229,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
       text: text,
       richText: richText,
     };
-  };
+  }
 
   // TODO: replace modal with popup so the selection won't lose focus
   // // process custom fields
@@ -311,7 +322,7 @@ const pasteSnippet = async ({ text, nosubst = false }) => {
   //   return;
   // }
 
-  return paste(text);
+  return paste(snip.content, snip.richText);
 };
 
 // Request permissions when necessary for cross-origin iframes
@@ -324,10 +335,12 @@ const requestFrames = async (action, src) => {
     });
     return origins;
   };
+  console.log("Getting site origins...");
   const origins = await injectScript({
     target: { tabId: src.target.tabId },
     func: getFrameOrigins,
   });
+  console.log("Checking origins...", origins);
   // return script injection error if top level is blocked too
   if (!origins) return origins;
   // popup required to request permission
@@ -344,19 +357,18 @@ const requestFrames = async (action, src) => {
   return requestor;
 };
 
-/**
- * Base constructor for folders, snippets and any future items
- */
+/** Base constructor for folders, snippets and any future items */
 class TreeItem {
   constructor({ name, seq, color } = {}) {
+    /** @type {string} */
     this.name = name || "New Tree Item";
+    /** @type {number} */
     this.seq = seq || 1;
+    /** @type {string} */
     this.color = color;
   }
 }
-/**
- * Folders contain tree items and can be nested.
- */
+/** Folders contain tree items and can be nested. */
 class Folder extends TreeItem {
   constructor({ name, seq, children, color } = {}) {
     super({
@@ -364,39 +376,45 @@ class Folder extends TreeItem {
       seq: seq || 1,
       color: color,
     });
+    /** @type {(TreeItem|Folder|Snippet)[]} */
     this.children = children || [];
   }
 }
-/**
- * Snippets are basic text blocks that can be pasted
- */
+/** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
-  constructor({ name, seq, content, color, shortcut, sourceURL } = {}) {
+  constructor({ name, seq, color, content, nosub, shortcut, sourceURL } = {}) {
     super({
       name: name || "New Snippet",
       seq: seq || 1,
       color: color,
     });
+    /** @type {string} */
     this.content = content || "";
+    /** @type {boolean} */
+    this.nosub = false;
+    /** @type {string} */
     this.shortcut = shortcut;
+    /** @type {string} */
     this.sourceURL = sourceURL;
   }
 }
-// Basic snippets data bucket
+/** Basic snippets data bucket */
 class DataBucket {
   constructor({ version, children, counters } = {}) {
+    /** @type {string} */
     this.version = version || "1.0";
+    /** @type {string} */
     this.timestamp = Date.now();
+    /** @type {(TreeItem|Folder|Snippet)[]|string} */
     this.children = children || [];
+    /** @type {Object} */
     this.counters = counters || { startVal: 0 };
 
     // in case a restored backup is corrupt, ensure a startVal is available
     if (this.counters.startVal === undefined) this.counters.startVal = 0;
   }
 
-  /**
-   * Compress root folder (children) using browser gzip compression
-   */
+  /** Compress root folder (children) using browser gzip compression */
   async compress() {
     // check if already compressed
     if (typeof this.children === 'string') {
@@ -490,11 +508,19 @@ class Space {
     if (details) this.init(details);
   }
 
-  getPathNames() {
-    const pathNames = [];
+  /**
+   * Return the fully named path represented by the seq array provided
+   * @param {number[]} path 
+   */
+  getPathNames(path = this.path) {
+    console.log(path);
+    /** @type {string[]} */
+    const pathNames = [this.name];
     let item = this.data;
-    for (let seq of this.path) {
+    for (let seq of path) {
+      console.log(path, pathNames);
       item = item.children.find((i) => i.seq == seq);
+      if (!item) throw new Error("That path doesn't exist");
       pathNames.push(item.name);
     }
     return pathNames;
@@ -506,7 +532,6 @@ class Space {
    *   name: string
    *   synced: boolean
    * }} args - Name & storage bucket location (reloads current space if empty)
-   * @returns 
    */
   async load({ name, synced } = {}) {
     console.log("Loading space...", name, synced, typeof synced);
@@ -609,25 +634,32 @@ class Space {
     }
   }
 
+  /**
+   * Process placeholders and rich text options of a snippet and return the result
+   * @param {number[]} path 
+   * @returns 
+   */
   async getProcessedSnippet(path) {
+    console.log("Checking locale...");
     const locale = navigator.language;
-    const snip = this.getItem(path);
-    const folder = this.getItem(path.slice(0,-1));
-    let snipText = snip.content;
-    const result = {
-      text: snipText,
-      richText: snipText,
-      nosubst: snip.name.slice(0,9) === "[NOSUBST]",
-    };
+    console.log(locale);
+    console.log("Getting item...");
+    const item = this.getItem(path);
+    console.log(item);
+    if (!item?.content) return;
+    // avoid touching space
+    const snip = new Snippet(item);
     
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
-    if (result.nosubst) return result;
+    if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") return snip;
 
     // process counters, kept track internally to allow use across multiple snippets
     let counterUse = false;
-    snipText = snipText.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
+    console.log("Processing counters...");
+    snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
       if (!counterUse) counterUse = true;
       if (p1 in this.data.counters === false) {
+        console.log("Adding counter...", p1);
         this.data.counters[p1] = this.data.counters.startVal;
       }
       return this.data.counters[p1]++;
@@ -636,8 +668,8 @@ class Space {
     if (counterUse) await this.save();
   
     // process placeholders
-    snipText = snipText.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
-      if (p3) p3 = p3.split('|');
+    snip.content = snip.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
+      p3 &&= p3.split('|');
       const now = new Date();
   
       // function for full date/time format string replacement (compatible with Clippings)
@@ -839,7 +871,10 @@ class Space {
           return snip.name;
   
         case "FOLDER":
-          return folder.name;
+          return this.getPathNames(path.slice(0,-1)).pop();
+  
+        case "PATH":
+          return this.getPathNames(path.slice(0,-1)).join(p2 || `/`);
       
         default:
           // TODO: popup requesting input values
@@ -847,7 +882,11 @@ class Space {
       }
     });
 
-    return result;
+    // copy to richText field and process
+    snip.richText = linkURLs(linkEmails(tagNewlines(snip.content)));
+
+    console.log(snip);
+    return snip;
   }
 
   getFolderCount(folderPath = this.path) {

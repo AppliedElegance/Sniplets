@@ -294,6 +294,7 @@ function buildItemWidget(item, list, path, settings) {
       seq: item.seq,
       field: `name`,
     },
+    'aria-label': (isFolder) ? `Folder Name` : `Snippet Name`,
   });
   if (isFolder) widgetTitle.target = path.concat([item.seq]).join(',');
 
@@ -334,6 +335,7 @@ function buildItemWidget(item, list, path, settings) {
           field: `content`,
         },
         textContent: item.content,
+        'aria-label': `Snippet Contents`,
       })],
     });
     widget.push(widgetBody);
