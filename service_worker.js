@@ -146,8 +146,9 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
     console.log("Injecting paste code", snip);
     src.func = pasteSnippet;
     src.args = [snip];
+    console.log(src);
     const res = await injectScript(src);
-    console.log("Checking for success", res);
+    console.log("Checking for success", res, !!res);
     let permRes = true;
     if (!res) {
       console.log("Requesting permission");

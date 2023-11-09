@@ -296,7 +296,7 @@ function buildItemWidget(item, list, path, settings) {
     },
     'aria-label': (isFolder) ? `Folder Name` : `Snippet Name`,
   });
-  if (isFolder) widgetTitle.target = path.concat([item.seq]).join(',');
+  if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join(',');
 
   const widgetActions = buildNode('div', {
     children: [

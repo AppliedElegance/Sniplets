@@ -114,8 +114,10 @@ const linkEmails = (text) => text.replaceAll(
 const linkURLs = (text) => text.replaceAll(
   /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig,
   (match, p1) => {
-    // ensure what was picked up evaluates to a proper url (just in case)
     console.log(match, p1);
+    // skip IP addresses with no protocol
+    if (match.match(/^\d.*\.\d.*\.\d.*\.\d.*$/)) return match;
+    // ensure what was picked up evaluates to a proper url (just in case)
     const matchURL = new URL(((!p1) ? `http://` : ``) + match);
     return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
   });
@@ -145,22 +147,18 @@ const tagNewlines = (text) => text.replaceAll(
  * @param {ExecutionWorld} src.world - The JavaScript "world" to run the script in. Defaults to ISOLATED.
  * @returns {Promise<InjectionResult[]>|boolean}
  */
-const injectScript = async (src) => {
-  return chrome.scripting.executeScript(src)
-  .catch((e) => { return false; });
-};
+const injectScript = async (src) =>
+chrome.scripting.executeScript(src).catch(() => false);
 
 /**
  * Injection script workaround for full selectionText with line breaks
  */
-const getFullSelection = () => {
-  return window.getSelection().toString();
-};
+const getFullSelection = () =>
+window.getSelection().toString();
 
 /**
  * Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
  * @param {Snippet} snip
- * @param {string} richText
  */
 const pasteSnippet = async (snip) => {
   // get clicked element
