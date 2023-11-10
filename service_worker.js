@@ -89,8 +89,26 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   switch (menuData.action) {
   case 'snip': {
     console.log("Starting snip...", menuData);
-    // create snippet title from selectionText which does not include newlines
-    let snipName = data.selectionText;
+    // inject script to grab full selection including line breaks
+    src.func = getFullSelection;
+    const res = await injectScript(src);
+    console.log("Check for result...", res);
+    let snipText = res[0]?.result;
+    console.log("Check for snip...", snipText);
+    if (!snipText) {
+      console.log("Check for iframe permissions...");
+      // possible cross-origin frame
+      const permRes = await requestFrames(menuData.action, src);
+      if (!permRes) {
+        // scripting blocked, snip basic selection provided by context menu
+        snipText = data.selectionText;
+      } else {
+        return; // if it was possible to request permission, follow up there
+      }
+    }
+    
+    // create snippet title from opening text
+    let snipName = snipText.match(/^.+/)[0];
     if (snipName.length > 27) {
       // cut down to size, then chuck trailing text if possible so no words are cut off
       snipName = snipName.slice(0, 28);
@@ -99,28 +117,6 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
                : snipName.slice(0, 27))
                + '…';
     }
-
-    console.log("Injecting script...", snipName);
-    // inject script to grab full selection including line breaks
-    src.func = getFullSelection;
-    const res = await injectScript(src);
-    console.log("Check for result...", res);
-    let snipText;
-    if (!res) {
-      console.log("Check for iframe permissions...");
-      // possible cross-origin frame
-      const permRes = await requestFrames(menuData.action, src);
-      if (!permRes) {
-        snipText = data.selectionText;
-      } else {
-        return; // if it was possible to request permission, let the user try again
-      }
-    } else {
-      snipText = res[0].result;
-    }
-    
-    console.log("Check for snip...", snipText);
-    if (!snipText) return;
 
     // add snip to space
     let snip = new Snippet({ name: snipName, content: snipText });

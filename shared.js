@@ -150,16 +150,12 @@ const tagNewlines = (text) => text.replaceAll(
 const injectScript = async (src) =>
 chrome.scripting.executeScript(src).catch(() => false);
 
-/**
- * Injection script workaround for full selectionText with line breaks
- */
+/** Injection script workaround for full selectionText with line breaks */
 const getFullSelection = () =>
 window.getSelection().toString();
 
-/**
- * Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
- * @param {Snippet} snip
- */
+/** Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
+ * @param {Snippet} snip */
 const pasteSnippet = async (snip) => {
   // get clicked element
   const selNode = document.activeElement;
