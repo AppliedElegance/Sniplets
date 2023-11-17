@@ -28,6 +28,16 @@ function buildNode(tagName, attributes) {
       element.classList.add(...attributes.classList);
       break;
 
+    case 'style': // append inline styles
+      if (typeof attributes.style === 'string') {
+        element.style.cssText = attributes.style;
+      } else {
+        for (let key in attributes.style) {
+          element.style[key] = attributes.style[key];
+        }
+      }
+      break;
+
     case 'textContent': // add text content within tag (should not be used along with children)
       element.textContent = attributes.textContent;
       break;
@@ -39,7 +49,7 @@ function buildNode(tagName, attributes) {
       break;
   
     default: // assume remaining attributes can be set directly
-      element.setAttribute(a, attributes[a]);
+      element.setAttribute(a, (attributes[a] === true) ? `` : attributes[a]);
     }
   }
   return element;
@@ -289,6 +299,7 @@ function buildItemWidget(item, list, path, settings) {
   const widgetTitle = buildNode('input', {
     type: (isFolder) ? `button` : `text`,
     value: item.name,
+    draggable: `false`,
     dataset: {
       action: (isFolder) ? `open-folder` : `edit`,
       seq: item.seq,
@@ -296,12 +307,16 @@ function buildItemWidget(item, list, path, settings) {
     },
     'aria-label': (isFolder) ? `Folder Name` : `Snippet Name`,
   });
-  if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join(',');
+  if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-');
 
   const widgetActions = buildNode('div', {
     children: [
-      (isFolder) && buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
+      (isFolder) ? buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
         action: `rename`,
+        seq: item.seq,
+      }) : buildActionIcon(`Copy`, `icon-copy`, `inherit`, {
+        action: `copy`,
+        field: `copy`, // so it can be focused
         seq: item.seq,
       }),
       buildActionIcon(`Delete`, `icon-delete`, colors.Red.value, {
@@ -329,6 +344,7 @@ function buildItemWidget(item, list, path, settings) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
       children: [buildNode('textArea', {
+        draggable: `false`,
         dataset: {
           action: `edit`,
           seq: item.seq,
@@ -342,6 +358,7 @@ function buildItemWidget(item, list, path, settings) {
     if (item.sourceURL && settings.view.sourceURL) {
       const widgetSource = buildNode('div', {
         classList: [`source-url`],
+        draggable: `false`,
         children: [
           buildNode('label', {
             for: `source-${ item.seq }`,
@@ -374,7 +391,7 @@ function buildTreeWidget(collapsible, color, target, text) {
       // expand/collapse button only available if subfolders were found
       buildNode('button', {
         type: `button`,
-        disabled: collapsible,
+        disabled: !collapsible,
         dataset: collapsible && { action: `collapse` },
         classList: [`icon`],
         children: [

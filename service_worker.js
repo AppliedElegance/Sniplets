@@ -68,7 +68,9 @@ chrome.runtime.onStartup.addListener(async () => {
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   // get details from menu item and ignore "empty" ones
+  /** @type {{action:string,path:number[],space:Object}} */
   const menuData = JSON.parse(data.menuItemId);
+  console.log(menuData);
   if (!menuData.action) return;
   // get space for handling actions
   const space = new Space();
@@ -138,7 +140,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
 
   case 'paste': {
     console.log("Getting processed snippet", menuData);
-    const snip = await space.getProcessedSnippet(menuData.path);
+    const snip = await space.getProcessedSnippet(menuData.path.pop(), menuData.path);
     console.log("Injecting paste code", snip);
     src.func = pasteSnippet;
     src.args = [snip];
@@ -153,11 +155,11 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
       console.log(permRes);
     }
     if (!permRes || (res[0]?.result && !res[0].result.pasted)) {
-      // // Unable to paste, open window to requested selection for manual copy/paste
+      // Unable to paste, open window to requested selection for manual copy/paste
       const editor = chrome.windows.create({
-        url: chrome.runtime.getURL("popups/main.html?action=copy"
-          + "&path=" + menuData.path.slice(0, -1).join(',')
-          + "&seq=" + menuData.path.slice(-1)),
+        url: chrome.runtime.getURL("popups/main.html?action=focus&field=copy&reason=blocked"
+        + "&path=" + menuData.path.join('-')
+        + "&seq=" + snip.seq),
         type: "popup",
         width: 700,
         height: 500,

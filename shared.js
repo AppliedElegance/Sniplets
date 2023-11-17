@@ -630,15 +630,16 @@ class Space {
 
   /**
    * Process placeholders and rich text options of a snippet and return the result
+   * @param {number} seq 
    * @param {number[]} path 
    * @returns 
    */
-  async getProcessedSnippet(path) {
+  async getProcessedSnippet(seq, path = this.path) {
     console.log("Checking locale...");
     const locale = navigator.language;
     console.log(locale);
     console.log("Getting item...");
-    const item = this.getItem(path);
+    const item = this.getItem(path.concat(seq));
     console.log(item);
     if (!item?.content) return;
     // avoid touching space
@@ -865,10 +866,10 @@ class Space {
           return snip.name;
   
         case "FOLDER":
-          return this.getPathNames(path.slice(0,-1)).pop();
+          return this.getPathNames(path).pop();
   
         case "PATH":
-          return this.getPathNames(path.slice(0,-1)).join(p2 || `/`);
+          return this.getPathNames(path).join(p2 || `/`);
       
         default:
           // TODO: popup requesting input values
@@ -877,15 +878,15 @@ class Space {
     });
 
     // copy to richText field and process
-    snip.richText = linkURLs(linkEmails(tagNewlines(snip.content)));
+    snip.richText = snip.content;
+    const settings = new Settings;
+    await settings.load();
+    if (settings.control.rtLineBreaks) snip.richText = tagNewlines(snip.richText);
+    if (settings.control.rtLinkEmails) snip.richText = linkEmails(snip.richText);
+    if (settings.control.rtLinkURLs) snip.richText = linkURLs(snip.richText);
 
     console.log(snip);
     return snip;
-  }
-
-  getFolderCount(folderPath = this.path) {
-    let folder = this.getItem(folderPath);
-    return folder.children.filter(item => item.children).length;
   }
 
   sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'] } = {}) {
@@ -1001,7 +1002,7 @@ class Space {
     }
 
     // make sure path is correct or reset otherwise
-    if (typeof path === 'string') path = path.split(',').filter((v) => !isNaN(v));
+    if (typeof path === 'string') path = path.split('-').filter((v) => !isNaN(v));
     if (!Array.isArray(path)) path = [];
 
     // update properties
@@ -1034,6 +1035,9 @@ class Settings {
    * @param {boolean} settings.view.sourceURL
    * @param {Object} settings.control 
    * @param {boolean} settings.control.saveSource
+   * @param {boolean} settings.control.rtLineBreaks
+   * @param {boolean} settings.control.rtLinkEmails
+   * @param {boolean} settings.control.rtLinkURLs
    */
   constructor(settings) {
     if (settings) this.init(settings);
@@ -1056,6 +1060,9 @@ class Settings {
     this.view.sourceURL = view?.sourceURL || false;
     this.control = {};
     this.control.saveSource = control?.saveSource || true;
+    this.control.rtLineBreaks = control?.rtLineBreaks || true;
+    this.control.rtLinkEmails = control?.rtLinkEmails || true;
+    this.control.rtLinkURLs = control?.rtLinkURLs || true;
   }
 
   async load() {
