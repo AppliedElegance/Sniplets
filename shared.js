@@ -507,12 +507,13 @@ class Space {
    * @param {number[]} path 
    */
   getPathNames(path = this.path) {
-    console.log(path);
+    console.log(this, this.name);
     /** @type {string[]} */
     const pathNames = [this.name];
     let item = this.data;
+    console.log(path[0], pathNames[0], path.length);
     for (let seq of path) {
-      console.log(path, pathNames);
+      console.log(seq);
       item = item.children.find((i) => i.seq == seq);
       if (!item) throw new Error("That path doesn't exist");
       pathNames.push(item.name);
@@ -992,7 +993,7 @@ class Space {
     if (!name || !synced) await settings.load();
     
     // make sure data is parsed correctly
-    console.log("Checking data integrity...");
+    console.log("Checking data integrity...", name, synced, data, path);
     if (!(data instanceof DataBucket)) {
       data = new DataBucket(data);
       console.log("Parsing data...", data);
@@ -1008,7 +1009,7 @@ class Space {
     // update properties
     console.log("Updating details...", name, synced, data, path);
     this.name = name || settings.defaultSpace.name;
-    this.synced = synced || settings.defaultSpace.synced;
+    this.synced = (typeof synced === 'boolean') ? synced : settings.defaultSpace.synced;
     this.data = data;
     this.path = path;
 
@@ -1022,22 +1023,7 @@ class Space {
  */
 class Settings {
   /**
-   * @param {Object} settings 
-   * @param {Object} settings.defaultSpace 
-   * @param {string} settings.defaultSpace.name 
-   * @param {boolean} settings.defaultSpace.synced 
-   * @param {Object} settings.sort
-   * @param {string} settings.sort.by
-   * @param {string} settings.sort.groupBy
-   * @param {boolean} settings.sort.foldersOnTop
-   * @param {Object} settings.view 
-   * @param {boolean} settings.view.rememberPath
-   * @param {boolean} settings.view.sourceURL
-   * @param {Object} settings.control 
-   * @param {boolean} settings.control.saveSource
-   * @param {boolean} settings.control.rtLineBreaks
-   * @param {boolean} settings.control.rtLinkEmails
-   * @param {boolean} settings.control.rtLinkURLs
+   * @param {Settings} settings 
    */
   constructor(settings) {
     if (settings) this.init(settings);
@@ -1045,19 +1031,23 @@ class Settings {
 
   /**
    * Take provided settings and initialise the remaining settings
-   * @param {Object} settings 
+   * @param {Settings} settings 
    */
   init({ defaultSpace, sort, view, control } = {}) {
+    /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
     this.defaultSpace.name = defaultSpace?.name || "Snippets";
     this.defaultSpace.synced = defaultSpace?.synced || true;
+    /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
     this.sort = {};
     this.sort.by = sort?.by || 'seq';
     this.sort.groupBy = sort?.groupBy || null;
     this.sort.foldersOnTop = sort?.foldersOnTop || true;
+    /** @type {{rememberPath:boolean,sourceURL:boolean}} */
     this.view = {};
     this.view.rememberPath = view?.rememberPath || false;
     this.view.sourceURL = view?.sourceURL || false;
+    /** @type {{saveSource:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
     this.control = {};
     this.control.saveSource = control?.saveSource || true;
     this.control.rtLineBreaks = control?.rtLineBreaks || true;

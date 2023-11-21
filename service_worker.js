@@ -198,13 +198,17 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
         if (!preserve) removeStorageData(oldSpace.name, oldSpace.synced);
       };
 
-      if (oldSpace.synced > newSpace.synced) { // stopping sync for everyone
+      // check which direction we're shifting
+      console.log(oldSpace, newSpace);
+      if (oldSpace.synced > newSpace.synced) {
+        console.log(`Stopping sync for everyone...`);
         // only copy synced data to local if the instance isn't already local
         const localSpace = await getStorageData(newSpace.name);
         if (!localSpace[newSpace.name]) {
           await shiftSpace(oldSpace, newSpace);
         }
-      } else if (oldSpace.synced < newSpace.synced) { // starting sync
+      } else if (oldSpace.synced < newSpace.synced) {
+        console.log(`Starting sync for everyone...`);
         // check for a local copy and confirm overwrite
         const localSpace = await getStorageData(newSpace.name);
         if (!localSpace[newSpace.name] || confirm("Another browser would like to sync its snippits. Overwite local copy?\nIf Yes, you will be asked to backup your local snippets before the sync.\nIf No, local editing will be preserved and this browser will not be kept in sync.")) {

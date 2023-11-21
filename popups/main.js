@@ -17,15 +17,17 @@ const q$ = (query) => document.querySelector(query);
 const settings = new Settings();
 const space = new Space();
 async function setCurrentSpace() {
-  // current and default space must be synced if they have the same name
   const loc = {
     name: space.name,
     synced: space.synced,
   };
+  // current and default space must be synced if they have the same name
   if (loc.name === settings.defaultSpace.name) {
     settings.defaultSpace = loc;
     settings.save();
   }
+  // save path as well if requested
+  if (settings.view.rememberPath) loc.path = space.path;
   return await setStorageData({ currentSpace: loc }, false);
 }
 
@@ -40,7 +42,7 @@ async function loadPopup() {
   let { currentSpace } = await getStorageData('currentSpace');
   console.log("Loading current space...", currentSpace, settings.defaultSpace);
   await space.load(currentSpace || settings.defaultSpace);
-  console.log("Updating current space if necessary...");
+  console.log("Updating current space if necessary...", structuredClone(space));
   if (!currentSpace) setCurrentSpace();
 
 
@@ -108,6 +110,61 @@ const groupItems = (list, by = settings.sort.groupBy) => list.reduce((groups, it
  */
 const getSubFolders = (folder) => groupItems(folder, 'type').folder;
 
+function setHeaderPath() {
+  // get list of path names (should always include space name)
+  const pathNames = space.getPathNames();
+  const pathNode = $('path');
+  // add root
+  pathNode.replaceChildren(
+    buildNode('li', {
+      id: `folder-up`,
+      classList: [`folder`],
+      style: { display: `none` }, // only display when out of room
+      dataset: { path: `` },
+      children: [buildActionIcon(`Back`, `icon-back`, `inherit`, {
+        action: 'open-folder',
+        target: ``,
+      })],
+    }),
+    buildNode('li', {
+      id: `folder-root`,
+      classList: [`folder`],
+      dataset: { path: `root` },
+      children: [buildNode('button', {
+        type: `button`,
+        dataset: {
+          action: `open-folder`,
+          target: ``,
+        },
+        children: [buildNode('h1', {
+          textContent: pathNames.shift(),
+        })],
+      })],
+    }),
+  );
+  console.log(`Adding additional path names`, pathNames);
+  pathNames.forEach((name, i) => pathNode.append(buildNode('li', {
+    classList: [`folder`],
+    dataset: {
+      seq: space.path.slice(i,i+1),
+      path: space.path.slice(0,i).join('-'),
+    },
+    children: [
+      buildNode('h1', { textContent: `/` }),
+      buildNode('button', {
+        type: `button`,
+        dataset: {
+          action: `open-folder`,
+          target: space.path.slice(0,i+1).join('-'),
+        },
+        children: [buildNode('h1', {
+          textContent: name,
+        })],
+      }),
+    ],
+  })));
+}
+
 function buildHeader() {
   // popover settings menu
   const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, `inherit`, [
@@ -141,13 +198,10 @@ function buildHeader() {
       buildMenuItem(`Clear All Data`, { action: `clear-data-all` }),
     ]),
   ]);
-  // path navigation (filled separately)
+  // add path navigation element
   const path = buildNode('nav', {
-    children: [buildNode('ul', {
-      id: `path`,
-    })],
+    children: [buildNode('ul', { id: `path` })],
   });
-  setHeaderPath();
   // quick actions
   const quickActionMenu = buildNode('div', {
     id: `quick-actions`,
@@ -175,60 +229,8 @@ function buildHeader() {
     path,
     quickActionMenu,
   );
-}
-
-function setHeaderPath() {
-  // get list of path names (should always include space name)
-  const pathNames = space.getPathNames();
-  console.log(space, pathNames);
-
-  $('path').replaceChildren(
-    buildNode('li', {
-      id: `folder-up`,
-      classList: [`folder`],
-      style: { display: `none` }, // only display when out of room
-      dataset: { path: `` },
-      children: [buildActionIcon(`Back`, `icon-back`, `inherit`, {
-        action: 'open-folder',
-        target: ``,
-      })],
-    }),
-    buildNode('li', {
-      id: `folder-root`,
-      classList: [`folder`],
-      dataset: { path: `root` },
-      children: [buildNode('button', {
-        type: `button`,
-        dataset: {
-          action: `open-folder`,
-          target: ``,
-        },
-        children: [buildNode('h1', {
-          textContent: pathNames.shift(),
-        })],
-      })],
-    }),
-  );
-  pathNames.forEach((name, i) => $('path').append(buildNode('li', {
-    classList: [`folder`],
-    dataset: {
-      seq: space.path.slice(i,i+1),
-      path: space.path.slice(0,i).join('-'),
-    },
-    children: [
-      buildNode('h1', { textContent: `/` }),
-      buildNode('button', {
-        type: `button`,
-        dataset: {
-          action: `open-folder`,
-          target: space.path.slice(0,i+1).join('-'),
-        },
-        children: [buildNode('h1', {
-          textContent: name,
-        })],
-      }),
-    ],
-  })));
+  // set path
+  setHeaderPath();
 }
 
 /**
@@ -1016,11 +1018,15 @@ async function handleAction(target) {
       // push new url location to history
       history.pushState({}, '', url);
       // load new folder
+      console.log(`Updating path...`, space, dataset.target);
       space.path.length = 0;
       if (dataset.target.length) {
+        console.log(structuredClone(space.path));
         space.path.push(...dataset.target.split('-'));
+        console.log(structuredClone(space.path));
       }
-      // setCurrentSpace();
+      if (settings.view.rememberPath) setCurrentSpace();
+      setHeaderPath();
       buildList();
       break; }
     
