@@ -150,6 +150,7 @@ function buildMenuItem(name, dataset) {
   });
 }
 
+/** Add a hard rule P element spacer to menu lists */
 function buildMenuSeparator() {
   return buildNode('p', {
     classList: [`menu-item`],
@@ -230,6 +231,14 @@ function buildMenuControl(type, value, { name, id, dataset, checked }) {
   });
 }
 
+/**
+ * builder for icon buttons
+ * @param {string} name 
+ * @param {string} sprite 
+ * @param {string} color 
+ * @param {Object} dataset 
+ * @returns {HTMLButtonElement}
+ */
 function buildActionIcon(name, sprite, color, dataset) {
   return buildNode('button', {
     type: `button`,
@@ -383,6 +392,13 @@ function buildItemWidget(item, list, path, settings) {
   return widget;
 }
 
+/**
+ * Builder for folder tree items
+ * @param {boolean} collapsible 
+ * @param {string} color 
+ * @param {string} target 
+ * @param {string} text 
+ */
 function buildTreeWidget(collapsible, color, target, text) {
   return buildNode('div', {
     classList: [`title`],
@@ -414,4 +430,68 @@ function buildTreeWidget(collapsible, color, target, text) {
       }),
     ],
   });
+}
+
+/**
+ * Builder for modal dialogue
+ * @param {string} message - text to display
+ * @param {{buttons:Object[],fields:Object[],title:string,vertical:boolean}} [options] - optional settings
+ * including a title and whether the buttons should be set vertically
+ * rather than horizontally.
+ * @returns {HTMLDialogElement}
+ */
+function buildModal(message, {buttons, fields, title, vertical = false }) {  
+  // set up container
+  const cancelButton = buildActionIcon(`Close`, `icon-close`, colors.Red.value);
+  cancelButton.value = `cancel`;
+  cancelButton.formMethod = `dialog`;
+  const modal = buildNode('dialogue', {
+    children: [buildNode('div', {
+      classList: [`x`],
+      children: [cancelButton],
+    })],
+  });
+
+  // add title
+  if (title) modal.append(buildNode('h1', { textContent: title }));
+
+  // add message
+  modal.append(buildNode('p', { textContent: message }));
+
+  // add fields
+  if (fields) {
+    for (let field of fields) {
+      modal.append(buildNode('div', {
+        classList: [`field`],
+        children: [
+          buildNode('label', {
+            htmlFor: field.name,
+            textContent: `${ field.label }:`,
+          }),
+          buildNode('input', {
+            type: field.type,
+            id: field.name,
+            name: field.name,
+          }),
+        ],
+      }));
+    }
+  }
+
+  // add buttons
+  if (buttons) {
+    const buttonContainer = buildNode('div', {
+      classList: [vertical ? `col` : `row`],
+    });
+    for (let button of buttons) {
+      buttonContainer.append(buildNode('button', {
+        type: `button`,
+        ...button,
+      }));
+    }
+    modal.append(buttonContainer);
+  }
+
+  // return modal splash
+  return modal;
 }

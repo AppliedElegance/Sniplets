@@ -412,9 +412,9 @@ function buildList() {
       ])),
     }));
 
-    // keep items to a reasonable height
-    for (let textarea of $('snippets').getElementsByTagName('textarea'))
-      adjustTextArea(textarea, 160);
+    // // keep items to a reasonable height
+    // for (let textarea of $('snippets').getElementsByTagName('textarea'))
+    //   adjustTextArea(textarea, 160);
   }
 }
 
@@ -424,25 +424,25 @@ function loadSnippets() {
   buildList();
 }
 
-/** auto-adjust the heights of input textareas
- * @param {Event|HTMLTextAreaElement} textarea 
- * @param {boolean} [limit=false] 
- */
-function adjustTextArea(textarea, limit = false) {
-  /** @type {HTMLTextAreaElement} */
-  const ta = textarea.target ?? textarea; // get target for events
-  if (ta.tagName.toLowerCase() === 'textarea') {
-    let ch = parseInt(ta.clientHeight, 10) ?? 0;
-    let sh = ta.scrollHeight;
-    // only expand or collapse as necessary
-    if (ch < sh || limit) {
-      ta.style.height = 'auto'; // reset height
-      sh = ta.scrollHeight; // check new scroll height
-      limit = limit ? (limit === true ? 160 : limit) : sh; // set default collapsible limit
-      ta.style.height = (sh > limit ? limit : sh) + 'px';
-    }
-  }
-}
+// /** auto-adjust the heights of input textareas
+//  * @param {Event|HTMLTextAreaElement} textarea 
+//  * @param {boolean} [limit=false] 
+//  */
+// function adjustTextArea(textarea, limit = false) {
+//   /** @type {HTMLTextAreaElement} */
+//   const ta = textarea.target ?? textarea; // get target for events
+//   if (ta.tagName.toLowerCase() === 'textarea') {
+//     let ch = parseInt(ta.clientHeight, 10) ?? 0;
+//     let sh = ta.scrollHeight;
+//     // only expand or collapse as necessary
+//     if (ch < sh || limit) {
+//       ta.style.height = 'auto'; // reset height
+//       sh = ta.scrollHeight; // check new scroll height
+//       limit = limit ? (limit === true ? 160 : limit) : sh; // set default collapsible limit
+//       ta.style.height = (sh > limit ? limit : sh) + 'px';
+//     }
+//   }
+// }
 
 /**
  * Click handler
@@ -763,6 +763,24 @@ async function handleAction(target) {
       }
       break;
 
+    case 'req-perms': {
+      const modal = buildModal(`This site requires additional permissions `
+      + `for context menus and shortcuts to work. If you would like to use `
+      + `these features on this site, please press the appropriate button `
+      + `and accept the request.`, {
+        buttons: [
+          { name: `site-perms`, target: dataset.sites },
+          { name: `all-perms`, target: `<all_urls>` },
+        ],
+        vertical: true,
+      });
+      document.body.append(modal);
+      modal.showModal();
+      // modal.addEventListener('close', (event) => {
+      //   console.log(modal.returnValue);
+      // });
+      break; }
+
     // open menus
     case 'open-popover': 
     case 'open-submenu': {
@@ -800,12 +818,13 @@ async function handleAction(target) {
       if (dataset.target === 'clippings61') {
         backup.version = "6.1";
         backup.createdBy = "Clippings/wx";
-        backup.userClippingsRoot = JSON.stringify(space.data.children);
-        backup.userClippingsRoot.replaceAll(/"color":"(.*?)"/u, (match, p1) => `"label":"${ colors[p1].clippings }"`);
+        let cData = JSON.stringify(space.data.children);
+        cData.replaceAll(/"color":"(.*?)"/u, (match, p1) => `"label":"${ colors[p1].clippings }"`);
+        backup.userClippingsRoot = cData;
       } else if (dataset.target === 'space') {
         backup.version = "1.0";
         backup.createdBy = "Snippets";
-        backup.space = JSON.stringify(space);
+        backup.space = space;
       }
       const now = new Date;
       try {
@@ -859,16 +878,26 @@ async function handleAction(target) {
     case 'copy': {
       // get requested item
       const snip = await space.getProcessedSnippet(dataset.seq);
-      if (snip) {
-        // copy result text to clipboard for manual paste
-        console.log(`Copying to clipboard...`, snip);
-        await navigator.clipboard.write([new ClipboardItem({
-          ["text/plain"]: new Blob([snip.content], { type: "text/plain" }),
-          ["text/html"]: new Blob([snip.richText], { type: "text/html" }),
-        })]).catch(() => alert(`Sorry, copying automatically to the clipboard is blocked. `
-        + `If you would like to use the copy fuction, please reset this site's permissions `
-        + `in your browser's settings.`));
+      if (!snip) break;
+      if (snip.hasCustomFields) {
+        // pass off to popup
+        window.snip = snip;
+        chrome.windows.create({
+          url: chrome.runtime.getURL("popups/placeholders.html"),
+          type: "popup",
+          width: 700,
+          height: 500,
+        });
+        break;
       }
+      // copy result text to clipboard for manual paste
+      console.log(`Copying to clipboard...`, snip);
+      await navigator.clipboard.write([new ClipboardItem({
+        ["text/plain"]: new Blob([snip.content], { type: "text/plain" }),
+        ["text/html"]: new Blob([snip.richText], { type: "text/html" }),
+      })]).catch(() => alert(`Sorry, copying automatically to the clipboard is blocked. `
+      + `If you would like to use the copy fuction, please reset this site's permissions `
+      + `in your browser's settings.`));
       break; }
   
     // settings
@@ -901,6 +930,13 @@ async function handleAction(target) {
       break;
 
     case 'toggle-sync':
+      // // Check for existing sync data
+      // if (!space.synced) {
+      //   const syncData = getStorageData(space.name, true);
+      //   if (syncData[space.name] && confirm(`It looks like there is previously synced data available. Would you like to overwrite that data with your current local data (Yes) or delete you local copy (No)?`)) {
+
+      //   }
+      // }
       console.log(`Shifting...`, space);
       if (await space.shift({ synced: !space.synced })) {
         // update current/default spaces if necessary

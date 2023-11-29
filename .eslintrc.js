@@ -57,5 +57,6 @@ module.exports = {
         "buildActionIcon": false,
         "buildItemWidget": false,
         "buildTreeWidget": false,
+        "buildModal": false,
     },
 };

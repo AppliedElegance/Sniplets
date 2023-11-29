@@ -1,25 +1,18 @@
-document.addEventListener("DOMContentLoaded", () => {
+let origins;
+
+document.addEventListener("DOMContentLoaded", async () => {
+  const data = await getStorageData("origins");
+  if (data) return;
+  origins = data.origins;
 
   const buttons = document.getElementsByTagName("button");
   Array.from(buttons).forEach((button) => {
     button.disabled = false;
   });
 
-  document.addEventListener("click", async (event) => {
-    if (event.target.tagName.toUpperCase() != "BUTTON") return;
-    let origins;
-    switch (event.target.dataset.target) {
-    case "this": {
-      const data = await getStorageData("origins");
-      if (!data) return;
-      origins = data.origins;
-      break; }
-    case "all":
-      origins = ["<all_urls>"];
-      break;
-    default:
-      break;
-    }
+  document.addEventListener("click", (event) => {
+    if (event.target.tagName != "BUTTON") return;
+    if (event.target.dataset.target === "all") origins = ["<all_urls>"];
     if (!origins) return;
     chrome.permissions.request({ origins: origins }, async (granted) => {
       if (granted) {
