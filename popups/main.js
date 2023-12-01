@@ -21,11 +21,6 @@ async function setCurrentSpace() {
     name: space.name,
     synced: space.synced,
   };
-  // current and default space must be synced if they have the same name
-  if (loc.name === settings.defaultSpace.name) {
-    settings.defaultSpace = loc;
-    settings.save();
-  }
   // save path as well if requested
   if (settings.view.rememberPath) loc.path = space.path;
   return await setStorageData({ currentSpace: loc }, false);
@@ -49,8 +44,11 @@ async function loadPopup() {
   // load the page
   const params = new URLSearchParams(location.search);
   // console.log("Processing parameters...", params);
-  space.path = params.get('path')?.split('-').map(v => parseInt(v)).filter(v => v) || [];
-  document.documentElement.lang = navigator.language;
+  if (params.get('path')) {
+    space.path = params.get('path')?.split('-').map(v => parseInt(v)).filter(v => v);
+    if (settings.view.rememberPath) setCurrentSpace();
+  }
+  document.documentElement.lang = navigator.language; // accesibility
   // console.log("Loading snippets");
   loadSnippets();
   // hide popout button if popped
@@ -848,11 +846,11 @@ async function handleAction(target) {
         const fileContents = await fileData.text();
         // console.log('Grabbed contents', fileContents);
         const data = JSON.parse(fileContents);
-        console.log('Parsed data', data);
+        // console.log('Parsed data', data);
         if (data.userClippingsRoot) { // check for clippings data
           const newData = new DataBucket({ children: data.userClippingsRoot });
           if (await newData.parse()) {
-            console.log("Updated data", space.data);
+            // console.log("Updated data", space.data);
             space.save();
           } else {
             failAlert();
@@ -903,6 +901,7 @@ async function handleAction(target) {
     case 'toggle-remember-path':
       settings.view.rememberPath = !settings.view.rememberPath;
       settings.save();
+      setCurrentSpace();
       break;
   
     case 'toggle-show-source':
@@ -1057,7 +1056,7 @@ async function handleAction(target) {
       space.path.length = 0;
       if (dataset.target.length) {
         // console.log(structuredClone(space.path));
-        space.path.push(...dataset.target.split('-'));
+        space.path.push(...dataset.target.split('-').map(v => parseInt(v)));
         // console.log(structuredClone(space.path));
       }
       if (settings.view.rememberPath) setCurrentSpace();

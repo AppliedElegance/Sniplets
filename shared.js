@@ -444,10 +444,11 @@ class Space {
    * @param {{
    *   name: string
    *   synced: boolean
+   *   path: number[]
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
-  async load({ name, synced } = {}) {
-    // console.log("Loading space...", name, synced, typeof synced);
+  async load({ name, synced, path = [] } = {}) {
+    console.log("Loading space...", name, synced, typeof synced, path);
     const bucket = await getStorageData(
       name || this.name,
       synced || this.synced,
@@ -460,6 +461,7 @@ class Space {
       name: name,
       synced: synced,
       data: data,
+      path: path,
     });
     return true;
   }
