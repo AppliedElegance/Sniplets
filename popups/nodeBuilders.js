@@ -365,7 +365,7 @@ function buildItemWidget(item, list, path, settings) {
       })],
     });
     widget.push(widgetBody);
-    if (item.sourceURL && settings.view.sourceURL) {
+    if (settings.view.sourceURL) {
       const widgetSource = buildNode('div', {
         classList: [`source-url`],
         draggable: `false`,

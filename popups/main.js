@@ -528,27 +528,28 @@ function handleChange(event) {
   handleAction(target);
   
   // update menu if needed
-  if (dataset.action === 'edit') {
-    if (target.type === 'checkbox') {
-      toggleChecked(target.parentElement.querySelector('use'));
-    } else if (target.type === 'radio') {
-      const controls = target.closest('fieldset').querySelectorAll('.control');
-      for (let control of controls) {
-        toggleChecked(control.querySelector('use'), control.querySelector('input').checked);
-      }
+  console.log("Checking type", dataset.type);
+  if (target.type === 'checkbox') {
+    console.log("Toggling checkbox");
+    toggleChecked(target.parentElement.querySelector('use'));
+  } else if (target.type === 'radio') {
+    console.log("Toggling radio");
+    const controls = target.closest('fieldset').querySelectorAll('.control');
+    for (let control of controls) {
+      toggleChecked(control.querySelector('use'), control.querySelector('input').checked);
     }
-    if (dataset.field === 'color') {
-      setSvgFill(
-        target.closest('.menu'),
-        colors[dataset.value || target.value].value,
-      );
-    } else if (dataset.field === 'name') {
-      // console.log(dataset);
-      if (dataset.target) {
-        target.type = `button`;
-        dataset.action = `open-folder`;
-        target.blur();
-      }
+  }
+  if (dataset.field === 'color') {
+    setSvgFill(
+      target.closest('.menu'),
+      colors[dataset.value || target.value].value,
+    );
+  } else if (dataset.field === 'name') {
+    // console.log(dataset);
+    if (dataset.target) {
+      target.type = `button`;
+      dataset.action = `open-folder`;
+      target.blur();
     }
   }
 }
