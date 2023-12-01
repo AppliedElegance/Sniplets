@@ -354,6 +354,7 @@ function buildItemWidget(item, list, path, settings) {
       classList: ['snip-content'],
       children: [buildNode('textArea', {
         draggable: `false`,
+        rows: 1,
         dataset: {
           action: `edit`,
           seq: item.seq,

@@ -17,14 +17,14 @@ chrome.runtime.onInstalled.addListener(async () => {
   // check for current space in case of reinstall
   const { currentSpace } = await getStorageData('currentSpace');
   if (currentSpace) {
-    console.log("Loading current space...", currentSpace);
+    // console.log("Loading current space...", currentSpace);
     await space.load(currentSpace);
   } else if (settings?.defaultSpace) {
     // load default space if available
-    console.log("Loading default space...", settings?.defaultSpace);
+    // console.log("Loading default space...", settings?.defaultSpace);
     await space.load(settings.defaultSpace);
   } else {
-    console.log("Checking for legacy data...");
+    // console.log("Checking for legacy data...");
     // settings missing or corrupt, save default settings
     settings.init();
     settings.save();
@@ -32,26 +32,26 @@ chrome.runtime.onInstalled.addListener(async () => {
     // legacy check for existing snippets
     const legacySpace = { name: "snippets", synced: true };
     if (await space.load(legacySpace)) {
-      console.log("Confirming that legacy space is indeed legacy and shifting...");
+      // console.log("Confirming that legacy space is indeed legacy and shifting...");
       const lastVersion = space.data.version.split('.');
       if ((parseInt(lastVersion[0]) === 0) && (parseInt(lastVersion[1]) < 9)) {
-        console.log("Shifting data to default space");
+        // console.log("Shifting data to default space");
         await space.shift(settings.defaultSpace);
       } else {
-        console.log("Updating default space... (should never happen)");
+        // console.log("Updating default space... (should never happen)");
         settings.defaultSpace = legacySpace;
         settings.save();
       }
     } else {
       // no space information found, create new space
-      console.log("Creating new space...");
+      // console.log("Creating new space...");
       await space.init(settings.defaultSpace);
       await space.save();
     }
   }
 
   // always rebuild context menus on install/update
-  console.log(space);
+  // console.log(space);
   buildContextMenus(space);
 });
 
@@ -70,7 +70,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   // get details from menu item and ignore "empty" ones
   /** @type {{action:string,path:number[],space:Object}} */
   const menuData = JSON.parse(data.menuItemId);
-  console.log(menuData);
+  // console.log(menuData);
   if (!menuData.action) return;
   // get space for handling actions
   const space = new Space();
@@ -90,15 +90,15 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   // get menu action and perform accordingly
   switch (menuData.action) {
   case 'snip': {
-    console.log("Starting snip...", menuData);
+    // console.log("Starting snip...", menuData);
     // inject script to grab full selection including line breaks
     src.func = getFullSelection;
     const res = await injectScript(src);
-    console.log("Check for result...", res);
+    // console.log("Check for result...", res);
     let snipText = res[0]?.result;
-    console.log("Check for snip...", snipText);
+    // console.log("Check for snip...", snipText);
     if (!snipText) {
-      console.log("Check for iframe permissions...");
+      // console.log("Check for iframe permissions...");
       // possible cross-origin frame
       const permRes = await requestFrames(menuData.action, src);
       if (!permRes) {
@@ -123,9 +123,9 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
     // add snip to space
     let snip = new Snippet({ name: snipName, content: snipText });
     if (settings.control.saveSource) snip.sourceURL = data.pageUrl;
-    console.log("Adding snippet...\n", snip, space);
+    // console.log("Adding snippet...\n", snip, space);
     snip = space.addItem(snip);
-    console.log("Saving snippet...", space);
+    // console.log("Saving snippet...", space);
     await space.save();
     
     // open window to view/edit snippet
@@ -139,20 +139,20 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   }
 
   case 'paste': {
-    console.log("Getting processed snippet", menuData);
+    // console.log("Getting processed snippet", menuData);
     const snip = await space.getProcessedSnippet(menuData.path.pop(), menuData.path);
-    console.log("Injecting paste code", snip);
+    // console.log("Injecting paste code", snip);
     src.func = pasteSnippet;
     src.args = [snip];
-    console.log(src);
+    // console.log(src);
     const res = await injectScript(src);
-    console.log("Checking for success", res, !!res);
+    // console.log("Checking for success", res, !!res);
     let permRes = true;
     if (!res) {
-      console.log("Requesting permission");
+      // console.log("Requesting permission");
       // possible cross-origin frame
       permRes = await requestFrames(menuData.action, src);
-      console.log(permRes);
+      // console.log(permRes);
     }
     if (!permRes || (res[0]?.result && !res[0].result.pasted)) {
       // Unable to paste, open window to requested selection for manual copy/paste
@@ -177,7 +177,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  console.log(changes, areaName);
+  // console.log(changes, areaName);
   for (let key in changes) {
     // ignore currentSpace updates, prepare currentSpace info for comparison otherwise
     if (key === 'currentSpace') continue;
@@ -189,38 +189,40 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       const { oldSpace, newSpace } = changes.shift.newValue;
 
       // function for shifting space
-      const shiftSpace = async (oldSpace, newSpace, preserve = true) => {
+      const shiftSpace = async (preserve = true) => {
         const space = new Space();
         await space.load(oldSpace);
         space.name = newSpace.name;
         space.synced = newSpace.synced;
         await space.save();
         if (!preserve) removeStorageData(oldSpace.name, oldSpace.synced);
+        // update local current space if necessary
+        if (currentSpace?.name === oldSpace.name) {
+          setStorageData({ currentSpace: newSpace });
+        }
       };
 
+      // TODO: Confirmation popup
+
       // check which direction we're shifting
-      console.log(oldSpace, newSpace);
+      // console.log(oldSpace, newSpace);
       if (oldSpace.synced > newSpace.synced) {
-        console.log(`Stopping sync for everyone...`);
+        // console.log(`Stopping sync for everyone...`);
         // only copy synced data to local if the instance isn't already local
         const localSpace = await getStorageData(newSpace.name);
         if (!localSpace[newSpace.name]) {
-          await shiftSpace(oldSpace, newSpace);
+          await shiftSpace();
         }
       } else if (oldSpace.synced < newSpace.synced) {
-        console.log(`Starting sync for everyone...`);
-        // check for a local copy and confirm overwrite
-        const localSpace = await getStorageData(newSpace.name);
-        if (!localSpace[newSpace.name] || confirm("Another browser would like to sync its snippits. Overwite local copy?\nIf Yes, you will be asked to backup your local snippets before the sync.\nIf No, local editing will be preserved and this browser will not be kept in sync.")) {
+        // console.log(`Starting sync for everyone...`);
+        // // check for a local copy and confirm overwrite
+        // const localSpace = await getStorageData(newSpace.name);
+        // if (!localSpace[newSpace.name] || confirm("Another browser would like to sync its snippits. Overwite local copy?\nIf Yes, you will be asked to backup your local snippets before the sync.\nIf No, local editing will be preserved and this browser will not be kept in sync.")) {
           // TODO: run a backup request before deleting local
-          await shiftSpace(oldSpace, newSpace, false);
-        } else {
-          // TODO: Use a popup window to handle this
-        }
-      }
-      // update local current space if necessary
-      if (currentSpace?.name === oldSpace.name && currentSpace?.synced === oldSpace.synced) {
-        setStorageData({ currentSpace: newSpace });
+          await shiftSpace(false);
+        // } else {
+        //   // TODO: Use a popup window to handle this
+        // }
       }
     }
 
@@ -228,7 +230,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     if (key === currentSpace?.name) {
       const newVal = new DataBucket(changes[key].newValue);
       await newVal.parse();
-      console.log("Building context menus...", newVal);
+      // console.log("Building context menus...", newVal);
       buildContextMenus(new Space({ name: key, synced: (areaName === 'sync'), data: newVal }));
     }
   }

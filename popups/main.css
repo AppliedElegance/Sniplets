@@ -211,6 +211,7 @@ input {
 .dropdown {
   position: absolute;
   top: 100%;
+  margin: 0;
   border: none;
   padding: 0;
   z-index: 10;
@@ -288,7 +289,6 @@ input:focus + label,
   position: absolute;
   top: 0;
   left: 100%;
-  margin: 0;
 }
 
 .menu-item:hover > .menu-list {
@@ -298,11 +298,11 @@ input:focus + label,
 .snip-content textarea {
   margin: 0;
   border: 0;
-  padding: 7px 7px 0;
+  padding: 7px;
   font-size: 15px;
   line-height: 19px;
   background: #fff;
-  transition: height 1s;
+  transition: height 125ms;
 }
 
 .source-url {

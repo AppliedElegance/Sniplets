@@ -35,23 +35,23 @@ async function setCurrentSpace() {
 async function loadPopup() {
   // load up settings
   await settings.load();
-  console.log("Settings loaded...", settings);
+  // console.log("Settings loaded...", settings);
 
   // load up the current space or fall back to default
-  console.log("Retrieving current space...");
+  // console.log("Retrieving current space...");
   let { currentSpace } = await getStorageData('currentSpace');
-  console.log("Loading current space...", currentSpace, settings.defaultSpace);
+  // console.log("Loading current space...", currentSpace, settings.defaultSpace);
   await space.load(currentSpace || settings.defaultSpace);
-  console.log("Updating current space if necessary...", structuredClone(space));
+  // console.log("Updating current space if necessary...", structuredClone(space));
   if (!currentSpace) setCurrentSpace();
 
 
   // load the page
   const params = new URLSearchParams(location.search);
-  console.log("Processing parameters...", params);
+  // console.log("Processing parameters...", params);
   space.path = params.get('path')?.split('-').map(v => parseInt(v)).filter(v => v) || [];
   document.documentElement.lang = navigator.language;
-  console.log("Loading snippets");
+  // console.log("Loading snippets");
   loadSnippets();
   // hide popout button if popped
   if (params.get('popped')) q$(`[data-action="pop-out"]`).style.display = `none`;
@@ -61,9 +61,9 @@ async function loadPopup() {
   document.addEventListener('keydown', handleKeydown, false);
   document.addEventListener('keyup', handleKeyup, false);
   document.addEventListener('change', handleChange, false);
-  // document.addEventListener('focusin', adjustTextArea, false);
-  // document.addEventListener('input', adjustTextArea, false);
-  // document.addEventListener('focusout', inputActions, false);
+  document.addEventListener('focusin', adjustTextArea, false);
+  document.addEventListener('input', adjustTextArea, false);
+  document.addEventListener('focusout', adjustTextArea, false);
   document.addEventListener('dragstart', handleDragDrop, false);
 
   // check and action URL parameters accordingly
@@ -93,7 +93,7 @@ document.addEventListener('DOMContentLoaded', loadPopup, false);
  * const itemGroups = groupItems(space.children, 'type');
  */
 const groupItems = (list, by = settings.sort.groupBy) => list.reduce((groups, item) => {
-  if (!by) {
+  if (!by?.length) {
     (groups.all ||= []).push(item);
   }
   const group = by === 'type'
@@ -142,7 +142,7 @@ function setHeaderPath() {
       })],
     }),
   );
-  console.log(`Adding additional path names`, pathNames);
+  // console.log(`Adding additional path names`, pathNames);
   pathNames.forEach((name, i) => pathNode.append(buildNode('li', {
     classList: [`folder`],
     dataset: {
@@ -412,9 +412,9 @@ function buildList() {
       ])),
     }));
 
-    // // keep items to a reasonable height
-    // for (let textarea of $('snippets').getElementsByTagName('textarea'))
-    //   adjustTextArea(textarea, 160);
+    // keep items to a reasonable height
+    for (let textarea of $('snippets').getElementsByTagName('textarea'))
+      adjustTextArea(textarea, taHeight);
   }
 }
 
@@ -424,25 +424,48 @@ function loadSnippets() {
   buildList();
 }
 
-// /** auto-adjust the heights of input textareas
-//  * @param {Event|HTMLTextAreaElement} textarea 
-//  * @param {boolean} [limit=false] 
-//  */
-// function adjustTextArea(textarea, limit = false) {
-//   /** @type {HTMLTextAreaElement} */
-//   const ta = textarea.target ?? textarea; // get target for events
-//   if (ta.tagName.toLowerCase() === 'textarea') {
-//     let ch = parseInt(ta.clientHeight, 10) ?? 0;
-//     let sh = ta.scrollHeight;
-//     // only expand or collapse as necessary
-//     if (ch < sh || limit) {
-//       ta.style.height = 'auto'; // reset height
-//       sh = ta.scrollHeight; // check new scroll height
-//       limit = limit ? (limit === true ? 160 : limit) : sh; // set default collapsible limit
-//       ta.style.height = (sh > limit ? limit : sh) + 'px';
-//     }
-//   }
-// }
+/** auto-adjust the heights of input textareas
+ * @param {Event|HTMLTextAreaElement} target 
+ * @param {number} [maxHeight] 
+ */
+function adjustTextArea(target, maxHeight) {
+  // console.log(target, maxHeight);
+  /** @type {HTMLTextAreaElement} set target for events */
+  const textarea = target.target || target;
+  if (textarea.tagName !== 'TEXTAREA') return;
+  const focusout = target.type === 'focusout';
+  // let scrollTop = $('snippets').scrollTop; // save current scroll position
+  // disable animation & scrollbars while inputting
+  if (target.type === 'focusin') textarea.style.overflow = `hidden`;
+  if (target.type === 'input') textarea.style.transition = `none`;
+
+  // calculate current content height
+  textarea.style.scrollbarWidth = `0`; // disable scrollbar (only works in canary)
+  let scrollHeight = textarea.scrollHeight - 14; // 2x 7px padding
+  if (focusout || parseInt(textarea.style.height) === scrollHeight) {
+    // check and update actual scroll height to allow shrinking
+    textarea.style.height = `auto`;
+    scrollHeight = textarea.scrollHeight - 14;
+  }
+  textarea.style.removeProperty('scrollbar-width'); // show scrollbar
+  // console.log(textarea.style.height, scrollHeight);
+
+  // set max height to actual or limit if set
+  maxHeight ||= (focusout) ? taHeight : scrollHeight;
+  // console.log(maxHeight, textarea.clientHeight);
+  // update if needed
+  if (maxHeight !== textarea.clientHeight) {
+    const targetHeight = scrollHeight > maxHeight ? maxHeight : scrollHeight;
+    textarea.style.height = `${targetHeight}px`;
+    if (focusout) {
+      textarea.style.removeProperty('transition'); // reenable animations
+      textarea.style.removeProperty('overflow'); // reenable scrollbar
+      
+      // preserve scroll position
+      // $('snippets').scrollTop = scrollTop + targetHeight - scrollHeight;
+    }
+  }
+}
 
 /**
  * Click handler
@@ -522,7 +545,7 @@ function handleChange(event) {
         colors[dataset.value || target.value].value,
       );
     } else if (dataset.field === 'name') {
-      console.log(dataset);
+      // console.log(dataset);
       if (dataset.target) {
         target.type = `button`;
         dataset.action = `open-folder`;
@@ -531,37 +554,6 @@ function handleChange(event) {
     }
   }
 }
-
-// // focusout event helper
-// function inputActions(event) {
-//   // helpers
-//   const target = event.target;
-//   const item = target.closest('li');
-
-//   const pq = q => item.querySelector(q);
-//   // actions as the field loses focus
-//   if (['INPUT', 'TEXTAREA'].includes(target.tagName)) {
-//     switch (target.dataset.field) {
-//     case 'name':
-//       // put back title
-//       target.style.display = 'none';
-//       if (!item) break;
-//       pq('.name h2').textContent = target.value;
-//       pq('.name').style.display = 'block';
-//       pq('.title').draggable = true;
-//       // reload folder tree if necessary
-//       if (item.classList.contains('folder')) loadSnippets({ list: false });
-//       break;
-
-//     case 'content':
-//       adjustTextArea(target, true);
-//       break;
-  
-//     default:
-//       break;
-//     }
-//   }
-// }
 
 /**
  * drag and drop reordering of snippets so they can be put in folders
@@ -743,7 +735,7 @@ function handleDragDrop(event) {
  * @returns 
  */
 async function handleAction(target) {
-  console.log(target, target.dataset, target.action);
+  // console.log(target, target.dataset, target.action);
   const dataset = target.dataset || target;
   const value = dataset.value || target.value;
 
@@ -751,7 +743,7 @@ async function handleAction(target) {
     // window open action
     case 'focus':
       target = q$(`#snippets [data-field=${ dataset.field || `"content"` }][data-seq="${ dataset.seq }"]`);
-      console.log("Focusing field", target, `#snippets [data-field="${ dataset.field || `content` }"][data-seq="${ dataset.seq }"]`);
+      // console.log("Focusing field", target, `#snippets [data-field="${ dataset.field || `content` }"][data-seq="${ dataset.seq }"]`);
       if (!target) break;
       // check for folder renaming
       if (target.type === 'button' && dataset.field === 'name') {
@@ -849,26 +841,26 @@ async function handleAction(target) {
           description: "Snippets or Clippings JSON backup",
           accept: { "application/jason": ".json" },
         }] });
-        console.log('Grabbed file', fileHandle);
+        // console.log('Grabbed file', fileHandle);
         const fileData = await fileHandle.getFile();
-        console.log('Grabbed data', fileData);
+        // console.log('Grabbed data', fileData);
         const fileContents = await fileData.text();
-        console.log('Grabbed contents', fileContents);
+        // console.log('Grabbed contents', fileContents);
         const data = JSON.parse(fileContents);
-        console.log('Parsed data', data);
+        // console.log('Parsed data', data);
         if (data.userClippingsRoot) { // check for clippings data
           space.data = new DataBucket({ children: data.userClippingsRoot });
-          console.log("Updated data", space.data);
+          // console.log("Updated data", space.data);
         } else if (data.space) {
-          console.log("Resetting current space info", data.space);
+          // console.log("Resetting current space info", data.space);
           await space.init(data.space);
-          console.log("Saving space info", space);
+          // console.log("Saving space info", space);
           space.save();
         } else {
           alert("The data could not be restored, please check the file and try again.");
           break;
         }
-        console.log("Loading snippets...");
+        // console.log("Loading snippets...");
         loadSnippets();
         setCurrentSpace();
       } catch { /* assume cancelled */ }
@@ -879,19 +871,19 @@ async function handleAction(target) {
       // get requested item
       const snip = await space.getProcessedSnippet(dataset.seq);
       if (!snip) break;
-      if (snip.hasCustomFields) {
-        // pass off to popup
-        window.snip = snip;
-        chrome.windows.create({
-          url: chrome.runtime.getURL("popups/placeholders.html"),
-          type: "popup",
-          width: 700,
-          height: 500,
-        });
-        break;
-      }
+      // if (snip.hasCustomFields) {
+      //   // pass off to popup
+      //   window.snip = snip;
+      //   chrome.windows.create({
+      //     url: chrome.runtime.getURL("popups/placeholders.html"),
+      //     type: "popup",
+      //     width: 700,
+      //     height: 500,
+      //   });
+      //   break;
+      // }
       // copy result text to clipboard for manual paste
-      console.log(`Copying to clipboard...`, snip);
+      // console.log(`Copying to clipboard...`, snip);
       await navigator.clipboard.write([new ClipboardItem({
         ["text/plain"]: new Blob([snip.content], { type: "text/plain" }),
         ["text/html"]: new Blob([snip.richText], { type: "text/html" }),
@@ -937,17 +929,17 @@ async function handleAction(target) {
 
       //   }
       // }
-      console.log(`Shifting...`, space);
+      // console.log(`Shifting...`, space);
       if (await space.shift({ synced: !space.synced })) {
         // update current/default spaces if necessary
-        if (settings.defaultSpace.name === space.name) {
-          console.log(`Updating default space...`);
-          settings.defaultSpace.synced = space.synced;
-          settings.save();
-        }
-        console.log(`Updating current space...`);
+        // if (settings.defaultSpace.name === space.name) {
+        //   // console.log(`Updating default space...`);
+        //   settings.defaultSpace.synced = space.synced;
+        //   settings.save();
+        // }
+        // console.log(`Updating current space...`);
         setCurrentSpace();
-        console.log(`rebuilding header`);
+        // console.log(`rebuilding header`);
         buildHeader();
       }
       break;
@@ -998,7 +990,7 @@ async function handleAction(target) {
         delete edit.value;
       }
       const item = space.editItem(edit);
-      console.log(item, dataset);
+      // console.log(item, dataset);
       space.save();
       // update tree if changes were made to a folder
       if (item instanceof Folder) {
@@ -1040,7 +1032,7 @@ async function handleAction(target) {
     case 'open-folder': {
       // update url for ease of navigating
       const url = new URL(location.href);
-      console.log(`Setting path...`, url, dataset, dataset.target.length);
+      // console.log(`Setting path...`, url, dataset, dataset.target.length);
       if (dataset.target.length) {
         url.searchParams.set('path', dataset.target);
       } else {
@@ -1054,12 +1046,12 @@ async function handleAction(target) {
       // push new url location to history
       history.pushState({}, '', url);
       // load new folder
-      console.log(`Updating path...`, space, dataset.target);
+      // console.log(`Updating path...`, space, dataset.target);
       space.path.length = 0;
       if (dataset.target.length) {
-        console.log(structuredClone(space.path));
+        // console.log(structuredClone(space.path));
         space.path.push(...dataset.target.split('-'));
-        console.log(structuredClone(space.path));
+        // console.log(structuredClone(space.path));
       }
       if (settings.view.rememberPath) setCurrentSpace();
       setHeaderPath();

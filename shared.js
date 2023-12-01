@@ -13,6 +13,9 @@ const colors = {
   "Grey": { value: "#808080", clippings: "gray", square: "⬜ ", circle: "⚪ ", heart: "🤍 " },
 };
 
+// default snippet editor height
+const taHeight = 160;
+
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} message 
@@ -96,7 +99,7 @@ const removeStorageData = (key, synced = false) => {
  */
 const linkEmails = (text) => text.replaceAll(
   /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
-  (match) => `<a href="mailto:${ match }">${ match }</a>`);
+  (match) => `<a href="mailto:${match}">${match}</a>`);
 /**
  * Place anchor tags around urls if not already linked
  * 
@@ -114,12 +117,12 @@ const linkEmails = (text) => text.replaceAll(
 const linkURLs = (text) => text.replaceAll(
   /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig,
   (match, p1) => {
-    console.log(match, p1);
+    // console.log(match, p1);
     // skip IP addresses with no protocol
     if (match.match(/^\d.*\.\d.*\.\d.*\.\d.*$/)) return match;
     // ensure what was picked up evaluates to a proper url (just in case)
     const matchURL = new URL(((!p1) ? `http://` : ``) + match);
-    return (matchURL) ? `<a href="${ matchURL.href }">${ match }</a>` : match;
+    return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match;
   });
 /**
  * Add HTML line break tags where appropriate
@@ -133,7 +136,7 @@ const linkURLs = (text) => text.replaceAll(
  */
 const tagNewlines = (text) => text.replaceAll(
   /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g,
-  (match) => `<br>${ match }`);
+  (match) => `<br>${match}`);
 
 /**
  * Ensure script injection errors including permission blocks are always handled gracefully.
@@ -159,13 +162,13 @@ window.getSelection().toString();
 const pasteSnippet = async (snip) => {
   // get clicked element
   const selNode = document.activeElement;
-  console.log(snip, selNode);
+  // console.log(snip, selNode);
 
   // set up paste code
   function paste(text, richText) {
     // setup rich text for pasting or updating the clipboard if needed
     richText ||= text;
-    console.log(text);
+    // console.log(text);
 
     // execCommand is deprecated but insertText is still supported in chrome as wontfix
     // and produces the most desirable result. See par. 3 in:
@@ -238,12 +241,12 @@ const requestFrames = async (action, src) => {
     });
     return origins;
   };
-  console.log("Getting site origins...");
+  // console.log("Getting site origins...");
   const origins = await injectScript({
     target: { tabId: src.target.tabId },
     func: getFrameOrigins,
   });
-  console.log("Checking origins...", origins);
+  // console.log("Checking origins...", origins);
   // return script injection error if top level is blocked too
   if (!origins) return origins;
   // popup required to request permission
@@ -422,13 +425,13 @@ class Space {
    * @param {number[]} path 
    */
   getPathNames(path = this.path) {
-    console.log(this, this.name);
+    // console.log(this, this.name);
     /** @type {string[]} */
     const pathNames = [this.name];
     let item = this.data;
-    console.log(path[0], pathNames[0], path.length);
+    // console.log(path[0], pathNames[0], path.length);
     for (let seq of path) {
-      console.log(seq);
+      // console.log(seq);
       item = item.children.find((i) => i.seq == seq);
       if (!item) throw new Error("That path doesn't exist");
       pathNames.push(item.name);
@@ -444,14 +447,14 @@ class Space {
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
   async load({ name, synced } = {}) {
-    console.log("Loading space...", name, synced, typeof synced);
+    // console.log("Loading space...", name, synced, typeof synced);
     const bucket = await getStorageData(
       name || this.name,
       synced || this.synced,
     );
-    console.log("Getting data from bucket...", bucket);
+    // console.log("Getting data from bucket...", bucket);
     const data = bucket[name || this.name];
-    console.log("Confirming data...", data);
+    // console.log("Confirming data...", data);
     if (!data) return;
     await this.init({
       name: name,
@@ -551,12 +554,12 @@ class Space {
    * @returns 
    */
   async getProcessedSnippet(seq, path = this.path) {
-    console.log("Checking locale...");
+    // console.log("Checking locale...");
     const locale = navigator.language;
-    console.log(locale);
-    console.log("Getting item...");
+    // console.log(locale);
+    // console.log("Getting item...");
     const item = this.getItem(path.concat(seq));
-    console.log(item);
+    // console.log(item);
     if (!item?.content) return;
     // avoid touching space
     const snip = new Snippet(item);
@@ -564,22 +567,22 @@ class Space {
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
     if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") return snip;
 
-    // process counters, kept track internally to allow use across multiple snippets
-    let counterUse = false;
-    console.log("Processing counters...");
-    snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
-      if (!counterUse) counterUse = true;
-      if (p1 in this.data.counters === false) {
-        console.log("Adding counter...", p1);
-        this.data.counters[p1] = this.data.counters.startVal;
-      }
-      return this.data.counters[p1]++;
-    });
-    // save space if counters were used and thus incremented
-    if (counterUse) await this.save();
+    // // process counters, kept track internally to allow use across multiple snippets
+    // let counterUse = false;
+    // console.log("Processing counters...");
+    // snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
+    //   if (!counterUse) counterUse = true;
+    //   if (p1 in this.data.counters === false) {
+    //     console.log("Adding counter...", p1);
+    //     this.data.counters[p1] = this.data.counters.startVal;
+    //   }
+    //   return this.data.counters[p1]++;
+    // });
+    // // save space if counters were used and thus incremented
+    // if (counterUse) await this.save();
   
     // placeholders
-    console.log("Processing placeholders...");
+    // console.log("Processing placeholders...");
     snip.content = snip.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
       p3 &&= p3.split('|');
       const now = new Date();
@@ -808,7 +811,7 @@ class Space {
     if (settings.control.rtLinkEmails) snip.richText = linkEmails(snip.richText);
     if (settings.control.rtLinkURLs) snip.richText = linkURLs(snip.richText);
 
-    console.log(snip);
+    // console.log(snip);
     return snip;
   }
 
@@ -854,19 +857,18 @@ class Space {
   }
 
   async shift({ name = this.name, synced = this.synced }) {
-    if (synced === this.synced) { // check for rename issues
-      // passthrough if no changes are needed
-      if (name === this.name) return true;
-
-      // check if name already exists in current location
-      const targetSpace = await getStorageData(name, synced);
-      if (targetSpace[name]) {
-        // confirm overwrite
-        if (!confirm(`The name ${ name } already exists. Do you want to overwrite it? This cannot be undone.`)) {
-          return false;
-        }
+    // passthrough in case of no changes
+    if (synced === this.synced && name === this.name) return true;
+    // check if new space already exists
+    const targetSpace = await getStorageData(name, synced);
+    if (targetSpace[name]) {
+      // confirm overwrite
+      if (!confirm(`Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed.`)) {
+        return false;
       }
-    } else if (synced) { // check for sync issues
+    }
+
+    if (synced) {
       // check for sync size constraints
       const dataBucket = new DataBucket(this.data);
       await dataBucket.compress();
@@ -876,26 +878,23 @@ class Space {
       }
     }
 
-    // get old space data
+    // save old space details
     const oldSpace = { name: this.name, synced: this.synced };
 
     // update current space details
     this.name = name, this.synced = synced;
 
-    // tell all instances about the shift if necessary
-    if (synced || oldSpace.synced) {
-      setStorageData({ shift: {
-        oldSpace: oldSpace,
-        newSpace: { name: name, synced: synced },
-      } }, true);
-    }
+    // attempt to move the space
+    if (!await this.save()) return false;
 
-    // carry out shift unless stopping sync as that has special handling in listener
-    if (synced >= oldSpace.synced) {
-      // attempt to move the space
-      if (!await this.save()) return false;
-      removeStorageData(oldSpace.name, oldSpace.synced);
-    }
+    // delete old data if syncing
+    if (synced) removeStorageData(oldSpace.name, oldSpace.synced);
+
+    // let other instances know of shift
+    // setStorageData({ shift: {
+    //   oldSpace: oldSpace,
+    //   newSpace: { name: name, synced: synced },
+    // } }, true);
 
     return true;
   }
@@ -915,12 +914,12 @@ class Space {
     if (!name || !synced) await settings.load();
     
     // make sure data is parsed correctly
-    console.log("Checking data integrity...", name, synced, data, path);
+    // console.log("Checking data integrity...", name, synced, data, path);
     if (!(data instanceof DataBucket)) {
       data = new DataBucket(data);
-      console.log("Parsing data...", data);
+      // console.log("Parsing data...", data);
       if (!(await data.parse())) {
-        throw new Error(`Unable to parse data, cancelling initialization...\n${ data }`);
+        throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
       }
     }
 
@@ -929,13 +928,13 @@ class Space {
     if (!Array.isArray(path)) path = [];
 
     // update properties
-    console.log("Updating details...", name, synced, data, path);
+    // console.log("Updating details...", name, synced, data, path);
     this.name = name || settings.defaultSpace.name;
     this.synced = (typeof synced === 'boolean') ? synced : settings.defaultSpace.synced;
     this.data = data;
     this.path = path;
 
-    console.log("Space initialised.", this);
+    // console.log("Space initialised.", this);
     return true;
   }
 }
@@ -956,25 +955,27 @@ class Settings {
    * @param {Settings} settings 
    */
   init({ defaultSpace, sort, view, control } = {}) {
+    /** @type {boolean} */
+    const isBool = b => typeof b === 'boolean';
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
-    this.defaultSpace.name = defaultSpace?.name || "Snippets";
-    this.defaultSpace.synced = defaultSpace?.synced || true;
+    this.defaultSpace.name = defaultSpace.name || "Snippets";
+    this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : false;
     /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
     this.sort = {};
     this.sort.by = sort?.by || 'seq';
-    this.sort.groupBy = sort?.groupBy || null;
-    this.sort.foldersOnTop = sort?.foldersOnTop || true;
+    this.sort.groupBy = sort?.groupBy || '';
+    this.sort.foldersOnTop = isBool(sort?.foldersOnTop) ? sort.foldersOnTop : true;
     /** @type {{rememberPath:boolean,sourceURL:boolean}} */
     this.view = {};
-    this.view.rememberPath = view?.rememberPath || false;
-    this.view.sourceURL = view?.sourceURL || false;
+    this.view.rememberPath = isBool(view?.rememberPath) ? view.rememberPath : false;
+    this.view.sourceURL = isBool(view?.sourceURL) ? view.sourceURL : false;
     /** @type {{saveSource:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
     this.control = {};
-    this.control.saveSource = control?.saveSource || true;
-    this.control.rtLineBreaks = control?.rtLineBreaks || true;
-    this.control.rtLinkEmails = control?.rtLinkEmails || true;
-    this.control.rtLinkURLs = control?.rtLinkURLs || true;
+    this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : true;
+    this.control.rtLineBreaks = isBool(control?.rtLineBreaks) ? control.rtLineBreaks : true;
+    this.control.rtLinkEmails = isBool(control?.rtLinkEmails) ? control.rtLinkEmails : true;
+    this.control.rtLinkURLs = isBool(control?.rtLinkURLs) ? control.rtLinkURLs : true;
   }
 
   async load() {
