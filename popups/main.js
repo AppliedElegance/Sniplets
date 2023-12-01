@@ -812,7 +812,7 @@ async function handleAction(target) {
         backup.createdBy = "Clippings/wx";
         let cData = JSON.stringify(space.data.children);
         cData.replaceAll(/"color":"(.*?)"/u, (match, p1) => `"label":"${ colors[p1].clippings }"`);
-        backup.userClippingsRoot = cData;
+        backup.userClippingsRoot = JSON.parse(cData);
       } else if (dataset.target === 'space') {
         backup.version = "1.0";
         backup.createdBy = "Snippets";
@@ -837,6 +837,7 @@ async function handleAction(target) {
       if (space.data.children.length && !confirm("Careful, this will completely replace whatever snippets you already have."))
         break;
       try {
+        const failAlert = () => alert("The data could not be restored, please check the file and try again.");
         const [fileHandle] = await window.showOpenFilePicker({ types: [{
           description: "Snippets or Clippings JSON backup",
           accept: { "application/jason": ".json" },
@@ -847,17 +848,23 @@ async function handleAction(target) {
         const fileContents = await fileData.text();
         // console.log('Grabbed contents', fileContents);
         const data = JSON.parse(fileContents);
-        // console.log('Parsed data', data);
+        console.log('Parsed data', data);
         if (data.userClippingsRoot) { // check for clippings data
-          space.data = new DataBucket({ children: data.userClippingsRoot });
-          // console.log("Updated data", space.data);
+          const newData = new DataBucket({ children: data.userClippingsRoot });
+          if (await newData.parse()) {
+            console.log("Updated data", space.data);
+            space.save();
+          } else {
+            failAlert();
+            break;
+          }
         } else if (data.space) {
           // console.log("Resetting current space info", data.space);
           await space.init(data.space);
           // console.log("Saving space info", space);
           space.save();
         } else {
-          alert("The data could not be restored, please check the file and try again.");
+          failAlert();
           break;
         }
         // console.log("Loading snippets...");
@@ -933,7 +940,7 @@ async function handleAction(target) {
       if (await space.shift({ synced: !space.synced })) {
         // update current/default spaces if necessary
         // if (settings.defaultSpace.name === space.name) {
-        //   // console.log(`Updating default space...`);
+        //   console.log(`Updating default space...`);
         //   settings.defaultSpace.synced = space.synced;
         //   settings.save();
         // }

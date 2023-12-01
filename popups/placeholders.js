@@ -1,6 +1,6 @@
 const snip = window.opener.snip;
-const form = document.getElementById('fields');
-console.log(form);
+// const form = document.getElementById('fields');
+// console.log(form);
 
 if (snip?.hasCustomFields) {
 
