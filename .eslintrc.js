@@ -43,7 +43,7 @@ module.exports = {
         "Settings": false,
         "i18n": false,
         "colors": false,
-        "taHeight": false,
+        "editorHeight": false,
         "buildContextMenus": false,
         "buildNode": false,
         "buildSvg": false,

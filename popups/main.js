@@ -16,14 +16,15 @@ const q$ = (query) => document.querySelector(query);
 // globals for settings and keeping track of the current folder
 const settings = new Settings();
 const space = new Space();
-async function setCurrentSpace() {
+function setCurrentSpace() {
   const loc = {
     name: space.name,
     synced: space.synced,
   };
   // save path as well if requested
   if (settings.view.rememberPath) loc.path = space.path;
-  return await setStorageData({ currentSpace: loc }, false);
+  setStorageData({ currentSpace: loc }, false);
+  return loc;
 }
 
 // init
@@ -189,8 +190,9 @@ function buildHeader() {
       }),
     ]),
     buildSubMenu('Backups', `settings-backup`, [
-      buildMenuItem(`Full Backup`, { action: `backup`, target: `space` }),
-      buildMenuItem(`Backup for Clippings`, { action: `backup`, target: `clippings61` }),
+      buildMenuItem(`Data Backup`, { action: `backup`, target: `space` }),
+      buildMenuItem(`Full Backup`, { action: `backup`, target: `full` }),
+      buildMenuItem(`Clippings Backup`, { action: `backup`, target: `clippings61` }),
       buildMenuSeparator(),
       buildMenuItem(`Restore`, { action: `restore` }),
       buildMenuItem(`Clear All Data`, { action: `clear-data-all` }),
@@ -412,7 +414,7 @@ function buildList() {
 
     // keep items to a reasonable height
     for (let textarea of $('snippets').getElementsByTagName('textarea'))
-      adjustTextArea(textarea, taHeight);
+      adjustTextArea(textarea, editorHeight);
   }
 }
 
@@ -449,7 +451,7 @@ function adjustTextArea(target, maxHeight) {
   // console.log(textarea.style.height, scrollHeight);
 
   // set max height to actual or limit if set
-  maxHeight ||= (focusout) ? taHeight : scrollHeight;
+  maxHeight ||= (focusout) ? editorHeight : scrollHeight;
   // console.log(maxHeight, textarea.clientHeight);
   // update if needed
   if (maxHeight !== textarea.clientHeight) {
@@ -470,9 +472,11 @@ function adjustTextArea(target, maxHeight) {
  * @param {Event} event 
  */
 async function handleClick(event) {
+  console.log(event);
   // ignore labels (handled on inputs)
   if (event.target.tagName === 'LABEL') return;
 
+  /** @type {HTMLElement} */
   const target = event.target.closest('[data-action]');
 
   // close menus & modals as needed
@@ -487,6 +491,13 @@ async function handleClick(event) {
   // end here if the clicked node doesn't have an action or isn't a button
   // (will be handled with onchange instead)
   if (!target || target.type !== 'button') return;
+
+  // prevent focus pull on buttons and indicate click
+  // if (target.type === `button`) {
+  //   event.preventDefault();
+  //   target.style.boxShadow = `none`;
+  //   setTimeout(() => target.style.removeProperty('box-shadow'), 70);
+  // }
 
   // handle the action
   handleAction(target);
@@ -528,12 +539,12 @@ function handleChange(event) {
   handleAction(target);
   
   // update menu if needed
-  console.log("Checking type", dataset.type);
+  // console.log("Checking type", dataset.type);
   if (target.type === 'checkbox') {
-    console.log("Toggling checkbox");
+    // console.log("Toggling checkbox");
     toggleChecked(target.parentElement.querySelector('use'));
   } else if (target.type === 'radio') {
-    console.log("Toggling radio");
+    // console.log("Toggling radio");
     const controls = target.closest('fieldset').querySelectorAll('.control');
     for (let control of controls) {
       toggleChecked(control.querySelector('use'), control.querySelector('input').checked);
@@ -559,6 +570,7 @@ function handleChange(event) {
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
+  console.log(event);
   // ignore text drags
   if (['input', 'textarea'].includes(event.target.tagName.toLowerCase())) return;
   // only allow moves
@@ -597,8 +609,8 @@ function handleDragDrop(event) {
     let target = event.target;
     while (target && target.tagName !== 'LI')
       target = target.parentElement;
-    if (target)
-      event.preventDefault();
+    // if (target)
+    //   event.preventDefault();
   };
 
   let dragOver = function (event) {
@@ -805,22 +817,31 @@ async function handleAction(target) {
       break;
 
     case 'backup': {
-      const backup = {};
-      if (dataset.target === 'clippings61') {
-        backup.version = "6.1";
-        backup.createdBy = "Clippings/wx";
-        let cData = JSON.stringify(space.data.children);
-        cData.replaceAll(/"color":"(.*?)"/u, (match, p1) => `"label":"${ colors[p1].clippings }"`);
-        backup.userClippingsRoot = JSON.parse(cData);
-      } else if (dataset.target === 'space') {
-        backup.version = "1.0";
-        backup.createdBy = "Snippets";
-        backup.space = space;
-      }
+      const appName = i18n('app_name');
       const now = new Date;
+      let backup = {};
+      let filename = `backup-${ now.toISOString().slice(0,16) }.json`;
+      if (dataset.target === 'clippings61') {
+        filename = `clippings-${filename}`;
+        backup = space.data.toClippings();
+      } else if (dataset.target === 'space') {
+        filename = `${space.name}-${filename}`;
+        backup.version = "1.0";
+        backup.createdBy = appName;
+        backup.space = structuredClone(space);
+        delete backup.space.path;
+      } else if (dataset.target === 'full') {
+        filename = `${appName}-${filename}`;
+        backup.version = "1.0";
+        backup.createdBy = appName;
+        backup.spaces = [structuredClone(space)];
+        delete backup.spaces[0].path;
+        backup.currentSpace = setCurrentSpace();
+        backup.settings = settings;
+      }
       try {
         const f = await window.showSaveFilePicker({
-          suggestedName: `snippets-backup-${ now.toISOString().slice(0,16) }.json`,
+          suggestedName: filename,
           types: [{
             description: "Backup File",
             accept: { "application/json": [".json"] },
@@ -833,10 +854,14 @@ async function handleAction(target) {
       break; }
     
     case 'restore': {
-      if (space.data.children.length && !confirm("Careful, this will completely replace whatever snippets you already have."))
+      console.log("Checking current data", space.data);
+      if (space.data.children.length && !confirm("Careful, this may overwrite your current data and cannot be undone. Continue?"))
         break;
       try {
+        // console.log("Getting file...");
         const failAlert = () => alert("The data could not be restored, please check the file and try again.");
+
+        // get file
         const [fileHandle] = await window.showOpenFilePicker({ types: [{
           description: "Snippets or Clippings JSON backup",
           accept: { "application/jason": ".json" },
@@ -847,11 +872,24 @@ async function handleAction(target) {
         const fileContents = await fileData.text();
         // console.log('Grabbed contents', fileContents);
         const data = JSON.parse(fileContents);
-        // console.log('Parsed data', data);
+        console.log('Parsed data', data);
+
+        // restore current space and settings if present
+        // console.log("Starting restore...");
+        space.path.length = 0;
+        // console.log("Checking data", structuredClone(space), structuredClone(data));
+        if (data.currentSpace) setStorageData({ currentSpace: data.currentSpace });
+        if (data.settings) {
+          settings.init(settings);
+          settings.save();
+          alert("Settings have been restored.");
+        }
         if (data.userClippingsRoot) { // check for clippings data
           const newData = new DataBucket({ children: data.userClippingsRoot });
+          // console.log("Parsing data...", structuredClone(newData), newData);
           if (await newData.parse()) {
             // console.log("Updated data", space.data);
+            space.data = newData;
             space.save();
           } else {
             failAlert();
@@ -862,13 +900,23 @@ async function handleAction(target) {
           await space.init(data.space);
           // console.log("Saving space info", space);
           space.save();
+          setCurrentSpace();
+        } else if (data.spaces) {
+          console.log("Resetting current space info", data.spaces);
+          for (let s of data.spaces) {
+            console.log("loading space", s);
+            const sp = new Space();
+            await sp.init(s);
+            console.log("saving space", sp);
+            await sp.save();
+          }
+          await space.load(data.currentSpace || settings.defaultSpace);
         } else {
           failAlert();
           break;
         }
-        // console.log("Loading snippets...");
+        console.log("Loading snippets...");
         loadSnippets();
-        setCurrentSpace();
       } catch { /* assume cancelled */ }
       break; }
 
@@ -970,9 +1018,14 @@ async function handleAction(target) {
     case 'delete':
       if(confirm("Would you would like to delete this snippet? This action cannot be undone.")) {
         const deletedItem = space.deleteItem({ seq: dataset.seq });
+        // console.log(deletedItem, deletedItem instanceof Folder);
         space.save();
         buildList();
-        if (deletedItem instanceof Folder) buildTree();
+        // console.log("should I build the tree");
+        if (deletedItem instanceof Folder) {
+          // console.log("Yes, build the tree.");
+          buildTree();
+        }
       }
       break;
     

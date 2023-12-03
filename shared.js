@@ -1,6 +1,8 @@
 /* All shared functions. */
 /* eslint-disable no-unused-vars */
 
+const isBool = b => typeof b === 'boolean';
+
 // default colors
 const colors = {
   "Default": {  },
@@ -14,7 +16,7 @@ const colors = {
 };
 
 // default snippet editor height
-const taHeight = 160;
+const editorHeight = (2 * 7) + (7.7 * 16); // 7px padding, 16px line height
 
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
@@ -354,13 +356,16 @@ class DataBucket {
   }
 
   restructure(folder = this.children) {
+    console.log(folder);
     const items = [];
     folder.forEach((item) => {
+      console.log(item);
       if (Object.hasOwn(item, "children")) {
         item.children = this.restructure(item.children);
       }
       items.push(this.#cast(item));
     });
+    console.log(items);
     return items;
   }
 
@@ -401,6 +406,30 @@ class DataBucket {
     const size = new Blob([JSON.stringify({ [name]: this.data })]).size;
     const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
     return (size <= maxSize);
+  }
+
+  /** process data into a clippings compatible object */
+  toClippings() {
+    /** @param {(TreeItem|Folder|Snippet)[]} folder */
+    const mapData = (folder) => folder.map((v) =>
+    v instanceof Folder ? {
+      name: v.name || "",
+      children: mapData(v.children) || [],
+      seq: v.seq - 1,
+    }
+    : {
+      name: v.name || "",
+      content: v.content || "",
+      shortcutKey: v.shortcutKey || "",
+      sourceURL: v.sourceURL || "",
+      label: colors[v.color]?.clippings || "",
+      seq: v.seq - 1,
+    });
+    return {
+      version: "6.1",
+      createdBy: "Clippings/wx",
+      userClippingsRoot: mapData(this.children),
+    };
   }
 }
 
@@ -501,10 +530,10 @@ class Space {
   }
 
   deleteItem(seq, folderPath = this.path) {
+    /** @type {*[]} */
     let folder = this.getItem(folderPath).children;
     let item = this.getItem(folderPath.concat([seq]));
-    folder.splice(folder.indexOf(item), 1);
-    return item;
+    return folder.splice(folder.indexOf(item), 1)[0];
   }
 
   moveItem({ fromPath = this.path, fromSeq, toPath = this.path, toSeq }) {
@@ -957,8 +986,6 @@ class Settings {
    * @param {Settings} settings 
    */
   init({ defaultSpace, sort, view, control } = {}) {
-    /** @type {boolean} */
-    const isBool = b => typeof b === 'boolean';
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
     this.defaultSpace.name = defaultSpace.name || "Snippets";
