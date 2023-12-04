@@ -28,6 +28,6 @@
     "service_worker": "service_worker.js"
   },
   "action": {
-    "default_popup": "popups/main.html"
+    "default_popup": "popups/main.html?popout=true"
   }
 }

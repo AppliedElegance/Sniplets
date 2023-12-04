@@ -356,16 +356,16 @@ class DataBucket {
   }
 
   restructure(folder = this.children) {
-    console.log(folder);
+    // console.log(folder);
     const items = [];
     folder.forEach((item) => {
-      console.log(item);
+      // console.log(item);
       if (Object.hasOwn(item, "children")) {
         item.children = this.restructure(item.children);
       }
       items.push(this.#cast(item));
     });
-    console.log(items);
+    // console.log(items);
     return items;
   }
 
@@ -411,19 +411,19 @@ class DataBucket {
   /** process data into a clippings compatible object */
   toClippings() {
     /** @param {(TreeItem|Folder|Snippet)[]} folder */
-    const mapData = (folder) => folder.map((v) =>
-    v instanceof Folder ? {
-      name: v.name || "",
-      children: mapData(v.children) || [],
-      seq: v.seq - 1,
+    const mapData = (folder) => folder.map(o =>
+    o instanceof Folder ? {
+      name: o.name || "",
+      children: mapData(o.children) || [],
+      seq: o.seq - 1,
     }
     : {
-      name: v.name || "",
-      content: v.content || "",
-      shortcutKey: v.shortcutKey || "",
-      sourceURL: v.sourceURL || "",
-      label: colors[v.color]?.clippings || "",
-      seq: v.seq - 1,
+      name: o.name || "",
+      content: o.content || "",
+      shortcutKey: o.shortcutKey || "",
+      sourceURL: o.sourceURL || "",
+      label: colors[o.color]?.clippings || "",
+      seq: o.seq - 1,
     });
     return {
       version: "6.1",
@@ -477,7 +477,7 @@ class Space {
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
   async load({ name, synced, path = [] } = {}) {
-    console.log("Loading space...", name, synced, typeof synced, path);
+    // console.log("Loading space...", name, synced, typeof synced, path);
     const bucket = await getStorageData(
       name || this.name,
       synced || this.synced,
@@ -531,9 +531,10 @@ class Space {
 
   deleteItem(seq, folderPath = this.path) {
     /** @type {*[]} */
-    let folder = this.getItem(folderPath).children;
-    let item = this.getItem(folderPath.concat([seq]));
-    return folder.splice(folder.indexOf(item), 1)[0];
+    const folder = this.getItem(folderPath).children;
+    const i = folder.findIndex(o => o.seq === parseInt(seq));
+    const removedItem = folder.splice(i, 1)[0];
+    return removedItem;
   }
 
   moveItem({ fromPath = this.path, fromSeq, toPath = this.path, toSeq }) {
@@ -569,7 +570,7 @@ class Space {
     try {
       let item = this.data;
       for (let seq of path) {
-        item = item.children.find((i) => i.seq == seq);
+        item = item.children.find(o => o.seq === parseInt(seq));
       }
       return item;
     } catch (e) {
@@ -604,7 +605,7 @@ class Space {
     // snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
     //   if (!counterUse) counterUse = true;
     //   if (p1 in this.data.counters === false) {
-    //     console.log("Adding counter...", p1);
+    //     // console.log("Adding counter...", p1);
     //     this.data.counters[p1] = this.data.counters.startVal;
     //   }
     //   return this.data.counters[p1]++;
@@ -955,7 +956,7 @@ class Space {
     }
 
     // make sure path is correct or reset otherwise
-    if (typeof path === 'string') path = path.split('-').filter((v) => !isNaN(v));
+    if (typeof path === 'string') path = path.split('-').filter(v => !isNaN(v));
     if (!Array.isArray(path)) path = [];
 
     // update properties

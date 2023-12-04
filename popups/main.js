@@ -52,8 +52,6 @@ async function loadPopup() {
   document.documentElement.lang = navigator.language; // accesibility
   // console.log("Loading snippets");
   loadSnippets();
-  // hide popout button if popped
-  if (params.get('popped')) q$(`[data-action="pop-out"]`).style.display = `none`;
 
   // set up listeners
   document.addEventListener('mousedown', handleMousedown, false);
@@ -165,7 +163,7 @@ function setHeaderPath() {
   })));
 }
 
-function buildHeader() {
+function buildHeader(popout) {
   // popover settings menu
   const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, `inherit`, [
     buildSubMenu(`View`, `settings-view`, [
@@ -219,7 +217,7 @@ function buildHeader() {
       buildActionIcon(`New Snippet`, `icon-add-snippet`, `inherit`, {
         action: `new-snippet`,
       }),
-      buildActionIcon(`Pop Out`, `icon-pop-out`, `inherit`, {
+      popout && buildActionIcon(`Pop Out`, `icon-pop-out`, `inherit`, {
         action: `pop-out`,
       }),
     ],
@@ -420,8 +418,12 @@ function buildList() {
 }
 
 function loadSnippets() {
-  buildHeader();
-  buildTree();
+  // check if popout button needed
+  const params = new URLSearchParams(location.search);
+  const popout = params.get('popout');
+
+  buildHeader(popout);
+  if (!popout) buildTree();
   buildList();
 }
 
@@ -792,7 +794,7 @@ async function handleAction(target) {
       document.body.append(modal);
       modal.showModal();
       // modal.addEventListener('close', (event) => {
-      //   console.log(modal.returnValue);
+      //   // console.log(modal.returnValue);
       // });
       break; }
 
@@ -866,7 +868,7 @@ async function handleAction(target) {
       break; }
     
     case 'restore': {
-      console.log("Checking current data", space.data);
+      // console.log("Checking current data", space.data);
       if (space.data.children.length && !confirm("Careful, this may overwrite your current data and cannot be undone. Continue?"))
         break;
       try {
@@ -914,12 +916,12 @@ async function handleAction(target) {
           space.save();
           setCurrentSpace();
         } else if (data.spaces) {
-          console.log("Resetting current space info", data.spaces);
+          // console.log("Resetting current space info", data.spaces);
           for (let s of data.spaces) {
-            console.log("loading space", s);
+            // console.log("loading space", s);
             const sp = new Space();
             await sp.init(s);
-            console.log("saving space", sp);
+            // console.log("saving space", sp);
             await sp.save();
           }
           await space.load(data.currentSpace || settings.defaultSpace);
@@ -927,7 +929,7 @@ async function handleAction(target) {
           failAlert();
           break;
         }
-        console.log("Loading snippets...");
+        // console.log("Loading snippets...");
         loadSnippets();
       } catch { /* assume cancelled */ }
       break; }
@@ -1000,7 +1002,7 @@ async function handleAction(target) {
       if (await space.shift({ synced: !space.synced })) {
         // update current/default spaces if necessary
         // if (settings.defaultSpace.name === space.name) {
-        //   console.log(`Updating default space...`);
+        //   // console.log(`Updating default space...`);
         //   settings.defaultSpace.synced = space.synced;
         //   settings.save();
         // }
@@ -1029,7 +1031,7 @@ async function handleAction(target) {
     
     case 'delete':
       if(confirm("Would you would like to delete this snippet? This action cannot be undone.")) {
-        const deletedItem = space.deleteItem({ seq: dataset.seq });
+        const deletedItem = space.deleteItem(dataset.seq);
         // console.log(deletedItem, deletedItem instanceof Folder);
         space.save();
         buildList();
@@ -1091,7 +1093,7 @@ async function handleAction(target) {
     // interface controls
     case 'pop-out': {
       const url = new URL(location.href);
-      url.searchParams.set('popped', true);
+      url.searchParams.delete('popout');
       chrome.windows.create({
         url: url.href,
         type: "popup",
