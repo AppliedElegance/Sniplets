@@ -471,7 +471,7 @@ function adjustTextArea(target, maxHeight) {
 function handleMousedown(event) {
   // prevent focus pull on buttons but indicate action
   const target = event.target.closest('[data-action]');
-  if (target.type === `button`) {
+  if (target?.type === `button`) {
     event.preventDefault();
     target.style.boxShadow = `none`;
   }
