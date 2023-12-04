@@ -308,7 +308,6 @@ function buildItemWidget(item, list, path, settings) {
   const widgetTitle = buildNode('input', {
     type: (isFolder) ? `button` : `text`,
     value: item.name,
-    draggable: `false`,
     dataset: {
       action: (isFolder) ? `open-folder` : `edit`,
       seq: item.seq,
@@ -353,7 +352,6 @@ function buildItemWidget(item, list, path, settings) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
       children: [buildNode('textArea', {
-        draggable: `false`,
         rows: 1,
         dataset: {
           action: `edit`,
@@ -368,7 +366,6 @@ function buildItemWidget(item, list, path, settings) {
     if (settings.view.sourceURL) {
       const widgetSource = buildNode('div', {
         classList: [`source-url`],
-        draggable: `false`,
         children: [
           buildNode('label', {
             for: `source-${ item.seq }`,
@@ -403,7 +400,7 @@ function buildItemWidget(item, list, path, settings) {
 function buildTreeWidget(collapsible, color, target, text) {
   return buildNode('div', {
     classList: [`title`],
-    draggable: true,
+    draggable: `true`,
     children: [
       // expand/collapse button only available if subfolders were found
       buildNode('button', {

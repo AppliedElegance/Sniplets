@@ -56,6 +56,8 @@ async function loadPopup() {
   if (params.get('popped')) q$(`[data-action="pop-out"]`).style.display = `none`;
 
   // set up listeners
+  document.addEventListener('mousedown', handleMousedown, false);
+  document.addEventListener('dragstart', handleDragDrop, false);
   document.addEventListener('click', handleClick, false);
   document.addEventListener('keydown', handleKeydown, false);
   document.addEventListener('keyup', handleKeyup, false);
@@ -63,7 +65,6 @@ async function loadPopup() {
   document.addEventListener('focusin', adjustTextArea, false);
   document.addEventListener('input', adjustTextArea, false);
   document.addEventListener('focusout', adjustTextArea, false);
-  document.addEventListener('dragstart', handleDragDrop, false);
 
   // check and action URL parameters accordingly
   const request = Object.fromEntries(params);
@@ -398,7 +399,7 @@ function buildList() {
           },
           children: [buildNode('div', {
             classList: [`card`, `drag`],
-            draggable: true,
+            draggable: `true`,
             children: buildItemWidget(item, items, path, settings),
           })],
         }),
@@ -467,12 +468,21 @@ function adjustTextArea(target, maxHeight) {
   }
 }
 
+function handleMousedown(event) {
+  // prevent focus pull on buttons but indicate action
+  const target = event.target.closest('[data-action]');
+  if (target.type === `button`) {
+    event.preventDefault();
+    target.style.boxShadow = `none`;
+  }
+}
+
 /**
  * Click handler
  * @param {Event} event 
  */
 async function handleClick(event) {
-  console.log(event);
+  // console.log(event);
   // ignore labels (handled on inputs)
   if (event.target.tagName === 'LABEL') return;
 
@@ -492,12 +502,8 @@ async function handleClick(event) {
   // (will be handled with onchange instead)
   if (!target || target.type !== 'button') return;
 
-  // prevent focus pull on buttons and indicate click
-  // if (target.type === `button`) {
-  //   event.preventDefault();
-  //   target.style.boxShadow = `none`;
-  //   setTimeout(() => target.style.removeProperty('box-shadow'), 70);
-  // }
+  // release click
+  if (target.type === `button`) target.style.removeProperty('box-shadow');
 
   // handle the action
   handleAction(target);
@@ -508,6 +514,7 @@ async function handleClick(event) {
  * @param {Event} event 
  */
 function handleKeydown(event) {
+  // console.log(event);
   if (event.target.tagName === 'LABEL' && event.key === ' ') {
     // prevent scroll behaviour when a label is 'clicked' with a spacebar
     event.preventDefault();
@@ -519,6 +526,7 @@ function handleKeydown(event) {
  * @param {Event} event 
  */
 function handleKeyup(event) {
+  // console.log(event);
   if (event.target.tagName === 'LABEL' && event.key === ' ') {
     // accept spacebar input on label as if it was clicked
     event.target.click();
@@ -530,6 +538,7 @@ function handleKeyup(event) {
  * @param {Event} event 
  */
 function handleChange(event) {
+  // console.log(event);
   // helpers
   const target = event.target;
   const dataset = target.dataset;
@@ -570,7 +579,7 @@ function handleChange(event) {
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
-  console.log(event);
+  // console.log(event);
   // ignore text drags
   if (['input', 'textarea'].includes(event.target.tagName.toLowerCase())) return;
   // only allow moves
@@ -609,8 +618,8 @@ function handleDragDrop(event) {
     let target = event.target;
     while (target && target.tagName !== 'LI')
       target = target.parentElement;
-    // if (target)
-    //   event.preventDefault();
+    if (target)
+      event.preventDefault();
   };
 
   let dragOver = function (event) {
@@ -638,10 +647,12 @@ function handleDragDrop(event) {
           }
         }
       }
+      // console.log(event);
       event.preventDefault();
     } else if (dropTarget) {
       dropTarget.classList.remove(...dropClasses);
       dropTarget = null;
+      // console.log(event);
       event.preventDefault();
     }
   };
@@ -691,6 +702,7 @@ function handleDragDrop(event) {
       const movedItem = space.moveItem(mover);
       space.sort(settings.sort);
       space.save();
+      // console.log(event);
       event.preventDefault();
       dragEnd();
       buildList();
@@ -863,8 +875,8 @@ async function handleAction(target) {
 
         // get file
         const [fileHandle] = await window.showOpenFilePicker({ types: [{
-          description: "Snippets or Clippings JSON backup",
-          accept: { "application/jason": ".json" },
+          description: "Snippets or Clippings Backup",
+          accept: { "application/json": ".json" },
         }] });
         // console.log('Grabbed file', fileHandle);
         const fileData = await fileHandle.getFile();
@@ -872,7 +884,7 @@ async function handleAction(target) {
         const fileContents = await fileData.text();
         // console.log('Grabbed contents', fileContents);
         const data = JSON.parse(fileContents);
-        console.log('Parsed data', data);
+        // console.log('Parsed data', data);
 
         // restore current space and settings if present
         // console.log("Starting restore...");
