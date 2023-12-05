@@ -31,7 +31,7 @@ function setCurrentSpace() {
 async function loadPopup() {
   // load up settings
   await settings.load();
-  console.log("Settings loaded...", settings);
+  // console.log("Settings loaded...", settings);
 
   // load up the current space or fall back to default
   // console.log("Retrieving current space...");

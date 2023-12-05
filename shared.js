@@ -1024,7 +1024,7 @@ class Settings {
    * @param {Settings} settings 
    */
   init({ defaultSpace, sort, view, control } = {}) {
-    console.log(defaultSpace, sort, view, control);
+    // console.log(defaultSpace, sort, view, control);
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
     this.defaultSpace.name = defaultSpace?.name || "Snippets";
