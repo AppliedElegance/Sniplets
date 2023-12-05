@@ -10,6 +10,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   // prepare defaults
   const settings = new Settings();
   await settings.load();
+  console.log(settings);
 
   // prepare space for init
   const space = new Space();

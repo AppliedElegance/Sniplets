@@ -59,12 +59,7 @@ function setStorageData(data, synced = false) {
  */
 function getStorageData(key, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return new Promise((resolve, reject) =>
-    bucket.get(key, result =>
-      chrome.runtime.lastError
-      ? reject(chrome.runtime.lastError)
-      : resolve(result),
-    ));
+  return bucket.get(key).catch(e => e);
 }
 /**
  * Safely removes storage data from chrome.storage.local (default) or .sync.
@@ -1029,6 +1024,7 @@ class Settings {
    * @param {Settings} settings 
    */
   init({ defaultSpace, sort, view, control } = {}) {
+    console.log(defaultSpace, sort, view, control);
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
     this.defaultSpace.name = defaultSpace?.name || "Snippets";
@@ -1052,13 +1048,13 @@ class Settings {
   }
 
   async load() {
-    let { settings } = await getStorageData('settings', true);
+    const { settings } = await getStorageData('settings', true);
     if (!settings) return settings; // return errors as-is
 
     // legacy check
     if (settings.foldersOnTop) {
-        settings.sort = { foldersOnTop: settings.foldersOnTop };
-        delete settings.foldersOnTop;
+      settings.sort = { foldersOnTop: settings.foldersOnTop };
+      delete settings.foldersOnTop;
     }
 
     // upgrade settings object as needed and return the object

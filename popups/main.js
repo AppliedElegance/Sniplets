@@ -31,11 +31,11 @@ function setCurrentSpace() {
 async function loadPopup() {
   // load up settings
   await settings.load();
-  // console.log("Settings loaded...", settings);
+  console.log("Settings loaded...", settings);
 
   // load up the current space or fall back to default
   // console.log("Retrieving current space...");
-  let { currentSpace } = await getStorageData('currentSpace');
+  const { currentSpace } = await getStorageData('currentSpace');
   // console.log("Loading current space...", currentSpace, settings.defaultSpace);
   await space.load(currentSpace || settings.defaultSpace);
   // console.log("Updating current space if necessary...", structuredClone(space));
@@ -67,7 +67,7 @@ async function loadPopup() {
   document.addEventListener('focusout', adjustTextArea, false);
 
   // check for requests
-  let { request } = await chrome.storage.session.get('request').catch(() => false);
+  const { request } = await chrome.storage.session.get('request').catch(() => false);
   // console.log(request);
   if (request?.origins) {
     const modal = buildModal(`This site requires additional permissions `
@@ -145,10 +145,10 @@ async function loadPopup() {
     loadSnippets();
   
     // check and action URL parameters accordingly
-    request = Object.fromEntries(params);
-    if (request.action?.length) handleAction(request);
-    if (request.reason === 'blocked') {
-      if (request.field === 'copy') {
+    const urlParams = Object.fromEntries(params);
+    if (urlParams.action?.length) handleAction(urlParams);
+    if (urlParams.reason === 'blocked') {
+      if (urlParams.field === 'copy') {
         alert(`Sorry, pasting directly into this page is blocked by your browser. `
         + `Please copy the selected snippet to the clipboard and paste it in manually.`);
       }
