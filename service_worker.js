@@ -7,16 +7,30 @@ chrome.runtime.onInstalled.addListener(async () => {
   // force refresh
   self.skipWaiting();
 
+  // console.log(getStorageData(null), getStorageData(null, true));
+
   // prepare defaults
   const settings = new Settings();
-  await settings.load();
-  // console.log(settings);
+  if (!await settings.load()) {
+    settings.init();
+    // v9.3 bug check
+    const { name, synced } = settings.defaultSpace;
+    let existingSpace = await getStorageData(name, synced);
+    if (!existingSpace[name]) {
+      existingSpace = await getStorageData(name, !synced);
+      if (existingSpace[name]) {
+        settings.defaultSpace.synced = !synced;
+      }
+    }
+    settings.save();
+  }
 
   // prepare space for init
   const space = new Space();
 
   // check for current space in case of reinstall
   const { currentSpace } = await getStorageData('currentSpace');
+  console.log(currentSpace);
   if (currentSpace) {
     // console.log("Loading current space...", currentSpace);
     await space.load(currentSpace);

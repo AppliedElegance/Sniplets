@@ -1028,7 +1028,7 @@ class Settings {
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
     this.defaultSpace.name = defaultSpace?.name || "Snippets";
-    this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : false;
+    this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : true;
     /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
     this.sort = {};
     this.sort.by = sort?.by || 'seq';
