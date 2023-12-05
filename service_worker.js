@@ -80,55 +80,34 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   await settings.load();
     
   // set up injection object
-  const src = {
-    target: {
-      tabId: tab.id,
-    },
+  const target = {
+    tabId: tab.id,
+    frameIds: [data.frameId],
   };
-  if (data.frameId) src.target.frameIds = [data.frameId];
 
   // get menu action and perform accordingly
   switch (menuData.action) {
   case 'snip': {
-    // console.log("Starting snip...", menuData);
-    // inject script to grab full selection including line breaks
-    src.func = getFullSelection;
-    const res = await injectScript(src);
-    // console.log("Check for result...", res);
-    let snipText = res[0]?.result;
-    // console.log("Check for snip...", snipText);
-    if (!snipText) {
-      // console.log("Check for iframe permissions...");
+    let snip = await getSnippet(target);
+    if (!snip) {
       // possible cross-origin frame
-      const permRes = await requestFrames(menuData.action, src);
+      const permRes = await requestFrames(menuData.action, target, data);
+      // console.log(permRes);
       if (!permRes) {
         // scripting blocked, snip basic selection provided by context menu
-        snipText = data.selectionText;
+        snip = new Snippet({ content: data.selectionText });
       } else {
         return; // if it was possible to request permission, follow up there
       }
     }
-    
-    // create snippet title from opening text
-    let snipName = snipText.match(/^.+/)[0];
-    if (snipName.length > 27) {
-      // cut down to size, then chuck trailing text if possible so no words are cut off
-      snipName = snipName.slice(0, 28);
-      snipName = (snipName.includes(' ')
-               ? snipName.slice(0, snipName.lastIndexOf(' '))
-               : snipName.slice(0, 27))
-               + '…';
-    }
 
     // add snip to space
-    let snip = new Snippet({ name: snipName, content: snipText });
     if (settings.control.saveSource) snip.sourceURL = data.pageUrl;
-    // console.log("Adding snippet...\n", snip, space);
     snip = space.addItem(snip);
-    // console.log("Saving snippet...", space);
     await space.save();
     
     // open window to view/edit snippet
+    // console.log("creating window");
     chrome.windows.create({
       url: chrome.runtime.getURL(`popups/main.html?action=focus&seq=${ snip.seq }&field=name`),
       type: "popup",
@@ -141,20 +120,13 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   case 'paste': {
     // console.log("Getting processed snippet", menuData);
     const snip = await space.getProcessedSnippet(menuData.path.pop(), menuData.path);
-    // console.log("Injecting paste code", snip);
-    src.func = pasteSnippet;
-    src.args = [snip];
-    // console.log(src);
-    const res = await injectScript(src);
-    // console.log("Checking for success", res, !!res);
-    let permRes = true;
-    if (!res) {
-      // console.log("Requesting permission");
+    if (!snip) return;
+    const result = await pasteSnippet(target, snip);
+    if (!result?.pasted) {
       // possible cross-origin frame
-      permRes = await requestFrames(menuData.action, src);
-      // console.log(permRes);
-    }
-    if (!permRes || (res[0]?.result && !res[0].result.pasted)) {
+      if (!result && await requestFrames(menuData.action, target, data, [snip])) {
+        return;
+      }
       // Unable to paste, open window to requested selection for manual copy/paste
       const editor = chrome.windows.create({
         url: chrome.runtime.getURL("popups/main.html?action=focus&field=copy&reason=blocked"
@@ -183,48 +155,58 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     if (key === 'currentSpace') continue;
     const { currentSpace } = await getStorageData('currentSpace');
 
-    // check for areaName shifts
-    if (key === 'shift') {
-      // get shift information
-      const { oldSpace, newSpace } = changes.shift.newValue;
-
-      // function for shifting space
-      const shiftSpace = async (preserve = true) => {
-        const space = new Space();
-        await space.load(oldSpace);
-        space.name = newSpace.name;
-        space.synced = newSpace.synced;
-        await space.save();
-        if (!preserve) removeStorageData(oldSpace.name, oldSpace.synced);
-        // update local current space if necessary
-        if (currentSpace?.name === oldSpace.name) {
-          setStorageData({ currentSpace: newSpace });
-        }
-      };
-
-      // TODO: Confirmation popup
-
-      // check which direction we're shifting
-      // console.log(oldSpace, newSpace);
-      if (oldSpace.synced > newSpace.synced) {
-        // console.log(`Stopping sync for everyone...`);
-        // only copy synced data to local if the instance isn't already local
-        const localSpace = await getStorageData(newSpace.name);
-        if (!localSpace[newSpace.name]) {
-          await shiftSpace();
-        }
-      } else if (oldSpace.synced < newSpace.synced) {
-        // console.log(`Starting sync for everyone...`);
-        // // check for a local copy and confirm overwrite
-        // const localSpace = await getStorageData(newSpace.name);
-        // if (!localSpace[newSpace.name] || confirm("Another browser would like to sync its snippits. Overwite local copy?\nIf Yes, you will be asked to backup your local snippets before the sync.\nIf No, local editing will be preserved and this browser will not be kept in sync.")) {
-          // TODO: run a backup request before deleting local
-          await shiftSpace(false);
-        // } else {
-        //   // TODO: Use a popup window to handle this
-        // }
-      }
+    // check for snip/paste requests
+    if (areaName === 'session' && key === 'request' && changes[key].newValue) {
+      chrome.windows.create({
+        url: chrome.runtime.getURL("popups/main.html"),
+        type: "popup",
+        width: 867,
+        height: 540,
+      }).catch(() => false);
     }
+
+    // check for areaName shifts
+    // if (key === 'shift') {
+    //   // get shift information
+    //   const { oldSpace, newSpace } = changes.shift.newValue;
+
+    //   // function for shifting space
+    //   const shiftSpace = async (preserve = true) => {
+    //     const space = new Space();
+    //     await space.load(oldSpace);
+    //     space.name = newSpace.name;
+    //     space.synced = newSpace.synced;
+    //     await space.save();
+    //     if (!preserve) removeStorageData(oldSpace.name, oldSpace.synced);
+    //     // update local current space if necessary
+    //     if (currentSpace?.name === oldSpace.name) {
+    //       setStorageData({ currentSpace: newSpace });
+    //     }
+    //   };
+
+    //   // TODO: Confirmation popup
+
+    //   // check which direction we're shifting
+    //   // console.log(oldSpace, newSpace);
+    //   if (oldSpace.synced > newSpace.synced) {
+    //     // console.log(`Stopping sync for everyone...`);
+    //     // only copy synced data to local if the instance isn't already local
+    //     const localSpace = await getStorageData(newSpace.name);
+    //     if (!localSpace[newSpace.name]) {
+    //       await shiftSpace();
+    //     }
+    //   } else if (oldSpace.synced < newSpace.synced) {
+    //     // console.log(`Starting sync for everyone...`);
+    //     // // check for a local copy and confirm overwrite
+    //     // const localSpace = await getStorageData(newSpace.name);
+    //     // if (!localSpace[newSpace.name] || confirm("Another browser would like to sync its snippits. Overwite local copy?\nIf Yes, you will be asked to backup your local snippets before the sync.\nIf No, local editing will be preserved and this browser will not be kept in sync.")) {
+    //       // TODO: run a backup request before deleting local
+    //       await shiftSpace(false);
+    //     // } else {
+    //     //   // TODO: Use a popup window to handle this
+    //     // }
+    //   }
+    // }
 
     // check if current space was changed and the context menus need to be rebuilt
     if (key === currentSpace?.name) {

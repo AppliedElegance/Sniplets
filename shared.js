@@ -36,7 +36,7 @@ const i18n = (message) => chrome.i18n.getMessage(message);
  * // Saves data in sync storage under the name stored in the string variable: key
  * await setStorageData({ [key]: value }, true);
  */
-const setStorageData = (data, synced = false) => {
+function setStorageData(data, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
   bucket.set(data, () =>
@@ -44,7 +44,7 @@ const setStorageData = (data, synced = false) => {
     ? reject(chrome.runtime.lastError)
     : resolve(),
   ));
-};
+}
 /**
  * Safely retrieves storage data from chrome.storage.local (default) or .sync.
  * @param {string} key - The key name for the stored data.
@@ -57,7 +57,7 @@ const setStorageData = (data, synced = false) => {
  * // stores the value of the storage object in the key variable
  * const { key } = await getStorageData('key', true);
  */
-const getStorageData = (key, synced = false) => {
+function getStorageData(key, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
     bucket.get(key, result =>
@@ -65,7 +65,7 @@ const getStorageData = (key, synced = false) => {
       ? reject(chrome.runtime.lastError)
       : resolve(result),
     ));
-};
+}
 /**
  * Safely removes storage data from chrome.storage.local (default) or .sync.
  * @param {string} key - The key name for the stored data.
@@ -74,7 +74,7 @@ const getStorageData = (key, synced = false) => {
  * // removes the { key: value } data from local storage
  * await removeStorageData('key');
  */
-const removeStorageData = (key, synced = false) => {
+function removeStorageData (key, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return new Promise((resolve, reject) =>
   bucket.remove(key, () =>
@@ -82,7 +82,30 @@ const removeStorageData = (key, synced = false) => {
     ? reject(chrome.runtime.lastError)
     : resolve(),
   ));
-};
+}
+
+async function getSnippet(target) {
+  const src = {
+    target: target,
+    func: getFullSelection,
+  };
+  const results = await injectScript(src);
+  let result = results[0]?.result;
+
+  // check for result
+  if (!result) return false;
+  return new Snippet({ content: result.content });
+}
+
+async function pasteSnippet(target, snip) {
+  const src = {
+    target: target,
+    func: placeText,
+    args: [snip],
+  };
+  const results = await injectScript(src);
+  return results[0]?.result;
+}
 
 // RichText processors
 /**
@@ -153,20 +176,33 @@ const tagNewlines = (text) => text.replaceAll(
  * @returns {Promise<InjectionResult[]>|boolean}
  */
 const injectScript = async (src) =>
-chrome.scripting.executeScript(src).catch(() => false);
+chrome.scripting.executeScript(src).catch((e) => (console.log(e), false));
 
 /** Injection script workaround for full selectionText with line breaks */
-const getFullSelection = () =>
-window.getSelection().toString();
+function getFullSelection() {
+  const selection = window.getSelection();
+
+  // TODO: add rich text info
+  // let range = selection.getRangeAt(0);
+
+  return {
+    content: selection.toString(),
+    // richText: window.getSelection(),
+  };
+}
 
 /** Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
  * @param {Snippet} snip */
-const pasteSnippet = async (snip) => {
+function placeText(snip) {
   // get clicked element
   const selNode = document.activeElement;
   // console.log(snip, selNode);
 
-  // set up paste code
+  /**
+   * Paste code
+   * @param {string} text 
+   * @param {string} richText 
+   */
   function paste(text, richText) {
     // setup rich text for pasting or updating the clipboard if needed
     richText ||= text;
@@ -231,45 +267,38 @@ const pasteSnippet = async (snip) => {
   }
 
   return paste(snip.content, snip.richText);
+}
+
+const getFrameOrigins = () => {
+  const origins = [window.location.origin + "/*"];
+  // add src of all iframes on page so user only needs to request permission once
+  Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
+    if (frame.src) origins.push((new URL(frame.src).origin) + "/*");
+  });
+  return origins;
 };
 
 // Request permissions when necessary for cross-origin iframes
-const requestFrames = async (action, src) => {
-  const getFrameOrigins = () => {
-    const origins = [window.location.origin + "/*"];
-    // add src of all iframes on page so user only needs to request permission once
-    Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
-      if (frame.src) origins.push((new URL(frame.src).origin) + "/*");
-    });
-    return origins;
-  };
-  // console.log("Getting site origins...");
-  const origins = await injectScript({
-    target: { tabId: src.target.tabId },
+async function requestFrames (action, target, data, args) {
+  // Get site origins
+  const results = await injectScript({
+    target: { tabId: target.tabId },
     func: getFrameOrigins,
-  });
-  // console.log("Checking origins...", origins);
+  }).catch(e => e);
+  const origins = results[0]?.result;
   // return script injection error if top level is blocked too
-  if (!origins) return origins;
-  // popup required to request permission
-  await setStorageData({ origins: origins[0].result });
-  // pass requested script in case successfull; note that functions can't be passed
-  src.func = action;
-  await setStorageData({ src: src });
-  const requestor = await chrome.windows.create({
-    url: chrome.runtime.getURL("popups/permissions.html"),
-    type: "popup",
-    width: 480,
-    height: 300,
-  });
-  // const requestor = await chrome.windows.create({
-  //   url: chrome.runtime.getURL("popups/main.html?action=req-perms"),
-  //   type: "popup",
-  //   width: 480,
-  //   height: 300,
-  // });
-  return requestor;
-};
+  if (!origins) return false;
+  // send data to worker for further processing
+  return await chrome.storage.session.set({
+    request: {
+      action: action,
+      target: target,
+      data: data,
+      args: args,
+      origins: origins,
+    },
+  }).then(() => true).catch(e => e);
+}
 
 /** Base constructor for folders, snippets and any future items */
 class TreeItem {
@@ -297,6 +326,19 @@ class Folder extends TreeItem {
 /** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
   constructor({ name, seq, color, content, nosub, shortcut, sourceURL } = {}) {
+    if (!name) {
+      // create snippet title from opening text
+      name = content.match(/^.+/)[0];
+      const maxLength = 27;
+      if (content.length > maxLength) {
+        // cut down to size, then chuck trailing text if possible so no words are cut off
+        name = name.slice(0, maxLength + 1);
+        name = (name.includes(' ')
+                 ? name.slice(0, name.lastIndexOf(' '))
+                 : name.slice(0, maxLength))
+                 + '…';
+      }
+    }
     super({
       name: name || "New Snippet",
       seq: seq || 1,
@@ -553,7 +595,7 @@ class Space {
       toFolder.children.splice(toSeq, 0,
         fromFolder.children.splice(fromSeq, 1)[0]);
       this.sequence(toFolder);
-      if(JSON.stringify(fromPath) !== JSON.stringify(toPath))
+      if (JSON.stringify(fromPath) !== JSON.stringify(toPath))
         this.sequence(fromFolder);
     } catch (error) {
       console.error(error);
@@ -989,7 +1031,7 @@ class Settings {
   init({ defaultSpace, sort, view, control } = {}) {
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
-    this.defaultSpace.name = defaultSpace.name || "Snippets";
+    this.defaultSpace.name = defaultSpace?.name || "Snippets";
     this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : false;
     /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
     this.sort = {};
@@ -1000,9 +1042,10 @@ class Settings {
     this.view = {};
     this.view.rememberPath = isBool(view?.rememberPath) ? view.rememberPath : false;
     this.view.sourceURL = isBool(view?.sourceURL) ? view.sourceURL : false;
-    /** @type {{saveSource:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
+    /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
     this.control = {};
     this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : true;
+    this.control.preserveTags = isBool(control?.preserveTags) ? control.preserveTags : false;
     this.control.rtLineBreaks = isBool(control?.rtLineBreaks) ? control.rtLineBreaks : true;
     this.control.rtLinkEmails = isBool(control?.rtLinkEmails) ? control.rtLinkEmails : true;
     this.control.rtLinkURLs = isBool(control?.rtLinkURLs) ? control.rtLinkURLs : true;
@@ -1031,7 +1074,11 @@ class Settings {
 // (re)build context menu for snipping and pasting
 async function buildContextMenus(space) {
   // clear current
-  await new Promise((resolve) => chrome.contextMenus.removeAll(() => resolve()));
+  await new Promise((resolve, reject) =>
+    chrome.contextMenus.removeAll(() =>
+      chrome.runtime.lastError
+      ? reject(chrome.runtime.lastError)
+      : resolve()));
   let menuData = {
     space: {
       name: space.name,

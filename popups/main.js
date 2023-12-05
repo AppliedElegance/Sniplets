@@ -45,18 +45,20 @@ async function loadPopup() {
   // load the page
   const params = new URLSearchParams(location.search);
   // console.log("Processing parameters...", params);
+
+  // update path if needed
   if (params.get('path')) {
     space.path = params.get('path')?.split('-').map(v => parseInt(v)).filter(v => v);
     if (settings.view.rememberPath) setCurrentSpace();
   }
+
   document.documentElement.lang = navigator.language; // accesibility
-  // console.log("Loading snippets");
-  loadSnippets();
 
   // set up listeners
-  document.addEventListener('mousedown', handleMousedown, false);
+  document.addEventListener('mousedown', handleMouseDown, false);
   document.addEventListener('dragstart', handleDragDrop, false);
   document.addEventListener('click', handleClick, false);
+  document.addEventListener('mouseup', handleMouseUp, false);
   document.addEventListener('keydown', handleKeydown, false);
   document.addEventListener('keyup', handleKeyup, false);
   document.addEventListener('change', handleChange, false);
@@ -64,19 +66,98 @@ async function loadPopup() {
   document.addEventListener('input', adjustTextArea, false);
   document.addEventListener('focusout', adjustTextArea, false);
 
-  // check and action URL parameters accordingly
-  const request = Object.fromEntries(params);
-  if (request.action?.length) handleAction(request);
-  if (request.reason === 'blocked') {
-    if (request.field === 'copy') {
-      alert(`Sorry, pasting directly into this page is blocked by your browser. `
-      + `Please copy the selected snippet to the clipboard and paste it in manually.`);
-    }
-  }
+  // check for requests
+  let { request } = await chrome.storage.session.get('request').catch(() => false);
+  // console.log(request);
+  if (request?.origins) {
+    const modal = buildModal(`This site requires additional permissions `
+    + `for context menus and shortcuts to work. If you would like to use `
+    + `these features on this site, please press the appropriate button `
+    + `and accept the request.`, {
+      buttons: [
+        {
+          value: JSON.stringify(request.origins),
+          children: [buildNode('h2', { children: [
+            document.createTextNode(`Allow full access to `),
+            buildNode('em', { textContent: `this` }),
+            document.createTextNode(` site`),
+          ] })],
+        },
+        {
+          value: `["<all_urls>"]`,
+          children: [buildNode('h2', { children: [
+            document.createTextNode(`Allow full access to `),
+            buildNode('em', { textContent: `all` }),
+            document.createTextNode(` sites`),
+          ] })],
+        },
+      ],
+    });
+    document.body.append(modal);
+    // console.log(modal);
+    modal.showModal();
+    modal.addEventListener('close', async () => {
+      // console.log(event, modal.returnValue, request);
+      const granted = await chrome.permissions.request({ origins: JSON.parse(modal.returnValue) }).catch(e => e);
+      // console.log(granted);
+      switch (request.action) {
+        case 'snip':
+          if (granted) {
+            // Try again
+            let snip = await getSnippet(request.target);
+            if (!snip) return alert("Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.");
 
-  // keep an eye on the path and hide path names as necessary
-  const resizing = new ResizeObserver(adjustPath);
-  resizing.observe($('path'));
+            // Add snip to space
+            if (settings.control.saveSource) snip.sourceURL = request.data.pageUrl;
+            snip = space.addItem(snip);
+            await space.save();
+
+            // Load for editing
+            loadSnippets();
+            handleAction({ action: 'focus', seq: snip.seq, field: 'name' });
+          } else {
+            loadSnippets();
+            alert("Permissions were not granted. Please copy and add the snippet manually.");
+          }
+          break;
+
+        case 'paste':
+          if (granted) {
+            //try again
+            const result = await pasteSnippet(request.target, request.snip);
+            if (!result?.pasted) alert("Sorry, something went wrong and the snip could not be pasted. Please make sure the page is still active and try again.");
+            window.close();
+          } else {
+            // load for copying
+            loadSnippets();
+            alert("Permissions were not granted. Please copy the requested snippet and paste it manually.");
+            handleAction({ action: 'focus', seq: request.snip.seq, field: 'copy' });
+          }
+          break;
+      
+        default:
+          break;
+      }
+      chrome.storage.session.remove('request').catch(e => (console.log(e), false));
+    });
+  } else {
+    // console.log("Loading snippets");
+    loadSnippets();
+  
+    // check and action URL parameters accordingly
+    request = Object.fromEntries(params);
+    if (request.action?.length) handleAction(request);
+    if (request.reason === 'blocked') {
+      if (request.field === 'copy') {
+        alert(`Sorry, pasting directly into this page is blocked by your browser. `
+        + `Please copy the selected snippet to the clipboard and paste it in manually.`);
+      }
+    }
+  
+    // keep an eye on the path and hide path names as necessary
+    const resizing = new ResizeObserver(adjustPath);
+    resizing.observe($('path'));
+  }
 }
 document.addEventListener('DOMContentLoaded', loadPopup, false);
 
@@ -163,7 +244,11 @@ function setHeaderPath() {
   })));
 }
 
-function buildHeader(popout) {
+function buildHeader() {
+  // check if popout button needed
+  const params = new URLSearchParams(location.search);
+  const popout = params.get('popout');
+
   // popover settings menu
   const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, `inherit`, [
     buildSubMenu(`View`, `settings-view`, [
@@ -182,10 +267,28 @@ function buildHeader(popout) {
         checked: settings.sort.foldersOnTop,
       }),
     ]),
-    buildSubMenu(`Behaviour`, `settings-behaviour`, [
+    buildSubMenu(`Snip Control`, `settings-snip`, [
       buildMenuControl('checkbox', `Save source URLs`, {
         dataset: { action: `toggle-save-source` },
         checked: settings.control.saveSource,
+      }),
+      // buildMenuControl('checkbox', `Preserve HTML Tags`, {
+      //   dataset: { action: `toggle-preserve-tags` },
+      //   checked: settings.control.preserveTags,
+      // }),
+    ]),
+    buildSubMenu(`Rich Text`, `settings-paste`, [
+      buildMenuControl('checkbox', `Add Line Breaks`, {
+        dataset: { action: `toggle-rt-line-breaks` },
+        checked: settings.control.rtLineBreaks,
+      }),
+      buildMenuControl('checkbox', `Link URLs`, {
+        dataset: { action: `toggle-rt-link-urls` },
+        checked: settings.control.rtLinkURLs,
+      }),
+      buildMenuControl('checkbox', `Link Emails`, {
+        dataset: { action: `toggle-rt-link-emails` },
+        checked: settings.control.rtLinkEmails,
       }),
     ]),
     buildSubMenu('Backups', `settings-backup`, [
@@ -418,17 +521,13 @@ function buildList() {
 }
 
 function loadSnippets() {
-  // check if popout button needed
-  const params = new URLSearchParams(location.search);
-  const popout = params.get('popout');
-
-  buildHeader(popout);
-  if (!popout) buildTree();
+  buildHeader();
+  buildTree();
   buildList();
 }
 
 /** auto-adjust the heights of input textareas
- * @param {Event|HTMLTextAreaElement} target 
+ * @param {Event|FocusEvent|HTMLTextAreaElement} target 
  * @param {number} [maxHeight] 
  */
 function adjustTextArea(target, maxHeight) {
@@ -470,18 +569,34 @@ function adjustTextArea(target, maxHeight) {
   }
 }
 
-function handleMousedown(event) {
+/**
+ * MouseDown handler
+ * @param {MouseEvent} event 
+ */
+function handleMouseDown(event) {
   // prevent focus pull on buttons but indicate action
   const target = event.target.closest('[data-action]');
   if (target?.type === `button`) {
     event.preventDefault();
     target.style.boxShadow = `none`;
+    window.clicked = target; // for releasing click
+  }
+}
+
+/**
+ * MouseUp handler
+ * @param {MouseEvent} event 
+ */
+function handleMouseUp() {
+  if (window.clicked) {
+    window.clicked.style.removeProperty('box-shadow');
+    delete window.clicked;
   }
 }
 
 /**
  * Click handler
- * @param {Event} event 
+ * @param {MouseEvent} event 
  */
 async function handleClick(event) {
   // console.log(event);
@@ -504,16 +619,13 @@ async function handleClick(event) {
   // (will be handled with onchange instead)
   if (!target || target.type !== 'button') return;
 
-  // release click
-  if (target.type === `button`) target.style.removeProperty('box-shadow');
-
   // handle the action
   handleAction(target);
 }
 
 /**
  * Keydown handler
- * @param {Event} event 
+ * @param {KeyboardEvent} event 
  */
 function handleKeydown(event) {
   // console.log(event);
@@ -525,7 +637,7 @@ function handleKeydown(event) {
 
 /**
  * Keyup handler
- * @param {Event} event 
+ * @param {KeyboardEvent} event 
  */
 function handleKeyup(event) {
   // console.log(event);
@@ -780,24 +892,6 @@ async function handleAction(target) {
       }
       break;
 
-    case 'req-perms': {
-      const modal = buildModal(`This site requires additional permissions `
-      + `for context menus and shortcuts to work. If you would like to use `
-      + `these features on this site, please press the appropriate button `
-      + `and accept the request.`, {
-        buttons: [
-          { name: `site-perms`, target: dataset.sites },
-          { name: `all-perms`, target: `<all_urls>` },
-        ],
-        vertical: true,
-      });
-      document.body.append(modal);
-      modal.showModal();
-      // modal.addEventListener('close', (event) => {
-      //   // console.log(modal.returnValue);
-      // });
-      break; }
-
     // open menus
     case 'open-popover': 
     case 'open-submenu': {
@@ -896,7 +990,7 @@ async function handleAction(target) {
         if (data.settings) {
           settings.init(settings);
           settings.save();
-          alert("Settings have been restored.");
+          // alert("Settings have been restored.");
         }
         if (data.userClippingsRoot) { // check for clippings data
           const newData = new DataBucket({ children: data.userClippingsRoot });
@@ -904,6 +998,7 @@ async function handleAction(target) {
           if (await newData.parse()) {
             // console.log("Updated data", space.data);
             space.data = newData;
+            space.sort();
             space.save();
           } else {
             failAlert();
@@ -912,6 +1007,7 @@ async function handleAction(target) {
         } else if (data.space) {
           // console.log("Resetting current space info", data.space);
           await space.init(data.space);
+          space.sort();
           // console.log("Saving space info", space);
           space.save();
           setCurrentSpace();
@@ -984,9 +1080,28 @@ async function handleAction(target) {
       break;
     
     case 'toggle-save-source':
-      // swap saving source on snip actions or not
       settings.control.saveSource = !settings.control.saveSource;
       // TODO: confirm whether to delete existing sources
+      settings.save();
+      break;
+    
+    case 'toggle-preserve-tags':
+      settings.control.preserveTags = !settings.control.preserveTags;
+      settings.save();
+      break;
+    
+    case 'toggle-rt-line-breaks':
+      settings.control.rtLineBreaks = !settings.control.rtLineBreaks;
+      settings.save();
+      break;
+    
+    case 'toggle-rt-link-urls':
+      settings.control.rtLinkURLs = !settings.control.rtLinkURLs;
+      settings.save();
+      break;
+    
+    case 'toggle-rt-link-emails':
+      settings.control.rtLinkEmails = !settings.control.rtLinkEmails;
       settings.save();
       break;
 

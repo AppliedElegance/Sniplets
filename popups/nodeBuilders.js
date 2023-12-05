@@ -440,26 +440,20 @@ function buildTreeWidget(collapsible, color, target, text) {
  */
 function buildModal(message, {buttons, fields, title, vertical = false }) {  
   // set up container
-  const cancelButton = buildActionIcon(`Close`, `icon-close`, colors.Red.value);
-  cancelButton.value = `cancel`;
-  cancelButton.formMethod = `dialog`;
-  const modal = buildNode('dialogue', {
-    children: [buildNode('div', {
-      classList: [`x`],
-      children: [cancelButton],
-    })],
+  const form = buildNode('form', {
+    method: `dialog`,
   });
 
   // add title
-  if (title) modal.append(buildNode('h1', { textContent: title }));
+  if (title) form.append(buildNode('h1', { textContent: title }));
 
   // add message
-  modal.append(buildNode('p', { textContent: message }));
+  form.append(buildNode('p', { textContent: message }));
 
   // add fields
   if (fields) {
     for (let field of fields) {
-      modal.append(buildNode('div', {
+      form.append(buildNode('div', {
         classList: [`field`],
         children: [
           buildNode('label', {
@@ -479,17 +473,30 @@ function buildModal(message, {buttons, fields, title, vertical = false }) {
   // add buttons
   if (buttons) {
     const buttonContainer = buildNode('div', {
-      classList: [vertical ? `col` : `row`],
+      classList: [`buttons`, vertical ? `col` : `row`],
     });
     for (let button of buttons) {
       buttonContainer.append(buildNode('button', {
-        type: `button`,
+        type: `submit`,
         ...button,
       }));
     }
-    modal.append(buttonContainer);
+    form.append(buttonContainer);
   }
 
-  // return modal splash
-  return modal;
+  // add cancel button last for tab position:
+  const cancelButton = buildActionIcon(`Close`, `icon-close`, colors.Red.value);
+  cancelButton.value = `cancel`;
+  cancelButton.formMethod = `dialog`;
+
+  // return modal
+  return buildNode('dialog', {
+    children: [
+      form,
+      buildNode('div', {
+        classList: [`x`],
+        children: [cancelButton],
+      }),
+    ],
+  });
 }

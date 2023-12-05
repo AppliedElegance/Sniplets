@@ -394,3 +394,21 @@ figure {
 .hidden {
   display: none;
 }
+
+dialog {
+  font-size: larger;
+  width: 75%;
+  max-width: 600px;
+}
+
+dialog .x {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+dialog .buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+}
