@@ -6,17 +6,14 @@ const isBool = b => typeof b === 'boolean';
 // default colors
 const colors = {
   "Default": {  },
-  "Red": { value: "#D0312D", clippings: "red", square: "🟥 ", circle: "🔴 ", heart: "❤ " },
-  "Orange": { value: "#FFA500", clippings: "orange", square: "🟧 ", circle: "🟠 ", heart: "🧡 " },
-  "Yellow": { value: "#FFD700", clippings: "yellow", square: "🟨 ", circle: "🟡 ", heart: "💛 " },
-  "Green": { value: "#3CB043", clippings: "green", square: "🟩 ", circle: "🟢 ", heart: "💚 " },
-  "Blue": { value: "#3457D5", clippings: "blue", square: "🟦 ", circle: "🔵 ", heart: "💙 " },
+  "Red": { value: "#D0312D", clippings: "red", square: "🟥 ", circle: "🔴 ", heart: "❤ ", book: "📕 " },
+  "Orange": { value: "#FFA500", clippings: "orange", square: "🟧 ", circle: "🟠 ", heart: "🧡 ", book: "📙 " },
+  "Yellow": { value: "#FFD700", clippings: "yellow", square: "🟨 ", circle: "🟡 ", heart: "💛 ", book: "📒 " },
+  "Green": { value: "#3CB043", clippings: "green", square: "🟩 ", circle: "🟢 ", heart: "💚 ", book: "📗 " },
+  "Blue": { value: "#3457D5", clippings: "blue", square: "🟦 ", circle: "🔵 ", heart: "💙 ", book: "📘 " },
   "Purple": { value: "#A32CC4", clippings: "purple", square: "🟪 ", circle: "🟣 ", heart: "💜 " },
-  "Grey": { value: "#808080", clippings: "gray", square: "⬜ ", circle: "⚪ ", heart: "🤍 " },
+  "Grey": { value: "#808080", clippings: "gray", square: `🔲 `, circle: "⚪ ", heart: "🤍 ", book: "📔 " },
 };
-
-// default snippet editor height
-const editorHeight = (2 * 7) + (7.7 * 16); // 7px padding, 16px line height
 
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
@@ -1068,7 +1065,10 @@ class Settings {
   }
 }
 
-// (re)build context menu for snipping and pasting
+/**
+ * (Re)build context menu for snipping and pasting
+ * @param {Space} space 
+ */
 async function buildContextMenus(space) {
   // clear current
   await new Promise((resolve, reject) =>
@@ -1102,7 +1102,11 @@ async function buildContextMenus(space) {
       "contexts": ["editable"],
     });
 
-    // recursive function for snippet tree
+    /**
+     * Recursive function for snippet tree
+     * @param {(TreeItem|Folder|Snippet)[]} folder 
+     * @param {*} parentData 
+     */
     const buildFolder = async (folder, parentData) => {
       let menuItem = {
         "contexts": ["editable"],
@@ -1115,9 +1119,11 @@ async function buildContextMenus(space) {
           menuData.path = parentData.path.concat([item.seq]) ?? [item.seq];
           menuItem.id = JSON.stringify(menuData);
           // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
-          menuItem.title = ((item instanceof Folder) ? "📁 " : "📝 ")
-                         + (colors[item.color]?.circle || "")
-                         + item.name.replace("&", "&&")
+          const color = colors[item.color];
+          menuItem.title = ((item instanceof Folder)
+                           ? (color?.square || "📁 ")
+                           : (color?.circle || "📝 "))
+                         + item.name.replaceAll("&", "&&")
                          + "\xA0\xA0\xA0\xA0"; // padding for nicer display
           chrome.contextMenus.create(menuItem);
           if (item instanceof Folder) buildFolder(item.children, menuData);

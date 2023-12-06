@@ -16,15 +16,17 @@ const q$ = (query) => document.querySelector(query);
 // globals for settings and keeping track of the current folder
 const settings = new Settings();
 const space = new Space();
+
+// Update currently viewed space
 function setCurrentSpace() {
-  const loc = {
+  const currentSpace = {
     name: space.name,
     synced: space.synced,
   };
   // save path as well if requested
-  if (settings.view.rememberPath) loc.path = space.path;
-  setStorageData({ currentSpace: loc }, false);
-  return loc;
+  if (settings.view.rememberPath) currentSpace.path = space.path;
+  setStorageData({ currentSpace: currentSpace }, false);
+  return currentSpace;
 }
 
 // init
@@ -519,7 +521,7 @@ function buildList() {
 
     // keep items to a reasonable height
     for (let textarea of $('snippets').getElementsByTagName('textarea'))
-      adjustTextArea(textarea, editorHeight);
+      adjustTextArea(textarea, 0);
   }
 }
 
@@ -531,22 +533,28 @@ function loadSnippets() {
 
 /** auto-adjust the heights of input textareas
  * @param {Event|FocusEvent|HTMLTextAreaElement} target 
- * @param {number} [maxHeight] 
+ * @param {number} [maxHeight] - pass 0 for default
  */
 function adjustTextArea(target, maxHeight) {
-  const padding = 2*4; // 4px top & bottom padding
-  const minHeight = 4*19; // 19px line height
-  // console.log(target, maxHeight);
+  const padding = 2 * 5; // 5px top & bottom padding
+  const minHeight = 4 * 19; // 19px line height
+  const overflowHeight = 7 * 19 + 5; // Add bottom padding to max 7 lines
+  // console.log(target, maxHeight, overflowHeight);
+
   /** @type {HTMLTextAreaElement} set target for events */
   const textarea = target.target || target;
   if (textarea.tagName !== 'TEXTAREA') return;
   const focusout = target.type === 'focusout';
-  let scrollTop = $('snippets').scrollTop; // save current scroll position
+  // console.log(maxHeight);
+  if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight;
+
+  // save current scroll position
+  let scrollTop = $('snippets').scrollTop;
+
   // disable animation while inputting
   if (target.type === 'input') textarea.style.transition = `none`;
 
   // calculate current content height
-  // textarea.style.scrollbarWidth = `0`; // disable scrollbar (only works in canary)
   let scrollHeight = textarea.scrollHeight - padding;
   if (focusout || parseInt(textarea.style.height) === scrollHeight) {
     // check and update actual scroll height to allow shrinking
@@ -554,11 +562,11 @@ function adjustTextArea(target, maxHeight) {
     scrollHeight = textarea.scrollHeight - padding;
   }
   if (scrollHeight < minHeight) scrollHeight = minHeight;
-  // textarea.style.removeProperty('scrollbar-width'); // show scrollbar
   // console.log(textarea.style.height, scrollHeight);
 
-  // set max height to actual or limit if set
-  maxHeight ||= (focusout) ? editorHeight : scrollHeight;
+  // set max height to actual in case no limit set
+  maxHeight ||= scrollHeight;
+
   // console.log(maxHeight, textarea.clientHeight);
   // update if needed
   if (maxHeight !== textarea.clientHeight) {
@@ -566,7 +574,6 @@ function adjustTextArea(target, maxHeight) {
     textarea.style.height = `${targetHeight}px`;
     if (focusout) {
       textarea.style.removeProperty('transition'); // reenable animations
-      textarea.style.removeProperty('overflow'); // reenable scrollbar
       
       // preserve scroll position
       $('snippets').scrollTop = scrollTop + targetHeight - scrollHeight;
@@ -582,6 +589,7 @@ function handleMouseDown(event) {
   // prevent focus pull on buttons but indicate action
   const target = event.target.closest('[data-action]');
   if (target?.type === `button`) {
+    event.stopPropagation();
     event.preventDefault();
     target.style.boxShadow = `none`;
     window.clicked = target; // for releasing click
@@ -633,7 +641,7 @@ async function handleClick(event) {
  * @param {KeyboardEvent} event 
  */
 function handleKeydown(event) {
-  console.log(event);
+  // console.log(event);
   if (event.target.tagName === 'LABEL' && event.key === ' ') {
     // prevent scroll behaviour when a label is 'clicked' with a spacebar
     event.preventDefault();
@@ -659,7 +667,7 @@ function handleKeyup(event) {
  * @param {Event} event 
  */
 function handleChange(event) {
-  console.log(event);
+  // console.log(event);
   // helpers
   const target = event.target;
   const dataset = target.dataset;
