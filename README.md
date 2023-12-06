@@ -1,20 +1,26 @@
-Ever wanted to save some text for later use, or throw some info over from one of your computers to another?
-This extension 'snips' text from pages you visit (or you can create them manually) and saves them in your browser's Sync storage.
-Use the pop-out button for easier organization of your snippets!
+Ever wanted to save some text for later use, or throw some info over from one of your computers to another? This extension 'snips' text from pages you visit (or you can create them manually) and saves them in your browser's Sync storage. Use the pop-out button for easier organization of your snippets!
 
-This extension aims to become fully backup compatible with the Clippings extension for Firefox.
-The 0.9 release provides all basic features required to be a good snipper and preserves all restored data from any clippings backup.
-Additionally, more settings and control over your how your snippets are displayed have been added and the save engine rewritten to be more robust.
+This extension aims to become fully backup compatible with the Clippings extension for Firefox. The 0.10 release is a major overhall from the previous release to be more secure, accessible and robust. 
 
 Roadmap:
 
-0.9.3 -> Add shortcut keys, more colour and more sortation options.
-
-1.0 -> Add variable support for things like current dates & times, locales, etc..
+1.0 -> Add custom placeholder and counter support, implement shortcut keys
 
 1.1 -> Support for multiple "spaces" to better organize snippets when doing different types of work.
 
+1.2 -> Add external file sync option
+
 Changelog:
+
+0.10.0 -> Basic placeholder support along with many display updates and bugfixes
+- Implemented clippings compatible placeholder substitution (counters & custom placeholders are still WIP)
+- Implimented rich text formatting options
+- Moved permissions requests to the main window to provide a smoother experience
+- Tightened up the interface
+- Fixed backup and restore code on Edge (a big bug in v0.9.3)
+- Many more QOL changes under the hood
+
+0.9.3 -> Display fix due to a chrome update that changes how flex containers are expanded
 
 0.9.2 -> Many under the hood updates to improve efficiency and fix issues with iframes
 - Implimented browser compression to add up to 8x more space for synced snippets
