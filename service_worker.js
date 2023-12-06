@@ -13,12 +13,14 @@ chrome.runtime.onInstalled.addListener(async () => {
   const settings = new Settings();
   if (!await settings.load()) {
     settings.init();
-    // v9.3 bug check
+    // bug check
     const { name, synced } = settings.defaultSpace;
-    let existingSpace = await getStorageData(name, synced);
-    if (!existingSpace[name]) {
-      existingSpace = await getStorageData(name, !synced);
-      if (existingSpace[name]) {
+    let defaultSpace = await getStorageData(name, synced);
+    // console.log(defaultSpace);
+    if (!defaultSpace[name]) {
+      defaultSpace = await getStorageData(name, !synced);
+      // console.log(defaultSpace);
+      if (defaultSpace[name]) {
         settings.defaultSpace.synced = !synced;
       }
     }
@@ -30,21 +32,10 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   // check for current space in case of reinstall
   const { currentSpace } = await getStorageData('currentSpace');
-  console.log(currentSpace);
-  if (currentSpace) {
-    // console.log("Loading current space...", currentSpace);
-    await space.load(currentSpace);
-  } else if (settings?.defaultSpace) {
-    // load default space if available
-    // console.log("Loading default space...", settings?.defaultSpace);
-    await space.load(settings.defaultSpace);
-  } else {
-    // console.log("Checking for legacy data...");
-    // settings missing or corrupt, save default settings
-    settings.init();
-    settings.save();
-
+  // console.log(currentSpace);
+  if (!await space.load(currentSpace || settings.defaultSpace)) {
     // legacy check for existing snippets
+    // console.log("Checking for legacy data...");
     const legacySpace = { name: "snippets", synced: true };
     if (await space.load(legacySpace)) {
       // console.log("Confirming that legacy space is indeed legacy and shifting...");
@@ -60,7 +51,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     } else {
       // no space information found, create new space
       // console.log("Creating new space...");
-      await space.init(settings.defaultSpace);
+      await space.init(currentSpace || settings.defaultSpace);
       await space.save();
     }
   }

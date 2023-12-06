@@ -141,7 +141,7 @@ async function loadPopup() {
       chrome.storage.session.remove('request').catch(e => (console.log(e), false));
     });
   } else {
-    // console.log("Loading snippets");
+    // console.log("Loading snippets", space);
     loadSnippets();
   
     // check and action URL parameters accordingly
@@ -193,6 +193,7 @@ function setHeaderPath() {
   // get list of path names (should always include space name)
   const pathNames = space.getPathNames();
   const pathNode = $('path');
+  // console.log(pathNames, pathNode);
   // add root
   pathNode.replaceChildren(
     buildNode('li', {
@@ -1159,8 +1160,8 @@ async function handleAction(target) {
       break;
     
     case 'rename': {
-      // change input type to text if needed and enable/focus
-      const input = target.closest('li').querySelector('input[data-field="name"]');
+      // change input type to text if needed and enable+focus
+      const input = q$(`input[data-seq="${dataset.seq}"][data-field="name"]`);
       input.type = `text`;
       input.dataset.action = `edit`;
       input.focus();

@@ -321,7 +321,8 @@ class Folder extends TreeItem {
 /** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
   constructor({ name, seq, color, content, nosub, shortcut, sourceURL } = {}) {
-    if (!name) {
+    // generate name from content if provided
+    if (!name && content) {
       // create snippet title from opening text
       name = content.match(/^.+/)[0];
       const maxLength = 27;
