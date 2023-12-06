@@ -62,6 +62,8 @@ async function loadPopup() {
   document.addEventListener('keydown', handleKeydown, false);
   document.addEventListener('keyup', handleKeyup, false);
   document.addEventListener('change', handleChange, false);
+  document.addEventListener('focusout', handleFocusOut, false);
+  // textarea adjustments
   document.addEventListener('focusin', adjustTextArea, false);
   document.addEventListener('input', adjustTextArea, false);
   document.addEventListener('focusout', adjustTextArea, false);
@@ -631,10 +633,12 @@ async function handleClick(event) {
  * @param {KeyboardEvent} event 
  */
 function handleKeydown(event) {
-  // console.log(event);
+  console.log(event);
   if (event.target.tagName === 'LABEL' && event.key === ' ') {
     // prevent scroll behaviour when a label is 'clicked' with a spacebar
     event.preventDefault();
+  } else if (event.target.dataset.field === 'name' && event.key === 'Enter') {
+    event.target.blur();
   }
 }
 
@@ -655,7 +659,7 @@ function handleKeyup(event) {
  * @param {Event} event 
  */
 function handleChange(event) {
-  // console.log(event);
+  console.log(event);
   // helpers
   const target = event.target;
   const dataset = target.dataset;
@@ -681,13 +685,16 @@ function handleChange(event) {
       target.closest('.menu'),
       colors[dataset.value || target.value].value,
     );
-  } else if (dataset.field === 'name') {
-    // console.log(dataset);
-    if (dataset.target) {
-      target.type = `button`;
-      dataset.action = `open-folder`;
-      target.blur();
-    }
+  }
+}
+
+function handleFocusOut(event) {
+  /** @type {Element} */
+  const target = event.target;
+  if (target.ariaLabel === 'Folder Name') {
+    // set back as button
+    target.type = `button`;
+    target.dataset.action = `open-folder`;
   }
 }
 
@@ -696,7 +703,7 @@ function handleChange(event) {
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
-  console.log(event);
+  // console.log(event);
   // ignore text drags
   if (['input', 'textarea'].includes(event.target.tagName.toLowerCase())) {
     event.stopPropagation();
