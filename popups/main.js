@@ -537,20 +537,20 @@ function adjustTextArea(target, maxHeight) {
   const textarea = target.target || target;
   if (textarea.tagName !== 'TEXTAREA') return;
   const focusout = target.type === 'focusout';
-  // let scrollTop = $('snippets').scrollTop; // save current scroll position
-  // disable animation & scrollbars while inputting
-  if (target.type === 'focusin') textarea.style.overflow = `hidden`;
+  let scrollTop = $('snippets').scrollTop; // save current scroll position
+  // disable animation while inputting
   if (target.type === 'input') textarea.style.transition = `none`;
 
   // calculate current content height
-  textarea.style.scrollbarWidth = `0`; // disable scrollbar (only works in canary)
-  let scrollHeight = textarea.scrollHeight - 14; // 2x 7px padding
+  // textarea.style.scrollbarWidth = `0`; // disable scrollbar (only works in canary)
+  const padding = 14; // 2*7px
+  let scrollHeight = textarea.scrollHeight - padding;
   if (focusout || parseInt(textarea.style.height) === scrollHeight) {
     // check and update actual scroll height to allow shrinking
     textarea.style.height = `auto`;
-    scrollHeight = textarea.scrollHeight - 14;
+    scrollHeight = textarea.scrollHeight - padding;
   }
-  textarea.style.removeProperty('scrollbar-width'); // show scrollbar
+  // textarea.style.removeProperty('scrollbar-width'); // show scrollbar
   // console.log(textarea.style.height, scrollHeight);
 
   // set max height to actual or limit if set
@@ -565,7 +565,7 @@ function adjustTextArea(target, maxHeight) {
       textarea.style.removeProperty('overflow'); // reenable scrollbar
       
       // preserve scroll position
-      // $('snippets').scrollTop = scrollTop + targetHeight - scrollHeight;
+      $('snippets').scrollTop = scrollTop + targetHeight - scrollHeight;
     }
   }
 }
