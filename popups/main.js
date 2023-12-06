@@ -532,6 +532,8 @@ function loadSnippets() {
  * @param {number} [maxHeight] 
  */
 function adjustTextArea(target, maxHeight) {
+  const padding = 2*4; // 4px top & bottom padding
+  const minHeight = 2*19; // 19px line height
   // console.log(target, maxHeight);
   /** @type {HTMLTextAreaElement} set target for events */
   const textarea = target.target || target;
@@ -543,13 +545,13 @@ function adjustTextArea(target, maxHeight) {
 
   // calculate current content height
   // textarea.style.scrollbarWidth = `0`; // disable scrollbar (only works in canary)
-  const padding = 14; // 2*7px
   let scrollHeight = textarea.scrollHeight - padding;
   if (focusout || parseInt(textarea.style.height) === scrollHeight) {
     // check and update actual scroll height to allow shrinking
     textarea.style.height = `auto`;
     scrollHeight = textarea.scrollHeight - padding;
   }
+  if (scrollHeight < minHeight) scrollHeight = minHeight;
   // textarea.style.removeProperty('scrollbar-width'); // show scrollbar
   // console.log(textarea.style.height, scrollHeight);
 
@@ -694,9 +696,13 @@ function handleChange(event) {
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
-  // console.log(event);
+  console.log(event);
   // ignore text drags
-  if (['input', 'textarea'].includes(event.target.tagName.toLowerCase())) return;
+  if (['input', 'textarea'].includes(event.target.tagName.toLowerCase())) {
+    event.stopPropagation();
+    event.preventDefault();
+    return;
+  }
   // only allow moves
   event.dataTransfer.effectAllowed = "move";
   // picked up item

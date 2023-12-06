@@ -306,6 +306,7 @@ function buildItemWidget(item, list, path, settings) {
 
   // only folders can be 'opened'
   const widgetTitle = buildNode('input', {
+    draggable: `true`, // fires drag event so it can be prevented
     type: (isFolder) ? `button` : `text`,
     value: item.name,
     dataset: {
@@ -352,6 +353,7 @@ function buildItemWidget(item, list, path, settings) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
       children: [buildNode('textArea', {
+        draggable: `true`, // fires drag event so it can be prevented
         rows: 1,
         dataset: {
           action: `edit`,

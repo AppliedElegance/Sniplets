@@ -302,7 +302,7 @@ input:focus + label,
 .snip-content textarea {
   margin: 0;
   border: 0;
-  padding: 7px;
+  padding: 4px 0 4px 8px;
   scrollbar-gutter: stable;
   font-size: 15px;
   line-height: 19px;
