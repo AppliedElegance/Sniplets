@@ -535,7 +535,7 @@ function loadSnippets() {
  */
 function adjustTextArea(target, maxHeight) {
   const padding = 2*4; // 4px top & bottom padding
-  const minHeight = 2*19; // 19px line height
+  const minHeight = 4*19; // 19px line height
   // console.log(target, maxHeight);
   /** @type {HTMLTextAreaElement} set target for events */
   const textarea = target.target || target;
