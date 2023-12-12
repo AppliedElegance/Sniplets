@@ -1,9 +1,9 @@
 /* All shared functions. */
 /* eslint-disable no-unused-vars */
 
-const isBool = b => typeof b === 'boolean';
+const isBool = arg => typeof arg === 'boolean';
 
-// default colors
+/** Default colors: Red|Orange|Yellow|Green|Blue|Purple|Grey */
 const colors = {
   "Default": {  },
   "Red": { value: "#D0312D", clippings: "red", square: "🟥 ", circle: "🔴 ", heart: "❤ ", book: "📕 " },
@@ -27,56 +27,66 @@ const i18n = (message) => chrome.i18n.getMessage(message);
 // Storage helpers. Sync must be explicitly enabled.
 /**
  * Safely stores data to chrome.storage.local (default) or .sync.
- * @param {Object<string, *>} data - a { key: value } object to store
+ * @param {{[key:string]:*}} items - a { key: value } object to store
  * @param {boolean} [synced=false] - Whether to store the data in local (false, default) or sync (true).
- * @example
- * // Saves data in sync storage under the name stored in the string variable: key
- * await setStorageData({ [key]: value }, true);
  */
-function setStorageData(data, synced = false) {
+function setStorageData(items, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return new Promise((resolve, reject) =>
-  bucket.set(data, () =>
-    chrome.runtime.lastError
-    ? reject(chrome.runtime.lastError)
-    : resolve(),
-  ));
+  return bucket.set(items).catch(e => e);
 }
 /**
  * Safely retrieves storage data from chrome.storage.local (default) or .sync.
- * @param {string} key - The key name for the stored data.
+ * @param {null|string|string[]|{[key:string]:*}} keys - The key name for the stored data.
  * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
- * @returns {Promise<Object<string, *>>} Found data is returned as a { key: value } object.
- * @example
- * // returns { key: value } from local
- * await getStorageData('key');
- * @example
- * // stores the value of the storage object in the key variable
- * const { key } = await getStorageData('key', true);
  */
-function getStorageData(key, synced = false) {
+function getStorageData(keys, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return bucket.get(key).catch(e => e);
+  return bucket.get(keys).catch(e => e);
 }
 /**
  * Safely removes storage data from chrome.storage.local (default) or .sync.
- * @param {string} key - The key name for the stored data.
+ * @param {string|string[]} keys - The key name for the stored data.
  * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
- * @example
- * // removes the { key: value } data from local storage
- * await removeStorageData('key');
  */
-function removeStorageData (key, synced = false) {
+function removeStorageData (keys, synced = false) {
   let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return new Promise((resolve, reject) =>
-  bucket.remove(key, () =>
-    chrome.runtime.lastError
-    ? reject(chrome.runtime.lastError)
-    : resolve(),
-  ));
+  return bucket.remove(keys).catch(e => e);
 }
 
-async function getSnippet(target) {
+/**
+ * 
+ * @param {string} text 
+ * @param {{value:string}[]} fields 
+ * @returns 
+ */
+const replaceFields = (text, fields) =>
+text.replaceAll(/\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g, (match, p1) =>
+fields.find(field => field.name === p1)?.value);
+
+/**
+ * Send text to clipboard
+ * @param {string} [plainText] 
+ * @param {string} [richText] 
+ */
+function setClipboard(plainText, richText) {
+  // console.log(plainText, richText);
+  if(!plainText && !richText) return;
+  let item = {};
+  if (plainText) item["text/plain"] = new Blob([plainText], { type: "text/plain" });
+  if (richText) item["text/html"] = new Blob([richText], { type: "text/html" });
+  // console.log(`Copying to clipboard...`);
+  return navigator.clipboard.write([new ClipboardItem(item)]).then(() => true).catch(e => e);
+}
+
+function testAccess(target) {
+  const touchTarget = () => true;
+  return injectScript({
+    target: target,
+    func: touchTarget,
+  }).catch(e => e);
+}
+
+async function snipSelection(target) {
   const src = {
     target: target,
     func: getFullSelection,
@@ -114,7 +124,7 @@ async function pasteSnippet(target, snip) {
  * 
  * @param {string} text
  */
-const linkEmails = (text) => text.replaceAll(
+const linkEmails = text => text.replaceAll(
   /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
   (match) => `<a href="mailto:${match}">${match}</a>`);
 /**
@@ -131,7 +141,7 @@ const linkEmails = (text) => text.replaceAll(
  * 
  * @param {string} text
  */
-const linkURLs = (text) => text.replaceAll(
+const linkURLs = text => text.replaceAll(
   /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig,
   (match, p1) => {
     // console.log(match, p1);
@@ -142,7 +152,7 @@ const linkURLs = (text) => text.replaceAll(
     return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match;
   });
 /**
- * Add HTML line break tags where appropriate
+ * Remove newlines and add HTML line break tags where appropriate
  * 
  * * (?<!<\/? - don't match if specific tags are found before a newline
  * * (?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+? - inline tags are okay to add breaks after
@@ -151,9 +161,16 @@ const linkURLs = (text) => text.replaceAll(
  * 
  * @param {string} text
  */
-const tagNewlines = (text) => text.replaceAll(
+const tagNewlines = text => text.replaceAll(
   /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g,
-  (match) => `<br>${match}`);
+  (match) => `<br>`).replaceAll(/(?:\r\n|\r|\n)/g, ``);
+
+function getRichText(text, {rtLineBreaks, rtLinkEmails, rtLinkURLs}) {
+  if (rtLineBreaks) text = tagNewlines(text);
+  if (rtLinkEmails) text = linkEmails(text);
+  if (rtLinkURLs) text = linkURLs(text);
+  return text;
+}
 
 /**
  * Ensure script injection errors including permission blocks are always handled gracefully.
@@ -261,35 +278,36 @@ function placeText(snip) {
   return paste(snip.content, snip.richText);
 }
 
-const getFrameOrigins = () => {
-  const origins = [window.location.origin + "/*"];
+function getFrameOrigins() {
+  const origins = [];
   // add src of all iframes on page so user only needs to request permission once
-  Array.from(document.getElementsByTagName("IFRAME")).forEach((frame) => {
-    if (frame.src) origins.push((new URL(frame.src).origin) + "/*");
-  });
+  for (let frame of document.getElementsByTagName("IFRAME")) {
+    if (frame.src && !origins.includes(frame.src)) {
+      origins.push((new URL(frame.src).origin) + "/*");
+    }
+  }
   return origins;
-};
+}
 
 // Request permissions when necessary for cross-origin iframes
-async function requestFrames (action, target, data, args) {
+async function requestFrames(action, target, data, args) {
   // Get site origins
   const results = await injectScript({
     target: { tabId: target.tabId },
     func: getFrameOrigins,
-  }).catch(e => e);
+  });
   const origins = results[0]?.result;
   // return script injection error if top level is blocked too
   if (!origins) return false;
   // send data to worker for further processing
-  return await chrome.storage.session.set({
-    request: {
-      action: action,
-      target: target,
-      data: data,
-      args: args,
-      origins: origins,
-    },
-  }).then(() => true).catch(e => e);
+  return await chrome.storage.session.set({ request: {
+    type: 'permissions',
+    action: action,
+    target: target,
+    data: data,
+    args: args,
+    origins: origins,
+  }}).then(() => true).catch(e => e);
 }
 
 /** Base constructor for folders, snippets and any future items */
@@ -634,24 +652,24 @@ class Space {
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
     if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") return snip;
 
-    // // process counters, kept track internally to allow use across multiple snippets
-    // let counterUse = false;
+    // process counters, kept track internally to allow use across multiple snippets
+    let counterUse = false;
     // console.log("Processing counters...");
-    // snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
-    //   if (!counterUse) counterUse = true;
-    //   if (p1 in this.data.counters === false) {
-    //     // console.log("Adding counter...", p1);
-    //     this.data.counters[p1] = this.data.counters.startVal;
-    //   }
-    //   return this.data.counters[p1]++;
-    // });
-    // // save space if counters were used and thus incremented
-    // if (counterUse) await this.save();
+    snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
+      if (!counterUse) counterUse = true;
+      if (p1 in this.data.counters === false) {
+        // console.log("Adding counter...", p1);
+        this.data.counters[p1] = this.data.counters.startVal;
+      }
+      return this.data.counters[p1]++;
+    });
+    // save space if counters were used and thus incremented
+    if (counterUse) await this.save();
   
     // placeholders
     // console.log("Processing placeholders...");
     snip.content = snip.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
-      p3 &&= p3.split('|');
+      if (p3?.includes('|')) p3 = p3.split('|');
       const now = new Date();
   
       // function for full date/time format string replacement (compatible with Clippings)
@@ -864,19 +882,26 @@ class Space {
           return this.getPathNames(path).join(p2 || `/`);
       
         default:
-          // custom field, leave for future processing
-          snip.hasCustomFields = true;
+          // custom field, save for future processing (array to maintain order)
+          if (!snip.customFields) snip.customFields = [];
+          if (!snip.customFields.find(field => field.name === p1)) {
+            let field = {
+              name: p1,
+            };
+            if (Array.isArray(p3)) {
+              field.type = `select`;
+              field.value = p3[0] || ``;
+              field.options = p3;
+            } else {
+              field.type = p2 || `text`;
+              field.value = p3 || ``;
+            }
+            // console.log(field);
+            snip.customFields.push(field);
+          }
           return match;
       }
     });
-
-    // copy to richText field and process
-    snip.richText = snip.content;
-    const settings = new Settings;
-    await settings.load();
-    if (settings.control.rtLineBreaks) snip.richText = tagNewlines(snip.richText);
-    if (settings.control.rtLinkEmails) snip.richText = linkEmails(snip.richText);
-    if (settings.control.rtLinkURLs) snip.richText = linkURLs(snip.richText);
 
     // console.log(snip);
     return snip;
@@ -1070,6 +1095,7 @@ class Settings {
  * @param {Space} space 
  */
 async function buildContextMenus(space) {
+  // console.log(structuredClone(space));
   // clear current
   await new Promise((resolve, reject) =>
     chrome.contextMenus.removeAll(() =>
@@ -1084,14 +1110,19 @@ async function buildContextMenus(space) {
     action: 'snip',
   };
 
+  const addMenu = properties => new Promise((resolve, reject) =>
+  chrome.contextMenus.create(properties, () =>
+  chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve(true)));
+
   // create snipper for selected text
-  chrome.contextMenus.create({
+  console.log(addMenu({
     "id": JSON.stringify(menuData),
     "title": "Snip selection...",
     "contexts": ["selection"],
-  });
+  }));
 
   // build paster for saved snippets
+  console.log(space);
   if (space.data) {
     // set root menu item
     menuData.path = [];

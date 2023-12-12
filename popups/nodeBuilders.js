@@ -4,13 +4,13 @@
 /**
  * DOM helper for element creation including sub-elements
  * @param {string} tagName 
- * @param {Object} attributes
+ * @param {{[key:string]:string}} attributes
  */
 function buildNode(tagName, attributes) {
   const element = document.createElement(tagName);
 
   for (let a in attributes) {
-    // ignores falsy values
+    // ignores falsy values (false must be a string value for attributes)
     if (!attributes[a]) continue;
     switch (a) {
     case 'children': { // append any valid nodes
@@ -46,6 +46,14 @@ function buildNode(tagName, attributes) {
       for (let e of attributes.events) {
         element.addEventListener(e.type, e.listener, e.options || false);
       }
+      break;
+    
+    case 'value':
+      element.value = attributes.value;
+      break;
+
+    case 'htmlFor':
+      element.htmlFor = attributes.htmlFor;
       break;
   
     default: // assume remaining attributes can be set directly
@@ -367,24 +375,27 @@ function buildItemWidget(item, list, path, settings) {
     widget.push(widgetBody);
     if (settings.view.sourceURL) {
       const widgetSource = buildNode('div', {
-        classList: [`source-url`],
-        children: [
-          buildNode('label', {
-            for: `source-${ item.seq }`,
-            textContent: `Source:`,
-          }),
-          buildNode('input', {
-            type: `url`,
-            id: `source-${ item.seq }`,
-            placeholder: `…`,
-            value: item.sourceURL,
-            dataset: {
-              action: `edit`,
-              seq: item.seq,
-              field: `sourceURL`,
-            },
-          }),
-        ],
+        classList: [`fields`, `source-url`],
+        children: [buildNode('div', {
+          classList: [`field`],
+          children: [
+            buildNode('label', {
+              for: `source-${ item.seq }`,
+              textContent: `Source:`,
+            }),
+            buildNode('input', {
+              type: `url`,
+              id: `source-${ item.seq }`,
+              placeholder: `…`,
+              value: item.sourceURL,
+              dataset: {
+                action: `edit`,
+                seq: item.seq,
+                field: `sourceURL`,
+              },
+            }),
+          ],
+        })],
       });
       widget.push(widgetSource);
     }
@@ -434,13 +445,16 @@ function buildTreeWidget(collapsible, color, target, text) {
 
 /**
  * Builder for modal dialogue
- * @param {string} message - text to display
- * @param {{buttons:Object[],fields:Object[],title:string,vertical:boolean}} [options] - optional settings
- * including a title and whether the buttons should be set vertically
- * rather than horizontally.
+ * @param {{
+ * title:string
+ * message:string
+ * buttons:{[key:string]:*}[]
+ * fields:{type:string,name:string,label:string,value:string,options:string[]}[]
+ * vertical:boolean
+ * }} options
  * @returns {HTMLDialogElement}
  */
-function buildModal(message, {buttons, fields, title, vertical = false }) {  
+function buildModal({ title, message, buttons, fields }) {  
   // set up container
   const form = buildNode('form', {
     method: `dialog`,
@@ -450,55 +464,70 @@ function buildModal(message, {buttons, fields, title, vertical = false }) {
   if (title) form.append(buildNode('h1', { textContent: title }));
 
   // add message
-  form.append(buildNode('p', { textContent: message }));
+  if (message) form.append(buildNode('p', { textContent: message }));
 
   // add fields
   if (fields) {
-    for (let field of fields) {
-      form.append(buildNode('div', {
+    const formFields = buildNode('div', {
+      classList: [`fields`],
+    });
+    fields.forEach((field, i) => {
+      console.log(field);
+      if (i > 0) {
+        formFields.append(buildNode('div', {
+          classList: [`divider`],
+        }));
+      }
+      const isSelect = (field.type === 'select');
+      formFields.append(buildNode('div', {
         classList: [`field`],
         children: [
           buildNode('label', {
-            htmlFor: field.name,
+            for: field.name,
             textContent: `${ field.label }:`,
           }),
-          buildNode('input', {
+          buildNode(isSelect ? 'select' : 'input', {
             type: field.type,
-            id: field.name,
             name: field.name,
+            id: field.name,
+            value: field.value,
+            dataset: {
+              field: field.label,
+            },
+            children: isSelect && field.options.map(option => buildNode('option', {
+              value: option,
+              textContent: option,
+            })),
           }),
         ],
       }));
-    }
+    });
+    form.append(formFields);
   }
 
   // add buttons
   if (buttons) {
-    const buttonContainer = buildNode('div', {
-      classList: [`buttons`, vertical ? `col` : `row`],
+    const formButtons = buildNode('div', {
+      classList: [`buttons`],
     });
     for (let button of buttons) {
-      buttonContainer.append(buildNode('button', {
+      formButtons.append(buildNode('button', {
         type: `submit`,
         ...button,
       }));
     }
-    form.append(buttonContainer);
+    form.append(formButtons);
   }
 
   // add cancel button last for tab position:
   const cancelButton = buildActionIcon(`Close`, `icon-close`, colors.Red.value);
+  cancelButton.type = `submit`;
   cancelButton.value = `cancel`;
-  cancelButton.formMethod = `dialog`;
+  form.append(buildNode('div', {
+    classList: [`x`],
+    children: [cancelButton],
+  }));
 
   // return modal
-  return buildNode('dialog', {
-    children: [
-      form,
-      buildNode('div', {
-        classList: [`x`],
-        children: [cancelButton],
-      }),
-    ],
-  });
+  return buildNode('dialog', { children: [form] });
 }

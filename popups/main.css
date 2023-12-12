@@ -189,7 +189,7 @@ header {
   background: #edc;
 }
 
-input {
+input, select {
   flex-grow: 1;
   font-family: inherit;
   font-size: 16px;
@@ -310,17 +310,72 @@ input:focus + label,
   transition: height 125ms;
 }
 
-.source-url {
-  margin-top: 8px;
-  display: flex;
-  font-size: 12px;
-  color: #333;
-  line-height: 24px;
+.snippet .field label {
+  padding-left: 8px;
 }
 
-.source-url input {
+dialog {
+  font-size: larger;
+  width: 75%;
+  max-width: 600px;
+}
+
+dialog h1 {
+  margin-bottom: 10px;
+  padding: 0;
+  text-align: center;
+}
+
+dialog .x {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+dialog .buttons {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  margin-top: 10px;
+}
+
+.fields {
+  display: table;
+  font-size: 14px;
+  font-weight: 500;
+  width: 100%;
+}
+
+.fields .divider {
+  height: 10px;
+}
+
+.field {
+  display: table-row;
+}
+
+.field label {
+  display: table-cell;
+  width: 0;
+  padding: 2px 8px 2px 0;
+  white-space: nowrap;
+}
+
+.field input, .field select {
+  display: table-cell;
   font: inherit;
-  color: inherit;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  width: 100%;
+  border-bottom: 1px solid black;
+}
+
+select {
+  appearance: none;
+}
+
+.source-url {
+  margin-top: 4px;
 }
 
 hr {
@@ -398,22 +453,4 @@ figure {
 
 .hidden {
   display: none;
-}
-
-dialog {
-  font-size: larger;
-  width: 75%;
-  max-width: 600px;
-}
-
-dialog .x {
-  position: absolute;
-  top: 0;
-  right: 0;
-}
-
-dialog .buttons {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
 }

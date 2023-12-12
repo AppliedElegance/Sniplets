@@ -13,6 +13,9 @@ const $ = (id) => document.getElementById(id);
 const q$ = (query) => document.querySelector(query);
 // const i18n = (id, substitutions = []) => chrome.i18n.getMessage(id, substitutions);
 
+// for handling resize of header path
+const resizing = new ResizeObserver(adjustPath);
+
 // globals for settings and keeping track of the current folder
 const settings = new Settings();
 const space = new Space();
@@ -29,22 +32,199 @@ function setCurrentSpace() {
   return currentSpace;
 }
 
+/**
+ * Calback function for popup when placeholders are requested
+ * @param {Event} event 
+ * @returns 
+ */
+async function pasteWithPlaceholders(event) {
+  /** @type {HTMLDialogElement} */
+  const modal = event.target;
+  if (modal.returnValue === 'cancel') return window.close();
+  const snip = JSON.parse(modal.returnValue);
+  // console.log(snip, modal.returnValue);
+  snip.content = replaceFields(snip.content, snip.customFields);
+  delete snip.customFields;
+  snip.richText = getRichText(snip.content, settings.control);
+  // console.log(snip);
+  const result = await pasteSnippet(snip.target, snip);
+  // permissions always handled first
+  if (!result?.pasted) return pasteBlocked(snip);
+  window.close();
+}
+
+/**
+ * handler for blocked paste
+ * @param {string} reason 
+ * @param {Snippet} snip 
+ */
+function pasteBlocked(snip) {
+  loadSnippets();
+  alert(`Sorry, either the page is no longer available or this extension `
+      + `is blocked on this site by your browser. Please check and try again `
+      + `or copy the selected snippet using the clipboard feature and paste `
+      + `it in manually.`);
+  handleAction({ action: 'focus', seq: snip.seq, field: 'copy' });
+}
+
+function requestPermissions({ action, target, data, snip, origins }) {
+  console.log(action, target, data, snip, origins);
+  const modal = buildModal({
+    message: `This field requires additional permissions for context menus and `
+    + `shortcuts to work. To continue, please press the appropriate button and `
+    + `accept the request.`,
+    buttons: [
+      {
+        value: JSON.stringify(origins),
+        children: [buildNode('h2', { children: [
+          document.createTextNode(`Allow full access on `),
+          buildNode('em', { textContent: `this` }),
+          document.createTextNode(` site`),
+        ] })],
+      },
+      {
+        value: `["<all_urls>"]`,
+        children: [buildNode('h2', { children: [
+          document.createTextNode(`Allow full access on `),
+          buildNode('em', { textContent: `all` }),
+          document.createTextNode(` sites`),
+        ] })],
+      },
+    ],
+  });
+  document.body.append(modal);
+  // console.log(modal);
+  modal.addEventListener('close', async () => {
+    // console.log(event, modal.returnValue, request, this);
+    let granted = false;
+    if (modal.returnValue !== 'cancel') {
+      granted = await chrome.permissions.request({
+        origins: JSON.parse(modal.returnValue),
+      }).catch(e => e);
+    }
+    // console.log(granted);
+    switch (action) {
+      case 'snip':
+        if (granted) {
+          // Try again
+          let snip = await snipSelection(target);
+          if (!snip) return alert("Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.");
+
+          // Add snip to space
+          if (settings.control.saveSource) snip.sourceURL = data.pageUrl;
+          snip = space.addItem(snip);
+          await space.save();
+
+          // Load for editing
+          loadSnippets();
+          handleAction({ action: 'focus', seq: snip.seq, field: 'name' });
+        } else {
+          loadSnippets();
+          alert("Permissions were not granted. Please copy and add the snippet manually.");
+        }
+        break;
+
+      case 'paste':
+        if (granted) {
+          // try again
+          snip.target = target;
+          handleCustomFields(snip, pasteWithPlaceholders);
+        } else {
+          // load for copying
+          pasteBlocked(snip);
+        }
+        break;
+    
+      default:
+        break;
+    }
+  });
+  modal.showModal();
+}
+
+/**
+ * get custom fields when processing
+ * @param {{content:string,customFields?:{[key:string]:*}[]}} snip 
+ * @param {function(Event)} onClose
+ */
+function handleCustomFields(snip, onClose) {
+  // console.log(snip);
+  const { customFields } = snip;
+  //build modal
+  const modal = buildModal({
+    title: `Custom Placeholders`,
+    fields: customFields.map((field, i) => {
+      return {
+        type: field.type,
+        name: `${i}`,
+        label: field.name,
+        value: field.value,
+        options: field.options,
+      };
+    }),
+    buttons: [
+      {
+        id: `confirmFields`,
+        value: JSON.stringify(snip),
+        children: [buildNode('h2', { textContent: `Confirm` })],
+      },
+    ],
+  });
+  document.body.append(modal);
+  modal.addEventListener('change', (event) => {
+    /** @type {HTMLInputElement|HTMLSelectElement} */
+    const input = event.target;
+    /** @type {HTMLButtonElement} */
+    const button = document.getElementById('confirmFields');
+    let snip = JSON.parse(button.value);
+    console.log(input, button, snip, snip.customFields[parseInt(input.name)]);
+    snip.customFields[parseInt(input.name)].value = input.value;
+    button.value = JSON.stringify(snip);
+  }, false);
+  if (onClose) modal.addEventListener('close', onClose, false);
+  modal.showModal();
+  return modal;
+}
+
+function copyToClipboard(snip) {
+  if (snip.customFields) {
+    // pass off to modal
+    const modal = handleCustomFields(snip, async () => {
+      if (modal.returnValue === 'cancel') return;
+      const snip = JSON.parse(modal.returnValue);
+      // console.log(snip, modal.returnValue);
+      snip.content = replaceFields(snip.content, snip.customFields);
+      if (await setClipboard(snip.content, getRichText(snip.content, settings.control))) {
+        alert(`The snippet has been copied to the clipboard.`);
+      }
+    });
+  } else {
+    // copy result text to clipboard
+    setClipboard(snip.content, getRichText(snip.content, settings.control));
+  }
+}
+
 // init
 async function loadPopup() {
-  // load up settings
-  await settings.load();
+  // load up settings with sanitation check for sideloaded versions
+  if (!await settings.load()) {
+    settings.init();
+    settings.save();
+  }
   // console.log("Settings loaded...", settings);
 
   // load up the current space or fall back to default
   // console.log("Retrieving current space...");
   const { currentSpace } = await getStorageData('currentSpace');
   // console.log("Loading current space...", currentSpace, settings.defaultSpace);
-  await space.load(currentSpace || settings.defaultSpace);
+  if (!await space.load(currentSpace || settings.defaultSpace)) {
+    await space.init();
+    space.save();
+  }
   // console.log("Updating current space if necessary...", structuredClone(space));
   if (!currentSpace) setCurrentSpace();
 
-
-  // load the page
+  // load parameters
   const params = new URLSearchParams(location.search);
   // console.log("Processing parameters...", params);
 
@@ -70,80 +250,25 @@ async function loadPopup() {
   document.addEventListener('input', adjustTextArea, false);
   document.addEventListener('focusout', adjustTextArea, false);
 
-  // check for requests
+  // check for requests and remove immediately to prevent handling more than once
   const { request } = await chrome.storage.session.get('request').catch(() => false);
-  // console.log(request);
-  if (request?.origins) {
-    const modal = buildModal(`This site requires additional permissions `
-    + `for context menus and shortcuts to work. If you would like to use `
-    + `these features on this site, please press the appropriate button `
-    + `and accept the request.`, {
-      buttons: [
-        {
-          value: JSON.stringify(request.origins),
-          children: [buildNode('h2', { children: [
-            document.createTextNode(`Allow full access to `),
-            buildNode('em', { textContent: `this` }),
-            document.createTextNode(` site`),
-          ] })],
-        },
-        {
-          value: `["<all_urls>"]`,
-          children: [buildNode('h2', { children: [
-            document.createTextNode(`Allow full access to `),
-            buildNode('em', { textContent: `all` }),
-            document.createTextNode(` sites`),
-          ] })],
-        },
-      ],
-    });
-    document.body.append(modal);
-    // console.log(modal);
-    modal.showModal();
-    modal.addEventListener('close', async () => {
-      // console.log(event, modal.returnValue, request);
-      const granted = await chrome.permissions.request({ origins: JSON.parse(modal.returnValue) }).catch(e => e);
-      // console.log(granted);
-      switch (request.action) {
-        case 'snip':
-          if (granted) {
-            // Try again
-            let snip = await getSnippet(request.target);
-            if (!snip) return alert("Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.");
-
-            // Add snip to space
-            if (settings.control.saveSource) snip.sourceURL = request.data.pageUrl;
-            snip = space.addItem(snip);
-            await space.save();
-
-            // Load for editing
-            loadSnippets();
-            handleAction({ action: 'focus', seq: snip.seq, field: 'name' });
-          } else {
-            loadSnippets();
-            alert("Permissions were not granted. Please copy and add the snippet manually.");
-          }
-          break;
-
-        case 'paste':
-          if (granted) {
-            //try again
-            const result = await pasteSnippet(request.target, request.snip);
-            if (!result?.pasted) alert("Sorry, something went wrong and the snip could not be pasted. Please make sure the page is still active and try again.");
-            window.close();
-          } else {
-            // load for copying
-            loadSnippets();
-            alert("Permissions were not granted. Please copy the requested snippet and paste it manually.");
-            handleAction({ action: 'focus', seq: request.snip.seq, field: 'copy' });
-          }
-          break;
-      
-        default:
-          break;
-      }
-      chrome.storage.session.remove('request').catch(e => (console.log(e), false));
-    });
+  chrome.storage.session.remove('request').catch(e => (console.log(e), false));
+  console.log(request);
+  if (request?.type === 'permissions') {
+    requestPermissions(request);
+  } else if (request?.type === 'placeholders') {
+    // requested from context menu, make sure we have permissions first
+    if (!(await testAccess(request.target))) {
+      const results = await injectScript({
+        target: { tabId: request.target.tabId },
+        func: getFrameOrigins,
+      });
+      const origins = results[0]?.result;
+      if (!origins) return pasteBlocked(request.snip);
+      return requestPermissions({ origins: origins, ...request });
+    }
+    request.snip.target = request.target;
+    handleCustomFields(request.snip, pasteWithPlaceholders);
   } else {
     // console.log("Loading snippets", space);
     loadSnippets();
@@ -157,10 +282,6 @@ async function loadPopup() {
         + `Please copy the selected snippet to the clipboard and paste it in manually.`);
       }
     }
-  
-    // keep an eye on the path and hide path names as necessary
-    const resizing = new ResizeObserver(adjustPath);
-    resizing.observe($('path'));
   }
 }
 document.addEventListener('DOMContentLoaded', loadPopup, false);
@@ -305,10 +426,12 @@ function buildHeader() {
       buildMenuItem(`Clear All Data`, { action: `clear-data-all` }),
     ]),
   ]);
+
   // add path navigation element
   const path = buildNode('nav', {
     children: [buildNode('ul', { id: `path` })],
   });
+
   // quick actions
   const quickActionMenu = buildNode('div', {
     id: `quick-actions`,
@@ -330,12 +453,18 @@ function buildHeader() {
       }),
     ],
   });
+
   // put header together
   $('header').replaceChildren(
     settingsMenu,
     path,
     quickActionMenu,
   );
+  
+  // keep an eye on the path and hide path names as necessary
+  resizing.disconnect(); // clean up old observers as necessary
+  resizing.observe($('path'));
+
   // set path
   setHeaderPath();
 }
@@ -348,6 +477,7 @@ function adjustPath(entries) {
   const t = entries[0].target;
   const s = $('folder-up');
   const sb = s.querySelector('button');
+  console.log(entries, t, s, sb, t.offsetHeight, t.childElementCount);
   if (t.offsetHeight > 32 & t.childElementCount > 2) {
     // hide parts of the folder path in case it's too long
     s.style.removeProperty('display');
@@ -358,7 +488,8 @@ function adjustPath(entries) {
       f.style.display = `none`;
       s.dataset.path = f.dataset.path;
       s.dataset.seq = f.dataset.seq;
-      sb.dataset.target = f.querySelector('button').target || ``;
+      console.log(f, f.querySelector('button'), f.querySelector('button').target);
+      sb.dataset.target = f.querySelector('button').dataset.target || ``;
       f = f.nextSibling;
     }
   } else {
@@ -1057,25 +1188,8 @@ async function handleAction(target) {
       // get requested item
       const snip = await space.getProcessedSnippet(dataset.seq);
       if (!snip) break;
-      // if (snip.hasCustomFields) {
-      //   // pass off to popup
-      //   window.snip = snip;
-      //   chrome.windows.create({
-      //     url: chrome.runtime.getURL("popups/placeholders.html"),
-      //     type: "popup",
-      //     width: 700,
-      //     height: 500,
-      //   });
-      //   break;
-      // }
-      // copy result text to clipboard for manual paste
-      // console.log(`Copying to clipboard...`, snip);
-      await navigator.clipboard.write([new ClipboardItem({
-        ["text/plain"]: new Blob([snip.content], { type: "text/plain" }),
-        ["text/html"]: new Blob([snip.richText], { type: "text/html" }),
-      })]).catch(() => alert(`Sorry, copying automatically to the clipboard is blocked. `
-      + `If you would like to use the copy fuction, please reset this site's permissions `
-      + `in your browser's settings.`));
+      // console.log(snip);
+      copyToClipboard(snip);
       break; }
   
     // settings
@@ -1154,7 +1268,7 @@ async function handleAction(target) {
     case 'new-snippet': {
       const newSnippet = space.addItem(new Snippet());
       space.save();
-      loadSnippets();
+      buildList();
       handleAction({ action: 'focus', seq: newSnippet.seq, field: 'name' });
       break; }
     
@@ -1162,7 +1276,9 @@ async function handleAction(target) {
       const newFolder = space.addItem(new Folder());
       if (settings.sort.foldersOnTop) space.sort(settings.sort);
       space.save();
-      loadSnippets();
+      buildList();
+      buildTree();
+      setHeaderPath();
       handleAction({ action: 'rename', seq: newFolder.seq, field: 'name' });
       break; }
     

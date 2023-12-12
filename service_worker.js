@@ -94,7 +94,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   // get menu action and perform accordingly
   switch (menuData.action) {
   case 'snip': {
-    let snip = await getSnippet(target);
+    let snip = await snipSelection(target);
     if (!snip) {
       // possible cross-origin frame
       const permRes = await requestFrames(menuData.action, target, data);
@@ -127,6 +127,16 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
     // console.log("Getting processed snippet", menuData);
     const snip = await space.getProcessedSnippet(menuData.path.pop(), menuData.path);
     if (!snip) return;
+    if (snip.customFields) {
+      // request fields (avoids losing selection)
+      return await chrome.storage.session.set({ request: {
+        type: 'placeholders',
+        action: menuData.action,
+        target: target,
+        data: data,
+        snip: snip,
+      }}).then(() => true).catch(e => e);
+    }
     const result = await pasteSnippet(target, snip);
     if (!result?.pasted) {
       // possible cross-origin frame
@@ -155,7 +165,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  // console.log(changes, areaName);
+  console.log(changes, areaName);
   for (let key in changes) {
     // ignore currentSpace updates, prepare currentSpace info for comparison otherwise
     if (key === 'currentSpace') continue;
@@ -215,11 +225,12 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     // }
 
     // check if current space was changed and the context menus need to be rebuilt
+    console.log(key, currentSpace);
     if (key === currentSpace?.name) {
-      const newVal = new DataBucket(changes[key].newValue);
-      await newVal.parse();
+      const space = new Space();
+      await space.init({ name: key, synced: (areaName === 'sync'), data: changes[key].newValue });
       // console.log("Building context menus...", newVal);
-      buildContextMenus(new Space({ name: key, synced: (areaName === 'sync'), data: newVal }));
+      buildContextMenus(space);
     }
   }
 });
