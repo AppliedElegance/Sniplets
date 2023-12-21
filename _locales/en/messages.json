@@ -1,10 +1,14 @@
 {
   "app_name": {
     "message": "Snippets",
-    "description": "Name of the extension"
+    "description": "Name of the extension."
   },
   "app_description": {
     "message": "Snip, save, organise and insert editable text from the context menu. Backup compatible with Clippings.",
-    "description": "Plain <132 character description of the extension highlighting the name of Firefox rival"
+    "description": "Plain <132 character description of the extension highlighting the name of Firefox rival."
+  },
+  "starter_file": {
+    "message": "/_locales/en/starter.json",
+    "description": "Path to starter data with tutorials to be loaded on first install. Update path to mach locale."
   }
 }

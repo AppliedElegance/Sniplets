@@ -16,7 +16,7 @@ body {
 }
 
 header {
-  padding: 4px 10px;
+  padding: 2px 8px;
   background-color: rgb(243, 184, 35);
   box-shadow: 0 0 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
 }
@@ -33,7 +33,7 @@ h2 {
   font-weight: bold;
   line-height: 28px;
   margin: 0;
-  padding: 0 6px;
+  padding: 0 4px;
   text-align: left;
 }
 
@@ -61,11 +61,13 @@ button {
   transition-duration: 150ms;
 }
 
+button:not([disabled]):hover,
 [type="button"]:not([disabled]):hover {
   border-radius: 3px;
   box-shadow: 0 0 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
 }
 
+button:active,
 [type="button"]:active {
   box-shadow: none;
 }
@@ -226,7 +228,6 @@ input, select {
 }
 
 .menu-item {
-  min-width: 120px;
   position: relative;
   margin: 0;
   border: none;
@@ -318,6 +319,10 @@ dialog {
   font-size: larger;
   width: 75%;
   max-width: 600px;
+}
+
+dialog.narrow {
+  width: fit-content;
 }
 
 dialog h1 {

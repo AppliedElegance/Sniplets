@@ -335,7 +335,7 @@ class Folder extends TreeItem {
 }
 /** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
-  constructor({ name, seq, color, content, nosub, shortcut, sourceURL } = {}) {
+  constructor({ name, seq, color, content, nosubst, shortcut, sourceURL } = {}) {
     // generate name from content if provided
     if (!name && content) {
       // create snippet title from opening text
@@ -358,7 +358,7 @@ class Snippet extends TreeItem {
     /** @type {string} */
     this.content = content || "";
     /** @type {boolean} */
-    this.nosub = false;
+    this.nosubst = nosubst;
     /** @type {string} */
     this.shortcut = shortcut;
     /** @type {string} */
@@ -375,10 +375,9 @@ class DataBucket {
     /** @type {(TreeItem|Folder|Snippet)[]|string} */
     this.children = children || [];
     /** @type {Object} */
-    this.counters = counters || { startVal: 0 };
-
-    // in case a restored backup is corrupt, ensure a startVal is available
-    if (this.counters.startVal === undefined) this.counters.startVal = 0;
+    const { startVal, ...cs } = counters;
+    this.counters = cs || {};
+    this.counters.startVal = +startVal || 0;
   }
 
   /** Compress root folder (children) using browser gzip compression */
@@ -446,6 +445,7 @@ class DataBucket {
     // read the decompressed stream
     const dataBlob = await new Response(stream).blob();
     // return decompressed and deserialized text
+    // console.log(dataBlob);
     this.children = this.restructure(JSON.parse(await dataBlob.text()));
     return this;
   }
@@ -585,7 +585,7 @@ class Space {
   deleteItem(seq, folderPath = this.path) {
     /** @type {*[]} */
     const folder = this.getItem(folderPath).children;
-    const i = folder.findIndex(o => o.seq === parseInt(seq));
+    const i = folder.findIndex(o => o.seq === +seq);
     const removedItem = folder.splice(i, 1)[0];
     return removedItem;
   }
@@ -623,7 +623,7 @@ class Space {
     try {
       let item = this.data;
       for (let seq of path) {
-        item = item.children.find(o => o.seq === parseInt(seq));
+        item = item.children.find(o => o.seq === +seq);
       }
       return item;
     } catch (e) {
@@ -650,21 +650,28 @@ class Space {
     const snip = new Snippet(item);
     
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
-    if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") return snip;
+    if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") {
+      snip.nosubst = true;
+      return snip;
+    }
 
     // process counters, kept track internally to allow use across multiple snippets
-    let counterUse = false;
     // console.log("Processing counters...");
-    snip.content = snip.content.replaceAll(/#\[(.+?)\]/g, (match, p1) => {
-      if (!counterUse) counterUse = true;
+    snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.*?)\))?\]/g, (match, p1, p2) => {
+      if (!snip.counters) snip.counters = [];
+      snip.counters.push(p1);
+      console.log(p1, p2, this.data.counters, p1 in this.data.counters);
       if (p1 in this.data.counters === false) {
         // console.log("Adding counter...", p1);
         this.data.counters[p1] = this.data.counters.startVal;
       }
-      return this.data.counters[p1]++;
+      const val = this.data.counters[p1];
+      console.log(val, typeof val);
+      this.data.counters[p1] += isNaN(p2) ? 1 : +p2;
+      return val;
     });
     // save space if counters were used and thus incremented
-    if (counterUse) await this.save();
+    if (snip.counters?.length) await this.save();
   
     // placeholders
     // console.log("Processing placeholders...");
@@ -790,7 +797,7 @@ class Space {
           case "DDDD":
             return longDate.weekday;
           case "DO":
-            return numericDate.day + (suffixes[locale.slice(0,2)][pr.select(parseInt(numericDate.day))] || "");
+            return numericDate.day + (suffixes[locale.slice(0,2)][pr.select(+numericDate.day)] || "");
           case "MMM":
             return shortDate.month;
           case "MMMM":
@@ -1063,7 +1070,7 @@ class Settings {
     this.view.sourceURL = isBool(view?.sourceURL) ? view.sourceURL : false;
     /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
     this.control = {};
-    this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : true;
+    this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : false;
     this.control.preserveTags = isBool(control?.preserveTags) ? control.preserveTags : false;
     this.control.rtLineBreaks = isBool(control?.rtLineBreaks) ? control.rtLineBreaks : true;
     this.control.rtLinkEmails = isBool(control?.rtLinkEmails) ? control.rtLinkEmails : true;
@@ -1115,14 +1122,14 @@ async function buildContextMenus(space) {
   chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve(true)));
 
   // create snipper for selected text
-  console.log(addMenu({
+  addMenu({
     "id": JSON.stringify(menuData),
     "title": "Snip selection...",
     "contexts": ["selection"],
-  }));
+  });
 
   // build paster for saved snippets
-  console.log(space);
+  // console.log(space);
   if (space.data) {
     // set root menu item
     menuData.path = [];

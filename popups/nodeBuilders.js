@@ -147,13 +147,15 @@ function buildPopoverMenu(id, sprite, color, list) {
  * @param {string} name - Name to display
  * @param {Object} dataset - Should include an action and any related properties
  */
-function buildMenuItem(name, dataset) {
+function buildMenuItem(title, name, value, data) {
   return buildNode('p', {
     classList: [`menu-item`],
     children: [buildNode('button', {
       type: `button`,
-      dataset: dataset,
-      textContent: name,
+      name: name,
+      value: value,
+      dataset: data || { action: name },
+      textContent: title,
     })],
   });
 }
@@ -168,10 +170,10 @@ function buildMenuSeparator() {
 
 /**
  * Submenu builder
- * @param {string} name - Menu name, will be postpended with `…`
+ * @param {string} label - Menu name, will be postpended with `…`
  * @param {HTMLElement[]} items - Submenu items
  */
-function buildSubMenu(name, id, items) {
+function buildSubMenu(label, id, items) {
   // don't build empty menus
   if (!items?.length) return;
   return buildNode('fieldset', {
@@ -180,7 +182,7 @@ function buildSubMenu(name, id, items) {
       buildNode('legend', {
         children: [buildNode('button', {
           type: `button`,
-          textContent: `${ name }…`,
+          textContent: `${ label }…`,
           dataset: {
             action: `open-submenu`,
             target: id,
@@ -199,40 +201,40 @@ function buildSubMenu(name, id, items) {
 /**
  * Menu item builder for checkbox and radio controls
  * @param {string} type - Input type (`checkbox`|`radio`)
+ * @param {string} name - Name of the form input (must be unique if id not present)
  * @param {string} value - Value sent when checked
- * @param {{
- *   name: string
- *   id: string
- *   dataset: Object
- *   checked: boolean
- * }} attributes - At least one of id or dataset?.action is required
+ * @param {boolean} checked - Whether the control is in a checked state
+ * @param {{id: string, title: string, dataset: Object}} attributes - id is required for radio options,
+ * the value will be used for the label if no title is provided
  */
-function buildMenuControl(type, value, { name, id, dataset, checked }) {
+function buildMenuControl(type, name, value, checked, { id, title, dataset } = {}) {
   if (![`checkbox`, `radio`].includes(type)) return;
+  id ||= name;
+  title ||= value;
   return buildNode('p', {
     classList: [`menu-item`, `control`],
     children: [
       buildNode(`input`, {
         type: type,
-        name: name || id || dataset?.action,
-        id: id || dataset?.action,
+        name: name,
         value: value,
+        id: id,
         checked: checked,
         dataset: dataset,
-        display: `none`,
       }),
       buildNode('label', {
-        for: id || dataset?.action,
+        for: id,
+        title: title,
         tabindex: `0`,
         children: [
           buildNode('div', {
             classList: [`icon`],
             children: [buildSvg(
-              value,
+              title,
               `control-${ type }${ (checked) ? `-checked` : `` }`,
             )],
           }),
-          buildNode('h3', { textContent: value }),
+          buildNode('h3', { textContent: title }),
         ],
       }),
     ],
@@ -280,24 +282,16 @@ function buildItemWidget(item, list, path, settings) {
     colors[item.color]?.value || `inherit`,
     [
       buildSubMenu(`Colour`, `item-${ item.seq }-color-menu`, Object.keys(colors).map((color, i) =>
-        buildMenuControl('radio', color, {
-          name: `item-${ item.seq }-color`,
+        buildMenuControl('radio', `item-${ item.seq }-color`,
+        color, ((color === item.color) || (!colors[color].value && !item.color)), {
           id: `item-${ item.seq }-color-${ i }`,
-          dataset: {
-            action: `edit`,
-            seq: item.seq,
-            field: `color`,
-          },
-          checked: ((color === item.color) || ((color === "Default") && !item.color)),
+          dataset: { action: `edit`, seq: item.seq },
         }),
       )),
       buildSubMenu(`Move`, `item-${ item.seq }-move-menu`, list.reduce((a, o, i) => {
         const l = list.length - 1;
-        const b = (direction) => buildMenuItem(direction, {
-          action: `move`,
-          seq: item.seq,
-          target: o.seq,
-        });
+        const b = (direction) => buildMenuItem(direction,
+          `move`, o.seq, { seq: item.seq });
         if (i === (index - 1)) {
           a.push(b(`Up`));
         } else if (i === (index + 1)) {
@@ -314,7 +308,6 @@ function buildItemWidget(item, list, path, settings) {
 
   // only folders can be 'opened'
   const widgetTitle = buildNode('input', {
-    draggable: `true`, // fires drag event so it can be prevented
     type: (isFolder) ? `button` : `text`,
     value: item.name,
     dataset: {
@@ -322,6 +315,8 @@ function buildItemWidget(item, list, path, settings) {
       seq: item.seq,
       field: `name`,
     },
+    draggable: `true`, // fires drag event so it can be prevented
+    autocomplete: `off`,
     'aria-label': (isFolder) ? `Folder Name` : `Snippet Name`,
   });
   if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-');
@@ -361,14 +356,16 @@ function buildItemWidget(item, list, path, settings) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
       children: [buildNode('textArea', {
-        draggable: `true`, // fires drag event so it can be prevented
-        rows: 1,
+        name: `content`,
         dataset: {
           action: `edit`,
           seq: item.seq,
           field: `content`,
         },
         textContent: item.content,
+        rows: 1,
+        draggable: `true`, // fires drag event so it can be prevented
+        autocomplete: `off`,
         'aria-label': `Snippet Contents`,
       })],
     });
@@ -450,11 +447,11 @@ function buildTreeWidget(collapsible, color, target, text) {
  * message:string
  * buttons:{[key:string]:*}[]
  * fields:{type:string,name:string,label:string,value:string,options:string[]}[]
- * vertical:boolean
  * }} options
+ * @param {boolean} [narrow=false] 
  * @returns {HTMLDialogElement}
  */
-function buildModal({ title, message, buttons, fields }) {  
+function buildModal({ title, message, buttons, fields }, narrow = false) {  
   // set up container
   const form = buildNode('form', {
     method: `dialog`,
@@ -472,7 +469,7 @@ function buildModal({ title, message, buttons, fields }) {
       classList: [`fields`],
     });
     fields.forEach((field, i) => {
-      console.log(field);
+      // console.log(field);
       if (i > 0) {
         formFields.append(buildNode('div', {
           classList: [`divider`],
@@ -490,10 +487,8 @@ function buildModal({ title, message, buttons, fields }) {
             type: field.type,
             name: field.name,
             id: field.name,
+            title: field.label,
             value: field.value,
-            dataset: {
-              field: field.label,
-            },
             children: isSelect && field.options.map(option => buildNode('option', {
               value: option,
               textContent: option,
@@ -523,11 +518,15 @@ function buildModal({ title, message, buttons, fields }) {
   const cancelButton = buildActionIcon(`Close`, `icon-close`, colors.Red.value);
   cancelButton.type = `submit`;
   cancelButton.value = `cancel`;
+  cancelButton.formMethod = `dialog`;
   form.append(buildNode('div', {
     classList: [`x`],
     children: [cancelButton],
   }));
 
   // return modal
-  return buildNode('dialog', { children: [form] });
+  return buildNode('dialog', {
+    classList: narrow && [`narrow`],
+    children: [form],
+  });
 }

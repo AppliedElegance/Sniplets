@@ -3,7 +3,7 @@ if(typeof importScripts === 'function') {
 }
 
 // init on installation
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(async (details) => {
   // force refresh
   self.skipWaiting();
 
@@ -40,7 +40,7 @@ chrome.runtime.onInstalled.addListener(async () => {
     if (await space.load(legacySpace)) {
       // console.log("Confirming that legacy space is indeed legacy and shifting...");
       const lastVersion = space.data.version.split('.');
-      if ((parseInt(lastVersion[0]) === 0) && (parseInt(lastVersion[1]) < 9)) {
+      if ((+lastVersion[0] === 0) && (+lastVersion[1] < 9)) {
         // console.log("Shifting data to default space");
         await space.shift(settings.defaultSpace);
       } else {
@@ -49,9 +49,15 @@ chrome.runtime.onInstalled.addListener(async () => {
         settings.save();
       }
     } else {
-      // no space information found, create new space
+      // no space data found, create new space and, if initial install add tutorial
       // console.log("Creating new space...");
       await space.init(currentSpace || settings.defaultSpace);
+      if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+        const starterData = await fetch(i18n('starter_file'))
+        .then(r => (console.log(r), r.json()));
+        const data = new DataBucket(starterData.data);
+        space.data = await data.parse();
+      }
       await space.save();
     }
   }
@@ -71,10 +77,15 @@ chrome.runtime.onStartup.addListener(async () => {
   }
 });
 
+// chrome.action.onClicked.addListener(() => {
+//   // TODO: load popout instead of popup in case set
+// });
+
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   // get details from menu item and ignore "empty" ones
   /** @type {{action:string,path:number[],space:Object}} */
+  // console.log(data.menuItemId);
   const menuData = JSON.parse(data.menuItemId);
   // console.log(menuData);
   if (!menuData.action) return;
@@ -165,7 +176,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  console.log(changes, areaName);
+  // console.log(changes, areaName);
   for (let key in changes) {
     // ignore currentSpace updates, prepare currentSpace info for comparison otherwise
     if (key === 'currentSpace') continue;
@@ -225,7 +236,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     // }
 
     // check if current space was changed and the context menus need to be rebuilt
-    console.log(key, currentSpace);
+    // console.log(key, currentSpace);
     if (key === currentSpace?.name) {
       const space = new Space();
       await space.init({ name: key, synced: (areaName === 'sync'), data: changes[key].newValue });
