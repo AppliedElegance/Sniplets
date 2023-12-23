@@ -322,6 +322,7 @@ function buildItemWidget(item, list, path, settings) {
   if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-');
 
   const widgetActions = buildNode('div', {
+    classList: [`quick-actions`],
     children: [
       (isFolder) ? buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
         action: `rename`,
@@ -445,13 +446,14 @@ function buildTreeWidget(collapsible, color, target, text) {
  * @param {{
  * title:string
  * message:string
- * buttons:{[key:string]:*}[]
+ * content:HTMLElement[]
  * fields:{type:string,name:string,label:string,value:string,options:string[]}[]
+ * buttons:{[key:string]:*}[]
  * }} options
  * @param {boolean} [narrow=false] 
  * @returns {HTMLDialogElement}
  */
-function buildModal({ title, message, buttons, fields }, narrow = false) {  
+function buildModal({ title, message, content, fields, buttons }, narrow = false) {  
   // set up container
   const form = buildNode('form', {
     method: `dialog`,
@@ -462,6 +464,9 @@ function buildModal({ title, message, buttons, fields }, narrow = false) {
 
   // add message
   if (message) form.append(buildNode('p', { textContent: message }));
+
+  // add any custom content
+  if (content) form.append(...content);
 
   // add fields
   if (fields) {

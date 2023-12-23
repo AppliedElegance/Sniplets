@@ -33,27 +33,6 @@ function setCurrentSpace() {
 }
 
 /**
- * Calback function for popup when placeholders are requested
- * @param {Event} event 
- * @returns 
- */
-async function pasteWithPlaceholders(event) {
-  /** @type {HTMLDialogElement} */
-  const modal = event.target;
-  // console.log(modal.returnValue);
-  const snip = JSON.parse(modal.returnValue);
-  // console.log(snip, modal.returnValue);
-  snip.content = replaceFields(snip.content, snip.customFields);
-  delete snip.customFields;
-  snip.richText = getRichText(snip.content, settings.control);
-  // console.log(snip);
-  const result = await pasteSnippet(snip.target, snip);
-  // permissions always handled first
-  if (!result?.pasted) return pasteBlocked(snip);
-  window.close();
-}
-
-/**
  * handler for blocked paste
  * @param {string} reason 
  * @param {Snippet} snip 
@@ -67,7 +46,7 @@ function pasteBlocked(snip) {
   handleAction({ action: 'focus', seq: snip.seq, field: 'copy' });
 }
 
-function requestPermissions({ action, target, data, snip, origins }) {
+function requestSitePermissions({ action, target, data, snip, origins }) {
   // console.log(action, target, data, snip, origins);
   const modal = buildModal({
     message: `This field requires additional permissions for context menus and `
@@ -105,7 +84,7 @@ function requestPermissions({ action, target, data, snip, origins }) {
       case 'snip':
         if (granted) {
           // Try again
-          let snip = await snipSelection(target);
+          snip = await snipSelection(target);
           if (!snip) return alert("Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.");
 
           // Add snip to space
@@ -125,8 +104,15 @@ function requestPermissions({ action, target, data, snip, origins }) {
       case 'paste':
         if (granted) {
           // try again
-          snip.target = target;
-          handleCustomFields(snip, pasteWithPlaceholders);
+          if (snip.customFields) {
+            // permissions always handled first, but don't forget about custom fields
+            const finalSnip = await getCustomFields(snip);
+            if (finalSnip?.content) snip = finalSnip;
+          }
+          snip.richText = getRichText(snip.content, settings.control);
+          // console.log(snip);
+          const result = await pasteSnippet(target, snip);
+          if (!result?.pasted) pasteBlocked(snip);
         } else {
           // load for copying
           pasteBlocked(snip);
@@ -142,9 +128,8 @@ function requestPermissions({ action, target, data, snip, origins }) {
 /**
  * get custom fields when processing
  * @param {{content:string,customFields?:{[key:string]:*}[]}} snip 
- * @param {function(Event)} onClose
  */
-function handleCustomFields(snip, onClose) {
+function getCustomFields(snip) {
   // console.log(snip);
   const { customFields } = snip;
   //build modal
@@ -179,27 +164,14 @@ function handleCustomFields(snip, onClose) {
     snip.customFields[parseInt(input.name)].value = input.value;
     button.value = JSON.stringify(snip);
   }, false);
-  if (onClose) modal.addEventListener('close', onClose, false);
   modal.showModal();
-  return modal;
-}
-
-function copyToClipboard(snip) {
-  if (snip.customFields) {
-    // pass off to modal
-    const modal = handleCustomFields(snip, async () => {
-      // console.log(modal.returnValue);
-      const snip = JSON.parse(modal.returnValue);
-      // console.log(snip, modal.returnValue);
-      snip.content = replaceFields(snip.content, snip.customFields);
-      if (await setClipboard(snip.content, getRichText(snip.content, settings.control))) {
-        alert(`The snippet has been copied to the clipboard.`);
-      }
-    });
-  } else {
-    // copy result text to clipboard
-    setClipboard(snip.content, !snip.nosubst && getRichText(snip.content, settings.control));
-  }
+  return new Promise((resolve, reject) => modal.addEventListener('close', () => {
+    if (modal.returnValue === 'Cancel') reject(null);
+    const snip = JSON.parse(modal.returnValue);
+    snip.content = replaceFields(snip.content, snip.customFields);
+    delete snip.customFields;
+    resolve(snip);
+  }, false)).catch(e => e);
 }
 
 // init
@@ -225,6 +197,15 @@ async function loadPopup() {
   // load parameters
   const params = new URLSearchParams(location.search);
   // console.log("Processing parameters...", params);
+
+  // check if opened as popup and set style accordingly
+  const popout = params.get('popout');
+  // console.log(popout);
+  if (popout) {
+    window.popout = popout; // for building header
+    document.body.style.width = "400px"; // column flex collapses width unless set
+    document.body.style.height = "550px";
+  }
 
   // update path if needed
   if (params.get('path')) {
@@ -255,7 +236,7 @@ async function loadPopup() {
   chrome.storage.session.remove('request').catch(e => (console.log(e), false));
   // console.log(request);
   if (request?.type === 'permissions') {
-    requestPermissions(request);
+    requestSitePermissions(request);
   } else if (request?.type === 'placeholders') {
     // requested from context menu, make sure we have permissions first
     if (!(await testAccess(request.target))) {
@@ -265,10 +246,17 @@ async function loadPopup() {
       });
       const origins = results[0]?.result;
       if (!origins) return pasteBlocked(request.snip);
-      return requestPermissions({ origins: origins, ...request });
+      return requestSitePermissions({ origins: origins, ...request });
     }
-    request.snip.target = request.target;
-    handleCustomFields(request.snip, pasteWithPlaceholders);
+    let snip = request.snip;
+    if (snip.customFields) {
+      const finalSnip = await getCustomFields(snip);
+      if (finalSnip?.content) snip = finalSnip;
+    }
+    snip.richText = getRichText(snip.content, settings.control);
+    // console.log(snip);
+    const result = await pasteSnippet(request.target, snip);
+    if (!result?.pasted) pasteBlocked(snip);
   } else {
     // console.log("Loading snippets", space);
     loadSnippets();
@@ -423,17 +411,11 @@ function buildMenu() {
       buildMenuItem(`Restore`, `restore`),
       buildMenuItem(`Clear All Data`, `clear-data-all`),
     ]),
+    buildMenuItem(`About…`, `about`),
   ];
 }
 
 function buildHeader() {
-  // console.log(`Building header...`);
-  // check if popout button needed
-  const params = new URLSearchParams(location.search);
-  // console.log(params);
-  const popout = params.get('popout');
-  // console.log(popout);
-
   // popover settings menu
   const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, `inherit`, buildMenu());
 
@@ -458,7 +440,7 @@ function buildHeader() {
       buildActionIcon(`New Snippet`, `icon-add-snippet`, `inherit`, {
         action: `new-snippet`,
       }),
-      popout && buildActionIcon(`Pop Out`, `icon-pop-out`, `inherit`, {
+      window.popout && buildActionIcon(`Pop Out`, `icon-pop-out`, `inherit`, {
         action: `pop-out`,
       }),
     ],
@@ -481,8 +463,9 @@ function buildHeader() {
  */
 function adjustPath() {
   // console.log(entries);
-  const t = $('path');
   const s = $('folder-up');
+  if (!s) return; // path not generated yet
+  const t = $('path');
   const sb = s.querySelector('button');
   // console.log(entries, t, s, sb, t.offsetHeight, t.childElementCount);
   if (t.offsetHeight > 32 & t.childElementCount > 2) {
@@ -1214,11 +1197,20 @@ async function handleAction(target) {
     // copy processed snippet
     case 'copy': {
       // get requested item
-      const snip = await space.getProcessedSnippet(dataset.seq);
+      let snip = await space.getProcessedSnippet(dataset.seq);
+      console.log(snip);
       if (!snip) break;
-      // console.log(snip);
-      copyToClipboard(snip);
+      // rebuild settings menu in case there was an update to counters
       if (snip.counters) $('settings').replaceChildren(...buildMenu());
+      // get custom fields if necessary
+      if (snip.customFields) {
+        // pass off to modal
+        const finalSnip = await getCustomFields(snip);
+        if (finalSnip?.content) snip = finalSnip;
+      }
+      // copy result text to clipboard
+      setClipboard(snip.content, !snip.nosubst && getRichText(snip.content, settings.control));
+      alert(`The snippet has been copied to the clipboard.`);
       break; }
   
     // settings
@@ -1508,6 +1500,43 @@ async function handleAction(target) {
       setSvgSprite(target, 'icon-folder-collapse');
       dataset.action = 'collapse';
       break;
+
+    case 'about': {
+      const modal = buildModal({
+        content: [
+          buildNode('div', {
+            classList: [`title`],
+            children: [
+              buildNode('img', {
+                src: `../icons/snip128.png`,
+                classList: [`logo`],
+              }),
+              buildNode('h1', {
+                children: [
+                  document.createTextNode(`Snippets `),
+                  buildNode('span', {
+                    classList: [`tinytype`],
+                    textContent: `v${chrome.runtime.getManifest().version}`,
+                  }),
+                ],
+              }),
+            ],
+          }),
+          buildNode('p', {
+            textContent: i18n('app_description'),
+          }),
+          buildNode('hr'),
+          buildNode('a', { href: `https://github.com/jpc-ae/Snippets/issues/`, textContent: `Report an issue` }),
+          document.createTextNode(` | `),
+          buildNode('a', { href: `https://github.com/sponsors/jpc-ae`, textContent: `Donate` }),
+        ],
+        buttons: [{ id: `close`,
+          children: [buildNode('h2', { textContent: `OK` })] },
+        ],
+      });
+      document.body.append(modal);
+      modal.showModal();
+      break; }
   
     default:
       break;

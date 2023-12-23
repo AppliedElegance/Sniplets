@@ -1,24 +1,82 @@
 body {
-  padding: 0;
   margin: 0;
+  padding: 0;
   color: rgb(41, 41, 41);
   background: rgb(231, 227, 224);
   text-align: left;
-  min-width: 400px;
+  min-width: 300px;
+  min-height: 200px;
   height: 100vh;
   display: flex;
   flex-direction: column;
 }
 
-#file,
-#folder-up {
-  display: none;
-}
-
 header {
+  display: flex;
   padding: 2px 8px;
   background-color: rgb(243, 184, 35);
   box-shadow: 0 0 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+}
+
+#path {
+  display: flex;
+}
+
+#path li {
+  display: flex;
+  align-items: center;
+}
+
+#path button {
+  margin: 2px 0;
+  padding: 2px;
+}
+
+#path .icon {
+  padding: 7px 4px 4px;
+}
+
+#path svg {
+  width: 17px;
+  height: 17px;
+}
+
+#path h1 {
+  padding: 0;
+}
+
+main {
+  display: flex;
+  flex-grow: 1;
+  margin: 1px 0 2px;
+  min-height: 0;
+}
+
+#tree {
+  width: 35%;
+  overflow: auto;
+  min-width: 200px;
+  max-width: 350px;
+}
+
+hr {
+  margin: 3px 0;
+  border: 0;
+  height: .1em;
+  background-image: linear-gradient(to right, #ccc, #333, #ccc);
+}
+
+hr.vr {
+  margin: 0;
+  height: auto;
+  width: 1.5px;
+  background-image: linear-gradient(to bottom, #ccc, #333, #ccc);
+}
+
+#snippets {
+  overflow: auto;
+  flex-grow: 1;
+  padding-bottom: 100px;
 }
 
 h1 {
@@ -26,6 +84,13 @@ h1 {
   line-height: 24px;
   padding: 4px;
   margin: 0;
+}
+
+.title h1 {
+  font-size: 20px;
+  line-height: 32px;
+  text-align: left;
+  padding: 0 14px;
 }
 
 h2 {
@@ -48,11 +113,20 @@ h3 {
   line-height: 32px;
 }
 
+.quick-actions {
+  display: flex;
+}
+
+.tinytype {
+  font-size: x-small;
+  font-weight: 500;
+}
+
 button {
   font-family: inherit;
   font-size: 100%;
   margin: 0;
-  padding: 0;
+  padding: 0 6px;
   text-transform: none;
   appearance: button;
   border: 0;
@@ -104,30 +178,6 @@ nav {
   flex-grow: 1;
 }
 
-#path {
-  display: flex;
-}
-
-#path li {
-  display: flex;
-  align-items: center;
-}
-
-#path .icon {
-  width: 24px;
-  height: 32px;
-  padding: 8px 4px 6px;
-}
-
-#path h1 {
-  padding: 4px 2px;
-}
-
-#path svg {
-  width: 16px;
-  height: 16px;
-}
-
 .prefix {
   padding: 6px;
 }
@@ -136,18 +186,6 @@ svg {
   height: 100%;
   width: 100%;
   transition-duration: 300ms;
-}
-
-main {
-  margin: 1px 0 2px;
-  min-height: 500px;
-  flex-grow: 1;
-}
-
-#snippets {
-  overflow: auto;
-  flex-grow: 1;
-  padding-bottom: 100px;
 }
 
 header,
@@ -203,6 +241,7 @@ input, select {
   padding: 0 4px;
   background: none;
   text-align: left;
+  min-width: 0;
 }
 
 .menu {
@@ -315,6 +354,11 @@ input:focus + label,
   padding-left: 8px;
 }
 
+.logo {
+  width: 32px;
+  height: 32px;
+}
+
 dialog {
   font-size: larger;
   width: 75%;
@@ -383,21 +427,6 @@ select {
   margin-top: 4px;
 }
 
-hr {
-  margin: 3px 0;
-  border: 0;
-  height: .1em;
-  background-image: linear-gradient(to right, #ccc, #333, #ccc);
-}
-
-hr.vr {
-  height: auto;
-  width: 1.5px;
-  margin: 0;
-  background-image: linear-gradient(to bottom, #ccc, #333, #ccc);
-  display: none;
-}
-
 #snippets > hr { 
   margin-left: 9px;
   margin-right: 9px;
@@ -418,14 +447,6 @@ li.delimiter {
   height: 8px;
 }
 
-#tree {
-  width: 35%;
-  overflow: auto;
-  display: none;
-  min-width: 230px;
-  max-width: 330px;
-}
-
 figure {
   box-sizing: border-box;
   margin: 0;
@@ -442,20 +463,12 @@ figure {
   border-bottom: 3px solid rgba(0,0,0,0.24);
 }
 
-@media (min-width: 580px) {
-  main {
-    min-height: 0;
-  }
-
-  #tree {
-    display: block;
-  }
-
-  hr.vr {
-    display: unset;
-  }
-}
-
 .hidden {
   display: none;
+}
+
+@media (max-width: 500px) {
+  .tree {
+    display: none;
+  }
 }

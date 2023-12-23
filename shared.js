@@ -657,7 +657,7 @@ class Space {
 
     // process counters, kept track internally to allow use across multiple snippets
     // console.log("Processing counters...");
-    snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.*?)\))?\]/g, (match, p1, p2) => {
+    snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
       if (!snip.counters) snip.counters = [];
       snip.counters.push(p1);
       console.log(p1, p2, this.data.counters, p1 in this.data.counters);
