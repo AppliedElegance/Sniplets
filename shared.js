@@ -374,8 +374,9 @@ class DataBucket {
     this.timestamp = Date.now();
     /** @type {(TreeItem|Folder|Snippet)[]|string} */
     this.children = children || [];
-    /** @type {Object} */
-    const { startVal, ...cs } = counters;
+    console.log("setting counters...", counters);
+    const { startVal, ...cs } = counters || {};
+    console.log("double-checking...", startVal, cs);
     this.counters = cs || {};
     this.counters.startVal = +startVal || 0;
   }

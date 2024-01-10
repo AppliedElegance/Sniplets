@@ -1121,7 +1121,7 @@ async function handleAction(target) {
       break; }
     
     case 'restore': {
-      // console.log("Checking current data", space.data);
+      console.log("Checking current data", space.data);
       if (space.data.children.length && !confirm("Careful, this may overwrite your current data and cannot be undone. Continue?"))
         break;
       try {
@@ -1133,18 +1133,18 @@ async function handleAction(target) {
           description: "Snippets or Clippings Backup",
           accept: { "application/json": ".json" },
         }] });
-        // console.log('Grabbed file', fileHandle);
+        console.log('Grabbed file', fileHandle);
         const fileData = await fileHandle.getFile();
-        // console.log('Grabbed data', fileData);
+        console.log('Grabbed data', fileData);
         const fileContents = await fileData.text();
-        // console.log('Grabbed contents', fileContents);
+        console.log('Grabbed contents', fileContents);
         const backup = JSON.parse(fileContents);
-        // console.log('Parsed data', data);
+        console.log('Parsed data', backup);
 
         // restore current space and settings if present
-        // console.log("Starting restore...");
+        console.log("Starting restore...");
         space.path.length = 0;
-        // console.log("Checking data", structuredClone(space), structuredClone(data));
+        console.log("Checking data", structuredClone(space), structuredClone(backup));
         if (backup.currentSpace) setStorageData({ currentSpace: backup.currentSpace });
         if (backup.settings) {
           settings.init(settings);
@@ -1152,10 +1152,11 @@ async function handleAction(target) {
           // alert("Settings have been restored.");
         }
         if (backup.userClippingsRoot) { // check for clippings data
+          console.log("Creating new DataBucket...");
           const newData = new DataBucket({ children: backup.userClippingsRoot });
-          // console.log("Parsing data...", structuredClone(newData), newData);
+          console.log("Parsing data...", structuredClone(newData), newData);
           if (await newData.parse()) {
-            // console.log("Updated data", space.data);
+            console.log("Updated data", space.data);
             space.data = newData;
             space.sort();
             space.save();
