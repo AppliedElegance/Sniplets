@@ -376,7 +376,7 @@ function buildMenu() {
       `Show field in list`, settings.view.sourceURL),
       buildMenuControl('checkbox', `toggle-save-source`,
       `Save automatically`, settings.control.saveSource),
-      buildMenuItem(`Clear saved data`, `clear-source-urls`),
+      buildMenuItem(`Clear saved sources`, `clear-source-urls`),
     ]),
     buildSubMenu(`Counters`, `settings-counters`, [
       buildSubMenu(`Initial Value`, `counter-init`, [
@@ -1220,12 +1220,6 @@ async function handleAction(target) {
       settings.save();
       setCurrentSpace();
       break;
-  
-    case 'toggle-show-source':
-      settings.view.sourceURL = !settings.view.sourceURL;
-      settings.save();
-      buildList();
-      break;
     
     case 'toggle-folders-first':
       // swap folders first or not
@@ -1236,11 +1230,34 @@ async function handleAction(target) {
       space.save();
       buildList();
       break;
+  
+    case 'toggle-show-source':
+      settings.view.sourceURL = !settings.view.sourceURL;
+      settings.save();
+      buildList();
+      break;
     
     case 'toggle-save-source':
       settings.control.saveSource = !settings.control.saveSource;
       // TODO: confirm whether to delete existing sources
       settings.save();
+      break;
+
+    case 'clear-source-urls':
+      if (confirm("Are you sure you would like to remove all source data? This cannot be undone.")) {
+        const removeSources = folder => {
+          for (let item of folder) {
+            if (item.children?.length) {
+              removeSources(item.children);
+            } else {
+              delete item.sourceURL;
+            }
+          }
+        };
+        removeSources(space.data.children);
+        space.save();
+        if (settings.view.sourceURL) buildList();
+      }
       break;
     
     case 'toggle-preserve-tags':
