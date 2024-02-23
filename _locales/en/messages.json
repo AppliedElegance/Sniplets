@@ -4,11 +4,7 @@
     "description": "Name of the extension."
   },
   "app_description": {
-    "message": "Quickly snip, organise and insert text. Backup-compatible with Clippings.",
+    "message": "Quickly snip, organize and insert text. Backup-compatible with Clippings.",
     "description": "Plain <132 character description of the extension highlighting the name of Firefox rival."
-  },
-  "starter_file": {
-    "message": "/_locales/en/starter.json",
-    "description": "Path to starter data with tutorials to be loaded on first install. Update path to mach locale."
   }
 }

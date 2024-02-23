@@ -18,11 +18,14 @@ const colors = {
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} message 
+ * @param {string|string[]} substitutions
  * @example
  * // returns "Snippet"
  * i18n("app_name")
  */
-const i18n = (message) => chrome.i18n.getMessage(message);
+const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
+/** @type {string} */
+const loc = i18n("@@ui_locale");
 
 // Storage helpers. Sync must be explicitly enabled.
 /**
@@ -374,9 +377,9 @@ class DataBucket {
     this.timestamp = Date.now();
     /** @type {(TreeItem|Folder|Snippet)[]|string} */
     this.children = children || [];
-    console.log("setting counters...", counters);
+    // console.log("setting counters...", counters);
     const { startVal, ...cs } = counters || {};
-    console.log("double-checking...", startVal, cs);
+    // console.log("double-checking...", startVal, cs);
     this.counters = cs || {};
     this.counters.startVal = +startVal || 0;
   }
@@ -1034,7 +1037,7 @@ class Space {
     this.data = data;
     this.path = path;
 
-    // console.log("Space initialised.", this);
+    // console.log("Space initialized.", this);
     return true;
   }
 }
@@ -1051,7 +1054,7 @@ class Settings {
   }
 
   /**
-   * Take provided settings and initialise the remaining settings
+   * Take provided settings and initialize the remaining settings
    * @param {Settings} settings 
    */
   init({ defaultSpace, sort, view, control } = {}) {

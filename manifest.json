@@ -19,7 +19,8 @@
     "unlimitedStorage",
     "scripting",
     "activeTab",
-    "contextMenus"
+    "contextMenus",
+    "commands"
   ],
   "optional_host_permissions": [
     "<all_urls>"
@@ -29,5 +30,19 @@
   },
   "action": {
     "default_popup": "popups/main.html?popout=true"
+  },
+  "commands": {
+    "paste": {
+      "suggested_key": {
+        "default": "Alt+Shift+Y"
+      },
+      "description": "Paste a snippet"
+    },
+    "_execute_action": {
+      "suggested_key": {
+        "default": "Alt+Shift+S"
+      },
+      "description": "Open Snippets"
+    }
   }
 }

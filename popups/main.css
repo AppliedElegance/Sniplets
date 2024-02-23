@@ -336,7 +336,7 @@ input:focus + label,
 }
 
 .title {
-  padding: 2px 4px;
+  padding: 0 4px;
 }
 
 .snip-content textarea {

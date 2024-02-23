@@ -49,6 +49,7 @@ module.exports = {
         "Space": false,
         "Settings": false,
         "i18n": false,
+        "loc": false,
         "colors": false,
         "buildContextMenus": false,
         "buildNode": false,

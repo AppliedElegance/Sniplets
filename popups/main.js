@@ -11,7 +11,6 @@ const $ = (id) => document.getElementById(id);
  * @returns {HTMLElement}
  */
 const q$ = (query) => document.querySelector(query);
-// const i18n = (id, substitutions = []) => chrome.i18n.getMessage(id, substitutions);
 
 // for handling resize of header path
 const resizing = new ResizeObserver(adjustPath);
@@ -160,8 +159,8 @@ function getCustomFields(snip) {
     const button = modal.querySelector('#confirmFields');
     // console.log(button);
     let snip = JSON.parse(button.value);
-    console.log(input, button, snip, snip.customFields[parseInt(input.name)]);
-    snip.customFields[parseInt(input.name)].value = input.value;
+    // console.log(input, input.name, input.value, snip, snip.customFields, parseInt(input.name));
+    snip.customFields[input.name.match(/\d+/)[0]].value = input.value;
     button.value = JSON.stringify(snip);
   }, false);
   modal.showModal();
@@ -213,7 +212,8 @@ async function loadPopup() {
     if (settings.view.rememberPath) setCurrentSpace();
   }
 
-  document.documentElement.lang = navigator.language; // accesibility
+  document.documentElement.lang = navigator.language; // accessibility
+  document.title = i18n("app_name");
 
   // set up listeners
   document.addEventListener('mousedown', handleMouseDown, false);
@@ -404,12 +404,12 @@ function buildMenu() {
       `Auto-link emails`, settings.control.rtLinkEmails),
     ]),
     buildSubMenu('Backups', `settings-backup`, [
-      buildMenuItem(`Data Backup`, `backup`, `data` ),
-      buildMenuItem(`Full Backup`, `backup`, `full`),
-      buildMenuItem(`Clippings Backup`, `backup`, `clippings61`),
+      buildMenuItem(`Data Backup`, `backup-data`, `data`, { action: 'backup' }),
+      buildMenuItem(`Full Backup`, `backup-full`, `full`, { action: 'backup' }),
+      buildMenuItem(`Clippings Backup`, `backup-clippings`, `clippings61`, { action: 'backup' }),
       buildMenuSeparator(),
       buildMenuItem(`Restore`, `restore`),
-      buildMenuItem(`Clear All Data`, `clear-data-all`),
+      buildMenuItem(`Clear All Data`, `initialize`),
     ]),
     buildMenuItem(`About…`, `about`),
   ];
@@ -538,7 +538,7 @@ function buildTree() {
         (isRoot) ? `` : level.concat([folder.seq]).join('-'),
         (isRoot) ? space.name : folder.name,
       ));
-      // add sublist if subfolders were found
+      // add sub-list if subfolders were found
       if (subFolders) folderItem.append(
         buildFolderList(subFolders, (isRoot) ? [] : level.concat([folder.seq])),
       );
@@ -652,7 +652,7 @@ function loadSnippets() {
   buildList();
 }
 
-/** auto-adjust the heights of input textareas
+/** auto-adjust the heights of input text areas
  * @param {Event|FocusEvent|HTMLTextAreaElement} target 
  * @param {number} [maxHeight] - pass 0 for default
  */
@@ -733,28 +733,22 @@ function handleMouseUp() {
  * @param {MouseEvent} event 
  */
 async function handleClick(event) {
-  // console.log(event);
-  // ignore labels (handled on inputs)
-  if (event.target.tagName === 'LABEL') return;
-
-  /** @type {HTMLElement} */
-  const target = event.target.closest('[data-action]');
+  console.log(event);
+  // Only handle buttons as other inputs will be handled with change event
+  /** @type {HTMLButtonElement|HTMLInputElement} */
+  const target = event.target.closest('[type="button"]');
 
   // close menus & modals as needed
   for (let popover of document.querySelectorAll('.popover')) {
     if (!target
     || !popover.parentElement.contains(target)
     || ![`open-popover`, `open-submenu`].includes(target.dataset.action)) {
+      // hide if no button, a different menu or a menu action was clicked
       popover.classList.add(`hidden`);
     }
   }
-
-  // end here if the clicked node doesn't have an action or isn't a button
-  // (will be handled with onchange instead)
-  if (!target || target.type !== 'button') return;
-
-  // handle the action
-  handleAction(target);
+  
+  if (target) handleAction(target);
 }
 
 /**
@@ -792,6 +786,7 @@ function handleChange(event) {
   // helpers
   const target = event.target;
   const dataset = target.dataset;
+  dataset.action ||= target.name;
 
   // handle action
   handleAction(target);
@@ -1014,13 +1009,13 @@ function handleDragDrop(event) {
  * @returns 
  */
 async function handleAction(target) {
-  console.log(target, target.dataset, target.action);
+  // console.log(target, target.dataset, target.action);
   const dataset = target.dataset || target;
   dataset.action ||= target.name;
 
   // handle changes first if needed (buttons do not pull focus)
   const ae = document.activeElement;
-  console.log(ae, target, ae == target, ae === target);
+  // console.log(ae, target, ae == target, ae === target);
   if (target.tagName === `BUTTON` && [`INPUT`,`TEXTAREA`].includes(ae?.tagName)) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae);
@@ -1065,7 +1060,7 @@ async function handleAction(target) {
       break; }
     
     // backup/restore/clear all data
-    case 'clear-data-all':
+    case 'initialize':
       if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
       await chrome.storage.local.clear();
       await chrome.storage.sync.clear();
@@ -1082,22 +1077,20 @@ async function handleAction(target) {
       const now = new Date;
       let backup = {};
       let filename = `backup-${ now.toISOString().slice(0,16) }.json`;
-      if (dataset.target === 'clippings61') {
+      switch (target.value) {
+      case 'clippings61':
         filename = `clippings-${filename}`;
         backup = space.data.toClippings();
-      } else if (dataset.target === 'data') {
+        break;
+    
+      case 'data':
         filename = `${space.name}-${filename}`;
         backup.version = "1.0";
         backup.createdBy = appName;
         backup.data = structuredClone(space.data);
-      } else if (dataset.target === 'space') {
-        filename = `${space.name}-${filename}`;
-        backup.version = "1.0";
-        backup.createdBy = appName;
-        backup.space = structuredClone(space);
-        delete backup.space.path;
-        backup.currentSpace = setCurrentSpace();
-      } else if (dataset.target === 'full') {
+        break;
+    
+      case 'full':
         filename = `${appName}-${filename}`;
         backup.version = "1.0";
         backup.createdBy = appName;
@@ -1105,8 +1098,20 @@ async function handleAction(target) {
         delete backup.spaces[0].path;
         backup.currentSpace = setCurrentSpace();
         backup.settings = settings;
+        break;
+    
+      case 'space':
+      default:
+        filename = `${space.name}-${filename}`;
+        backup.version = "1.0";
+        backup.createdBy = appName;
+        backup.space = structuredClone(space);
+        delete backup.space.path;
+        backup.currentSpace = setCurrentSpace();
+        break;
       }
       try {
+        console.log(backup);
         const f = await window.showSaveFilePicker({
           suggestedName: filename,
           types: [{
@@ -1121,7 +1126,7 @@ async function handleAction(target) {
       break; }
     
     case 'restore': {
-      console.log("Checking current data", space.data);
+      // console.log("Checking current data", space.data);
       if (space.data.children.length && !confirm("Careful, this may overwrite your current data and cannot be undone. Continue?"))
         break;
       try {
@@ -1133,18 +1138,18 @@ async function handleAction(target) {
           description: "Snippets or Clippings Backup",
           accept: { "application/json": ".json" },
         }] });
-        console.log('Grabbed file', fileHandle);
+        // console.log('Grabbed file', fileHandle);
         const fileData = await fileHandle.getFile();
-        console.log('Grabbed data', fileData);
+        // console.log('Grabbed data', fileData);
         const fileContents = await fileData.text();
-        console.log('Grabbed contents', fileContents);
+        // console.log('Grabbed contents', fileContents);
         const backup = JSON.parse(fileContents);
-        console.log('Parsed data', backup);
+        // console.log('Parsed data', backup);
 
         // restore current space and settings if present
-        console.log("Starting restore...");
+        // console.log("Starting restore...");
         space.path.length = 0;
-        console.log("Checking data", structuredClone(space), structuredClone(backup));
+        // console.log("Checking data", structuredClone(space), structuredClone(backup));
         if (backup.currentSpace) setStorageData({ currentSpace: backup.currentSpace });
         if (backup.settings) {
           settings.init(settings);
@@ -1152,11 +1157,11 @@ async function handleAction(target) {
           // alert("Settings have been restored.");
         }
         if (backup.userClippingsRoot) { // check for clippings data
-          console.log("Creating new DataBucket...");
+          // console.log("Creating new DataBucket...");
           const newData = new DataBucket({ children: backup.userClippingsRoot });
-          console.log("Parsing data...", structuredClone(newData), newData);
+          // console.log("Parsing data...", structuredClone(newData), newData);
           if (await newData.parse()) {
-            console.log("Updated data", space.data);
+            // console.log("Updated data", space.data);
             space.data = newData;
             space.sort();
             space.save();
@@ -1199,7 +1204,7 @@ async function handleAction(target) {
     case 'copy': {
       // get requested item
       let snip = await space.getProcessedSnippet(dataset.seq);
-      console.log(snip);
+      // console.log(snip);
       if (!snip) break;
       // rebuild settings menu in case there was an update to counters
       if (snip.counters) $('settings').replaceChildren(...buildMenu());
@@ -1305,7 +1310,7 @@ async function handleAction(target) {
 
     // counters
     case 'set-counter-init': {
-      console.log(target.value);
+      // console.log(target.value);
       let startVal = +target.value;
       if (target.id === `counter-init-x`) {
         // custom startval, show modal
@@ -1453,9 +1458,10 @@ async function handleAction(target) {
       break; }
   
     case 'move': {
+      console.log(dataset);
       const movedItem = space.moveItem({
         fromSeq: dataset.seq,
-        toSeq: dataset.target,
+        toSeq: target.value,
       });
       space.save();
       buildList();

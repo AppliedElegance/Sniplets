@@ -53,10 +53,12 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       // console.log("Creating new space...");
       await space.init(currentSpace || settings.defaultSpace);
       if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
-        const starterData = await fetch(i18n('starter_file'))
-        .then(r => (console.log(r), r.json()));
-        const data = new DataBucket(starterData.data);
-        space.data = await data.parse();
+        let starterData = await fetch(`/_locales/${loc}/starter.json`).then(r => r.json()).catch(e=>(e, null));
+        if (!starterData) starterData = await fetch(`/_locales/${loc.split('_')[0]}/starter.json`).then(r => r.json()).catch(e=>(e, null));
+        if (starterData) {
+          const data = new DataBucket(starterData.data);
+          space.data = await data.parse();
+        }
       }
       await space.save();
     }
@@ -244,4 +246,9 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       buildContextMenus(space);
     }
   }
+});
+
+chrome.commands.onCommand.addListener((command) => {
+  console.log(command);
+  return;
 });

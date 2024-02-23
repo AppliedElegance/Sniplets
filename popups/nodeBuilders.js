@@ -285,13 +285,13 @@ function buildItemWidget(item, list, path, settings) {
         buildMenuControl('radio', `item-${ item.seq }-color`,
         color, ((color === item.color) || (!colors[color].value && !item.color)), {
           id: `item-${ item.seq }-color-${ i }`,
-          dataset: { action: `edit`, seq: item.seq },
+          dataset: { action: 'edit', field: 'color', seq: item.seq },
         }),
       )),
       buildSubMenu(`Move`, `item-${ item.seq }-move-menu`, list.reduce((a, o, i) => {
         const l = list.length - 1;
-        const b = (direction) => buildMenuItem(direction,
-          `move`, o.seq, { seq: item.seq });
+        const b = (direction) => buildMenuItem(direction, `move-${direction.toLowerCase().replaceAll(' ', '-')}`,
+          o.seq, { action: 'move', seq: item.seq });
         if (i === (index - 1)) {
           a.push(b(`Up`));
         } else if (i === (index + 1)) {
