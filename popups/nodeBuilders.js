@@ -281,25 +281,25 @@ function buildItemWidget(item, list, path, settings) {
     `icon-${ item.constructor.name.toLowerCase() }`,
     colors[item.color]?.value || `inherit`,
     [
-      buildSubMenu(`Colour`, `item-${ item.seq }-color-menu`, Object.keys(colors).map((color, i) =>
+      buildSubMenu(i18n('color'), `item-${ item.seq }-color-menu`, Object.keys(colors).map((color, i) =>
         buildMenuControl('radio', `item-${ item.seq }-color`,
         color, ((color === item.color) || (!colors[color].value && !item.color)), {
           id: `item-${ item.seq }-color-${ i }`,
           dataset: { action: 'edit', field: 'color', seq: item.seq },
         }),
       )),
-      buildSubMenu(`Move`, `item-${ item.seq }-move-menu`, list.reduce((a, o, i) => {
+      buildSubMenu(i18n('action_move'), `item-${ item.seq }-move-menu`, list.reduce((a, o, i) => {
         const l = list.length - 1;
-        const b = (direction) => buildMenuItem(direction, `move-${direction.toLowerCase().replaceAll(' ', '-')}`,
+        const b = (title, direction) => buildMenuItem(title, `move-${direction}`,
           o.seq, { action: 'move', seq: item.seq });
         if (i === (index - 1)) {
-          a.push(b(`Up`));
+          a.push(b(i18n('direction_up'), 'up'));
         } else if (i === (index + 1)) {
-          a.push(b(`Down`));
+          a.push(b(i18n('direction_down'), 'down'));
         } else if (i === 0 && l > 1 && item.seq > list[1].seq) {
-          a.push(b(`To Top`));
+          a.push(b(i18n('direction_top'), 'top'));
         } else if (i === l && l > 1 && item.seq < list[l-1].seq) {
-          a.push(b(`To Bottom`));
+          a.push(b(i18n('direction_bottom'), 'bottom'));
         }
         return a;
       }, [])),
@@ -324,15 +324,15 @@ function buildItemWidget(item, list, path, settings) {
   const widgetActions = buildNode('div', {
     classList: [`quick-actions`],
     children: [
-      (isFolder) ? buildActionIcon(`Rename`, `icon-rename`, `inherit`, {
+      (isFolder) ? buildActionIcon(i18n('action_rename'), `icon-rename`, `inherit`, {
         action: `rename`,
         seq: item.seq,
-      }) : buildActionIcon(`Copy`, `icon-copy`, `inherit`, {
+      }) : buildActionIcon(i18n('action_copy'), `icon-copy`, `inherit`, {
         action: `copy`,
         field: `copy`, // so it can be focused
         seq: item.seq,
       }),
-      buildActionIcon(`Delete`, `icon-delete`, colors.Red.value, {
+      buildActionIcon(i18n('action_delete'), `icon-delete`, colors.Red.value, {
         action: `delete`,
         seq: item.seq,
       }),
@@ -356,7 +356,7 @@ function buildItemWidget(item, list, path, settings) {
   if (isSnippet) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
-      children: [buildNode('textArea', {
+      children: [buildNode('textarea', {
         name: `content`,
         dataset: {
           action: `edit`,
@@ -367,7 +367,7 @@ function buildItemWidget(item, list, path, settings) {
         rows: 1,
         draggable: `true`, // fires drag event so it can be prevented
         autocomplete: `off`,
-        'aria-label': `Snippet Contents`,
+        'aria-label': i18n('label_snippet_content'),
       })],
     });
     widget.push(widgetBody);
@@ -379,7 +379,7 @@ function buildItemWidget(item, list, path, settings) {
           children: [
             buildNode('label', {
               for: `source-${ item.seq }`,
-              textContent: `Source:`,
+              textContent: i18n('label_src'),
             }),
             buildNode('input', {
               type: `url`,
@@ -420,7 +420,7 @@ function buildTreeWidget(collapsible, color, target, text) {
         dataset: collapsible && { action: `collapse` },
         classList: [`icon`],
         children: [
-          buildSvg(`Folder`, collapsible ? `icon-folder-collapse` : `icon-folder`, color),
+          buildSvg(i18n('label_folder'), collapsible ? `icon-folder-collapse` : `icon-folder`, color),
         ],
       }),
       // folder name
@@ -520,7 +520,7 @@ function buildModal({ title, message, content, fields, buttons }, narrow = false
   }
 
   // add cancel button last for tab position:
-  const cancelButton = buildActionIcon(`Close`, `icon-close`, colors.Red.value);
+  const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, colors.Red.value);
   cancelButton.type = `submit`;
   cancelButton.value = `cancel`;
   cancelButton.formMethod = `dialog`;

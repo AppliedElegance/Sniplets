@@ -1531,12 +1531,12 @@ async function handleAction(target) {
             textContent: i18n('app_description'),
           }),
           buildNode('hr'),
-          buildNode('a', { href: `https://github.com/jpc-ae/Snippets/issues/`, textContent: `Report an issue` }),
+          buildNode('a', { href: `https://github.com/jpc-ae/Snippets/issues/`, textContent: i18n('app_report_issue') }),
           document.createTextNode(` | `),
-          buildNode('a', { href: `https://github.com/sponsors/jpc-ae`, textContent: `Donate` }),
+          buildNode('a', { href: `https://github.com/sponsors/jpc-ae`, textContent: i18n('app_donate') }),
         ],
         buttons: [{ id: `close`,
-          children: [buildNode('h2', { textContent: `OK` })] },
+          children: [buildNode('h2', { textContent: i18n('ok') })] },
         ],
       });
       document.body.append(modal);

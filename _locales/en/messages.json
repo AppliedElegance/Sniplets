@@ -206,5 +206,50 @@
   },
   "warning_delete_snippet": {
     "message": "Would you would like to delete this snippet? This action cannot be undone."
+  },
+  "app_report_issue": {
+    "message": "Report an issue"
+  },
+  "app_donate": {
+    "message": "Donate"
+  },
+  "ok": {
+    "message": "OK"
+  },
+  "color": {
+    "message": "Colour"
+  },
+  "action_move": {
+    "message": "Move"
+  },
+  "direction_up": {
+    "message": "Up"
+  },
+  "direction_down": {
+    "message": "Down"
+  },
+  "direction_top": {
+    "message": "To Top"
+  },
+  "direction_bottom": {
+    "message": "To Bottom"
+  },
+  "action_rename": {
+    "message": "Rename"
+  },
+  "action_copy": {
+    "message": "Copy"
+  },
+  "action_delete": {
+    "message": "Delete"
+  },
+  "label_snippet_content": {
+    "message": "Snippet Contents"
+  },
+  "label_src": {
+    "message": "Source:"
+  },
+  "label_folder": {
+    "message": "Folder"
   }
 }
