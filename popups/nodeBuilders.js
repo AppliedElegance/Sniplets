@@ -317,7 +317,7 @@ function buildItemWidget(item, list, path, settings) {
     },
     draggable: `true`, // fires drag event so it can be prevented
     autocomplete: `off`,
-    'aria-label': (isFolder) ? `Folder Name` : `Snippet Name`,
+    'aria-label': (isFolder) ? i18n('label_folder_name') : i18n('label_snippet_name'),
   });
   if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-');
 

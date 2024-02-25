@@ -17,7 +17,7 @@ const colors = {
 
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
- * @param {string} message 
+ * @param {string} messageName 
  * @param {string|string[]} substitutions
  * @example
  * // returns "Snippet"
@@ -341,7 +341,7 @@ class Snippet extends TreeItem {
   constructor({ name, seq, color, content, nosubst, shortcut, sourceURL } = {}) {
     // generate name from content if provided
     if (!name && content) {
-      // create snippet title from opening text
+      // create snippet title from first line of text
       name = content.match(/^.+/)[0];
       const maxLength = 27;
       if (content.length > maxLength) {
@@ -1181,4 +1181,22 @@ async function buildContextMenus(space) {
     // build paste snippet menu tree
     if (space.data.children) buildFolder(space.data.children, menuData);
   }
+}
+
+/**
+ * Replaces html tags with markdown symbols
+ * @param {string} text 
+ * @returns {string}
+ */
+function mdify(text) {
+  return text;
+}
+
+/**
+ * Replaces markdown symbols with html tags
+ * @param {string} text 
+ * @returns {string}
+ */
+function parseMD(text) {
+  return text;
 }

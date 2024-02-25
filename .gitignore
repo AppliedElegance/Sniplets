@@ -1,5 +1,6 @@
 package.json
 package-lock.json
+.vscode/
 node_modules/
 ref/
 public-key.txt

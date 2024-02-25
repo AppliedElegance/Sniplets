@@ -38,35 +38,22 @@ function setCurrentSpace() {
  */
 function pasteBlocked(snip) {
   loadSnippets();
-  alert(`Sorry, either the page is no longer available or this extension `
-      + `is blocked on this site by your browser. Please check and try again `
-      + `or copy the selected snippet using the clipboard feature and paste `
-      + `it in manually.`);
+  alert(i18n('error_paste_failed'));
   handleAction({ action: 'focus', seq: snip.seq, field: 'copy' });
 }
 
 function requestSitePermissions({ action, target, data, snip, origins }) {
   // console.log(action, target, data, snip, origins);
   const modal = buildModal({
-    message: `This field requires additional permissions for context menus and `
-    + `shortcuts to work. To continue, please press the appropriate button and `
-    + `accept the request.`,
+    message: i18n('warning_site_permissions'),
     buttons: [
       {
         value: JSON.stringify(origins),
-        children: [buildNode('h2', { children: [
-          document.createTextNode(`Allow full access on `),
-          buildNode('em', { textContent: `this` }),
-          document.createTextNode(` site`),
-        ] })],
+        children: [buildNode('h2', { innerHTML: i18n('request_site_permissions') })],
       },
       {
         value: `["<all_urls>"]`,
-        children: [buildNode('h2', { children: [
-          document.createTextNode(`Allow full access on `),
-          buildNode('em', { textContent: `all` }),
-          document.createTextNode(` sites`),
-        ] })],
+        children: [buildNode('h2', { innerHTML: i18n('request_all_site_permissions') })],
       },
     ],
   });
@@ -84,7 +71,7 @@ function requestSitePermissions({ action, target, data, snip, origins }) {
         if (granted) {
           // Try again
           snip = await snipSelection(target);
-          if (!snip) return alert("Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.");
+          if (!snip) return alert(i18n('error_snip_failed'));
 
           // Add snip to space
           if (settings.control.saveSource) snip.sourceURL = data.pageUrl;
@@ -96,7 +83,7 @@ function requestSitePermissions({ action, target, data, snip, origins }) {
           handleAction({ action: 'focus', seq: snip.seq, field: 'name' });
         } else {
           loadSnippets();
-          alert("Permissions were not granted. Please copy and add the snippet manually.");
+          alert(i18n('error_snip_permission_denied'));
         }
         break;
 
@@ -133,7 +120,7 @@ function getCustomFields(snip) {
   const { customFields } = snip;
   //build modal
   const modal = buildModal({
-    title: `Custom Placeholders`,
+    title: i18n('title_custom_placeholders'),
     fields: customFields.map((field, i) => {
       return {
         type: field.type,
@@ -147,7 +134,7 @@ function getCustomFields(snip) {
       {
         id: `confirmFields`,
         value: JSON.stringify(snip),
-        children: [buildNode('h2', { textContent: `Confirm` })],
+        children: [buildNode('h2', { textContent: i18n('confirm') })],
       },
     ],
   });
@@ -160,12 +147,12 @@ function getCustomFields(snip) {
     // console.log(button);
     let snip = JSON.parse(button.value);
     // console.log(input, input.name, input.value, snip, snip.customFields, parseInt(input.name));
-    snip.customFields[input.name.match(/\d+/)[0]].value = input.value;
+    snip.customFields[input.name.replaceAll(/\D/g, '')].value = input.value;
     button.value = JSON.stringify(snip);
   }, false);
   modal.showModal();
   return new Promise((resolve, reject) => modal.addEventListener('close', () => {
-    if (modal.returnValue === 'Cancel') reject(null);
+    if (modal.returnValue === i18n('cancel')) reject(null);
     const snip = JSON.parse(modal.returnValue);
     snip.content = replaceFields(snip.content, snip.customFields);
     delete snip.customFields;
@@ -212,8 +199,8 @@ async function loadPopup() {
     if (settings.view.rememberPath) setCurrentSpace();
   }
 
-  document.documentElement.lang = navigator.language; // accessibility
-  document.title = i18n("app_name");
+  document.documentElement.lang = loc; // accessibility
+  document.title = i18n('app_name');
 
   // set up listeners
   document.addEventListener('mousedown', handleMouseDown, false);
@@ -266,8 +253,7 @@ async function loadPopup() {
     if (urlParams.action?.length) handleAction(urlParams);
     if (urlParams.reason === 'blocked') {
       if (urlParams.field === 'copy') {
-        alert(`Sorry, pasting directly into this page is blocked by your browser. `
-        + `Please copy the selected snippet to the clipboard and paste it in manually.`);
+        alert(i18n('error_paste_blocked'));
       }
     }
   }
@@ -365,53 +351,53 @@ function buildMenu() {
   const customStartVal = (startVal > 1 || startVal < 0);
   // console.log(startVal, counters);
   return [
-    buildSubMenu(`View`, `settings-view`, [
+    buildSubMenu(i18n("menu_view"), `settings-view`, [
       buildMenuControl('checkbox', `toggle-remember-path`,
-      `Remember last open folder`, settings.view.rememberPath),
+      i18n("menu_remember_path"), settings.view.rememberPath),
       buildMenuControl('checkbox', `toggle-folders-first`,
-      `Group folders at top`, settings.sort.foldersOnTop),
+      i18n("menu_folders_first"), settings.sort.foldersOnTop),
     ]),
-    buildSubMenu(`Source URLs`, `settings-snip`, [
+    buildSubMenu(i18n("menu_src"), `settings-src-urls`, [
       buildMenuControl('checkbox', `toggle-show-source`,
-      `Show field in list`, settings.view.sourceURL),
+      i18n("menu_show_src"), settings.view.sourceURL),
       buildMenuControl('checkbox', `toggle-save-source`,
-      `Save automatically`, settings.control.saveSource),
-      buildMenuItem(`Clear saved sources`, `clear-source-urls`),
+      i18n("menu_save_src"), settings.control.saveSource),
+      buildMenuItem(i18n("menu_clear_src"), `clear-source-urls`),
     ]),
-    buildSubMenu(`Counters`, `settings-counters`, [
+    buildSubMenu(i18n("menu_counters"), `settings-counters`, [
       buildSubMenu(`Initial Value`, `counter-init`, [
         buildMenuControl('radio', `set-counter-init`,
-        `0`, startVal === 0, { id: `counter-init-0` }),
+        i18n("menu_count_0"), startVal === 0, { id: `counter-init-0` }),
         buildMenuControl('radio', 'set-counter-init',
-        `1`, startVal === 1, { id: `counter-init-1` }),
+        i18n("menu_count_1"), startVal === 1, { id: `counter-init-1` }),
         buildMenuControl('radio', 'set-counter-init',
         startVal, customStartVal, { id: `counter-init-x`,
-          title: `Custom${customStartVal ? ` (${startVal})` : `` }…`,
+          title: `${i18n("menu_count_x")}${customStartVal ? ` (${startVal})` : `` }…`,
         }),
       ]),
-      Object.keys(counters).length && buildMenuItem(`Manage…`, `manage-counters`),
-      Object.keys(counters).length && buildMenuItem(`Clear All…`, `clear-counters`),
+      Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
+      Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
     ]),
-    buildSubMenu(`Rich Text`, `settings-rt`, [
+    buildSubMenu(i18n("menu_rt"), `settings-rt`, [
       // buildMenuControl('checkbox', `toggle-preserve-tags`,
       // `Snip with formatting`, settings.control.preserveTags),
       // buildMenuSeparator(),
       buildMenuControl('checkbox', `toggle-rt-line-breaks`,
-      `Auto-tag line breaks`, settings.control.rtLineBreaks),
+      i18n("menu_rt_br"), settings.control.rtLineBreaks),
       buildMenuControl('checkbox', `toggle-rt-link-urls`,
-      `Auto-link URLs`, settings.control.rtLinkURLs),
+      i18n("menu_rt_url"), settings.control.rtLinkURLs),
       buildMenuControl('checkbox', `toggle-rt-link-emails`,
-      `Auto-link emails`, settings.control.rtLinkEmails),
+      i18n("menu_rt_email"), settings.control.rtLinkEmails),
     ]),
-    buildSubMenu('Backups', `settings-backup`, [
-      buildMenuItem(`Data Backup`, `backup-data`, `data`, { action: 'backup' }),
-      buildMenuItem(`Full Backup`, `backup-full`, `full`, { action: 'backup' }),
-      buildMenuItem(`Clippings Backup`, `backup-clippings`, `clippings61`, { action: 'backup' }),
+    buildSubMenu(i18n("menu_backups"), `settings-backup`, [
+      buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, { action: 'backup' }),
+      buildMenuItem(i18n("menu_bak_full"), `backup-full`, `full`, { action: 'backup' }),
+      buildMenuItem(i18n("menu_bak_clip"), `backup-clippings`, `clippings61`, { action: 'backup' }),
       buildMenuSeparator(),
-      buildMenuItem(`Restore`, `restore`),
-      buildMenuItem(`Clear All Data`, `initialize`),
+      buildMenuItem(i18n("menu_restore"), `restore`),
+      buildMenuItem(i18n("menu_reinit"), `initialize`),
     ]),
-    buildMenuItem(`About…`, `about`),
+    buildMenuItem(`${i18n("menu_about")}…`, `about`),
   ];
 }
 
@@ -429,18 +415,18 @@ function buildHeader() {
     id: `quick-actions`,
     children: [
       buildActionIcon(
-        space.synced ? `Stop Syncing.` : `Start Syncing`,
+        space.synced ? i18n('action_stop_sync') : i18n('action_start_sync'),
         `icon-${ space.synced ? `sync` : `local` }`,
         `inherit`, {
         action: `toggle-sync`,
       }),
-      buildActionIcon(`New Folder`, `icon-add-folder`, `inherit`, {
+      buildActionIcon(i18n('action_add_folder'), `icon-add-folder`, `inherit`, {
         action: `new-folder`,
       }),
-      buildActionIcon(`New Snippet`, `icon-add-snippet`, `inherit`, {
+      buildActionIcon(i18n('action_add_snippet'), `icon-add-snippet`, `inherit`, {
         action: `new-snippet`,
       }),
-      window.popout && buildActionIcon(`Pop Out`, `icon-pop-out`, `inherit`, {
+      window.popout && buildActionIcon(i18n('action_pop_out'), `icon-pop-out`, `inherit`, {
         action: `pop-out`,
       }),
     ],
@@ -660,13 +646,13 @@ function adjustTextArea(target, maxHeight) {
   const padding = 2 * 5; // 5px top & bottom padding
   const minHeight = 4 * 19; // 19px line height
   const overflowHeight = 7 * 19 + 5; // Add bottom padding to max 7 lines
-  // console.log(target, maxHeight, overflowHeight);
+  console.log(target, maxHeight, overflowHeight);
 
   /** @type {HTMLTextAreaElement} set target for events */
   const textarea = target.target || target;
   if (textarea.tagName !== 'TEXTAREA') return;
   const focusout = target.type === 'focusout';
-  // console.log(maxHeight);
+  console.log(maxHeight);
   if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight;
 
   // save current scroll position
@@ -677,18 +663,19 @@ function adjustTextArea(target, maxHeight) {
 
   // calculate current content height
   let scrollHeight = textarea.scrollHeight - padding;
-  if (focusout || parseInt(textarea.style.height) === scrollHeight) {
+  console.log(scrollHeight, textarea.scrollHeight, textarea.offsetHeight, textarea.style.height.replaceAll(/\D/g, ''));
+  if (focusout || textarea.style.height.replaceAll(/\D/g, '') === scrollHeight) {
     // check and update actual scroll height to allow shrinking
     textarea.style.height = `auto`;
     scrollHeight = textarea.scrollHeight - padding;
   }
   if (scrollHeight < minHeight) scrollHeight = minHeight;
-  // console.log(textarea.style.height, scrollHeight);
+  console.log(textarea.style.height, scrollHeight);
 
   // set max height to actual in case no limit set
   maxHeight ||= scrollHeight;
 
-  // console.log(maxHeight, textarea.clientHeight);
+  console.log(maxHeight, textarea.clientHeight);
   // update if needed
   if (maxHeight !== textarea.clientHeight) {
     const targetHeight = scrollHeight > maxHeight ? maxHeight : scrollHeight;
@@ -814,7 +801,7 @@ function handleChange(event) {
 function handleFocusOut(event) {
   /** @type {Element} */
   const target = event.target;
-  if (target.ariaLabel === 'Folder Name') {
+  if (target.ariaLabel === i18n('label_folder_name')) {
     // set back as button
     target.type = `button`;
     target.dataset.action = `open-folder`;
@@ -934,7 +921,7 @@ function handleDragDrop(event) {
         //make sure we're not trying to put a folder inside its child
         if (mover.toPath.length > mover.fromPath.length
         && mover.toPath.slice(0, mover.fromPath.length + 1).join() === mover.fromPath.concat([mover.fromSeq]).join()) {
-          alert("Sorry, you can't put a folder inside its child folder.");
+          alert(i18n('error_folder_to_child'));
           return dragEnd();
         } else {
           mover.toSeq = '';
@@ -1061,7 +1048,7 @@ async function handleAction(target) {
     
     // backup/restore/clear all data
     case 'initialize':
-      if (!confirm("This action will clear all data and can't be undone. Are you sure you wish to do so?")) break;
+      if (!confirm(i18n('warning_clear_data'))) break;
       await chrome.storage.local.clear();
       await chrome.storage.sync.clear();
       // reinitialize
@@ -1115,27 +1102,27 @@ async function handleAction(target) {
         const f = await window.showSaveFilePicker({
           suggestedName: filename,
           types: [{
-            description: "Backup File",
+            description: i18n('file_save_type'),
             accept: { "application/json": [".json"] },
           }],
         });
         const ws = await f.createWritable();
-        await ws.write(JSON.stringify(backup));
+        await ws.write(JSON.stringify(backup, null, 2)); // pretty print
         await ws.close();
       } catch { /* assume cancelled */ }
       break; }
     
     case 'restore': {
       // console.log("Checking current data", space.data);
-      if (space.data.children.length && !confirm("Careful, this may overwrite your current data and cannot be undone. Continue?"))
+      if (space.data.children.length && !confirm(i18n('warning_restore_bak')))
         break;
       try {
         // console.log("Getting file...");
-        const failAlert = () => alert("The data could not be restored, please check the file and try again.");
+        const failAlert = () => alert(i18n('error_restore_failed'));
 
         // get file
         const [fileHandle] = await window.showOpenFilePicker({ types: [{
-          description: "Snippets or Clippings Backup",
+          description: i18n('file_save_type'),
           accept: { "application/json": ".json" },
         }] });
         // console.log('Grabbed file', fileHandle);
@@ -1216,7 +1203,7 @@ async function handleAction(target) {
       }
       // copy result text to clipboard
       setClipboard(snip.content, !snip.nosubst && getRichText(snip.content, settings.control));
-      alert(`The snippet has been copied to the clipboard.`);
+      alert(i18n('alert_copied'));
       break; }
   
     // settings
@@ -1249,7 +1236,7 @@ async function handleAction(target) {
       break;
 
     case 'clear-source-urls':
-      if (confirm("Are you sure you would like to remove all source data? This cannot be undone.")) {
+      if (confirm(i18n('warning_clear_src'))) {
         const removeSources = folder => {
           for (let item of folder) {
             if (item.children?.length) {
@@ -1315,17 +1302,17 @@ async function handleAction(target) {
       if (target.id === `counter-init-x`) {
         // custom startval, show modal
         const modal = buildModal({
-          title: `Counter Defaults`,
+          title: i18n('title_counter_init'),
           fields: [{
             type: `number`,
             name: `start-val`,
-            label: `Starting Value`,
+            label: i18n('label_counter_init_val'),
             value: startVal,
           }],
           buttons: [{
             id: `submitCounterDefaults`,
             value: startVal,
-            children: [buildNode('h2', { textContent: `Submit` })],
+            children: [buildNode('h2', { textContent: i18n('submit') })],
           }],
         }, true);
         document.body.append(modal);
@@ -1347,7 +1334,7 @@ async function handleAction(target) {
       // eslint-disable-next-line no-unused-vars
       const { startVal, ...counters } = space.data.counters;
       const modal = buildModal({
-        title: `Counters`,
+        title: i18n('title_counter_manage'),
         fields: Object.entries(counters).sort((a, b) => a - b).map(([key, value], i) => {
           return {
             type: `number`,
@@ -1360,7 +1347,7 @@ async function handleAction(target) {
           {
             id: `submitCounters`,
             value: `{}`,
-            children: [buildNode('h2', { textContent: `Submit` })],
+            children: [buildNode('h2', { textContent: i18n('submit') })],
           },
         ],
       }, true);
@@ -1405,7 +1392,7 @@ async function handleAction(target) {
       break; }
     
     case 'delete':
-      if(confirm("Would you would like to delete this snippet? This action cannot be undone.")) {
+      if(confirm(i18n('warning_delete_snippet'))) {
         const deletedItem = space.deleteItem(dataset.seq);
         // console.log(deletedItem, deletedItem instanceof Folder);
         space.save();
@@ -1536,13 +1523,7 @@ async function handleAction(target) {
                 classList: [`logo`],
               }),
               buildNode('h1', {
-                children: [
-                  document.createTextNode(`Snippets `),
-                  buildNode('span', {
-                    classList: [`tinytype`],
-                    textContent: `v${chrome.runtime.getManifest().version}`,
-                  }),
-                ],
+                innerHTML: `${i18n('app_name')} <span class="tinytype">v${chrome.runtime.getManifest().version}</span>`,
               }),
             ],
           }),

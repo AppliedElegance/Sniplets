@@ -6,5 +6,205 @@
   "app_description": {
     "message": "Quickly snip, organize and insert text. Backup-compatible with Clippings.",
     "description": "Plain <132 character description of the extension highlighting the name of Firefox rival."
+  },
+  "app_command_open": {
+    "message": "Open Snippets",
+    "description": "Description of shortcut for opening the extension."
+  },
+  "app_command_paste": {
+    "message": "Paste a snippet",
+    "description": "Description of shortcut for initiating a paste action."
+  },
+  "warning_site_permissions": {
+    "message": "This field requires additional permissions for context menus and shortcuts to work. To continue, please press the appropriate button and accept the request.",
+    "description": "Warning displayed to the user when additional site permissions are needed for context menus."
+  },
+  "request_site_permissions": {
+    "message": "Allow full access on <em>this</em> site",
+    "description": "Button text for requesting full permissions on a specific domain."
+  },
+  "request_all_site_permissions": {
+    "message": "Allow full access on <em>all</em> sites",
+    "description": "Button text for requesting full permissions on all allowed domains."
+  },
+  "error_paste_failed": {
+    "message": "Sorry, either the page is no longer available or pasting into this field has been blocked by your browser. Please check and try again, or copy the selected snippet using the clipboard feature and paste it in manually.",
+    "description": "Error message displayed to the user when unable to fulfil a paste request."
+  },
+  "error_paste_blocked": {
+    "message": "Sorry, pasting directly into this page is blocked by your browser. Please copy the selected snippet to the clipboard and paste it in manually.",
+    "description": "Error message displayed to the user when trying to paste from the context menu on a page where scripts are not allowed."
+  },
+  "error_snip_failed": {
+    "message": "Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.",
+    "description": "Error message displayed to the user when unable to fulfil a snip request."
+  },
+  "error_snip_permission_denied": {
+    "message": "Permission has not been granted. Please copy and add the snippet manually.",
+    "description": "Error message displayed to the user when trying to snip and requested browser permissions were denied by the user."
+  },
+  "title_custom_placeholders": {
+    "message": "Custom Placeholders",
+    "description": "Title shown at top of modal when requesting user input for custom placeholders."
+  },
+  "confirm": {
+    "message": "Confirm",
+    "description": "Button text for confirming modal selections."
+  },
+  "menu_view": {
+    "message": "View",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_remember_path": {
+    "message": "Remember last open folder",
+    "description": "Menu text for toggling the remember path option."
+  },
+  "menu_folders_first": {
+    "message": "Group folders at top",
+    "description": "Menu text for toggling the folders first option."
+  },
+  "menu_src": {
+    "message": "Source URLs",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_show_src": {
+    "message": "Show field in list",
+    "description": "Menu text for toggling the option to show the source field underneath the snippets editor."
+  },
+  "menu_save_src": {
+    "message": "Save automatically",
+    "description": "Menu text for toggling the option to automatically associate the page url with snips when using the context menu."
+  },
+  "menu_clear_src": {
+    "message": "Clear saved sources",
+    "description": "Menu text for clearing all source urls associated with snippets."
+  },
+  "menu_counters": {
+    "message": "Counters",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_count_0": {
+    "message": "0",
+    "description": "Menu text for setting the initial value of counters to 0."
+  },
+  "menu_count_1": {
+    "message": "1",
+    "description": "Menu text for setting the initial value of counters to 1."
+  },
+  "menu_count_x": {
+    "message": "Custom",
+    "description": "Menu text for setting the initial value of counters to a custom value."
+  },
+  "menu_count_manage": {
+    "message": "Manage",
+    "description": "Menu text for opening a modal with all current counters so they can be edited manually."
+  },
+  "menu_count_clear": {
+    "message": "Clear All",
+    "description": "Menu text for deleting all counters currently being tracked."
+  },
+  "menu_rt": {
+    "message": "Rich Text",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_rt_br": {
+    "message": "Auto-tag line breaks",
+    "description": "Menu text for toggling the option to normalize line breaks when pasting into rich text fields."
+  },
+  "menu_rt_url": {
+    "message": "Auto-link URLs",
+    "description": "Menu text for toggling the option to automatically link plain URLs when pasting into rich text fields."
+  },
+  "menu_rt_email": {
+    "message": "Auto-link emails",
+    "description": "Menu text for toggling the option to automatically link emails when pasting into rich text fields."
+  },
+  "menu_backups": {
+    "message": "Backups",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_bak_data": {
+    "message": "Data Backup",
+    "description": "Menu text for initiating a xxx backup of xxx."
+  },
+  "menu_bak_full": {
+    "message": "Full Backup",
+    "description": "Menu text for initiating a xxx backup of xxx."
+  },
+  "menu_bak_clip": {
+    "message": "Clippings Backup",
+    "description": "Menu text for initiating a xxx backup of xxx."
+  },
+  "menu_restore": {
+    "message": "Restore",
+    "description": "Menu text for initiating restoration of a backup."
+  },
+  "menu_reinit": {
+    "message": "Clear All Data",
+    "description": "Menu text for clearing all data and reverting back to a clean install state."
+  },
+  "menu_about": {
+    "message": "About",
+    "description": "Menu text for showing the about page."
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
+  "action_stop_sync": {
+    "message": "Stop Syncing."
+  },
+  "action_start_sync": {
+    "message": "Start Syncing."
+  },
+  "action_add_folder": {
+    "message": "New Folder"
+  },
+  "action_add_snippet": {
+    "message": "New Snippet"
+  },
+  "action_pop_out": {
+    "message": "Pop Out"
+  },
+  "label_folder_name": {
+    "message": "Folder Name"
+  },
+  "label_snippet_name": {
+    "message": "Snippet Name"
+  },
+  "error_folder_to_child": {
+    "message": "Sorry, a folder can't be moved inside its child folder."
+  },
+  "warning_clear_data": {
+    "message": "This action will clear all data and can't be undone. Are you sure you wish to do so?"
+  },
+  "file_save_type": {
+    "message": "Backup File"
+  },
+  "warning_restore_bak": {
+    "message": "Careful, this may overwrite your current data and cannot be undone. Continue?"
+  },
+  "error_restore_failed": {
+    "message": "The data could not be restored, please check the file and try again."
+  },
+  "alert_copied": {
+    "message": "The snippet has been copied to the clipboard."
+  },
+  "warning_clear_src": {
+    "message": "Are you sure you would like to remove all source data? This cannot be undone."
+  },
+  "title_counter_init": {
+    "message": "Counter Defaults"
+  },
+  "label_counter_init_val": {
+    "message": "Starting Value"
+  },
+  "title_counter_manage": {
+    "message": "Counters"
+  },
+  "submit": {
+    "message": "Submit"
+  },
+  "warning_delete_snippet": {
+    "message": "Would you would like to delete this snippet? This action cannot be undone."
   }
 }
