@@ -53,8 +53,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       // console.log("Creating new space...");
       await space.init(currentSpace || settings.defaultSpace);
       if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
-        let starterData = await fetch(`/_locales/${loc}/starter.json`).then(r => r.json()).catch(e=>(e, null));
-        if (!starterData) starterData = await fetch(`/_locales/${loc.split('_')[0]}/starter.json`).then(r => r.json()).catch(e=>(e, null));
+        let starterData = await fetch(`/_locales/${locale}/starter.json`).then(r => r.json()).catch(e=>(e, null));
+        if (!starterData) starterData = await fetch(`/_locales/${locale.split('_')[0]}/starter.json`).then(r => r.json()).catch(e=>(e, null));
         if (starterData) {
           const data = new DataBucket(starterData.data);
           space.data = await data.parse();

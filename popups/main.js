@@ -199,7 +199,7 @@ async function loadPopup() {
     if (settings.view.rememberPath) setCurrentSpace();
   }
 
-  document.documentElement.lang = loc; // accessibility
+  document.documentElement.lang = locale; // accessibility
   document.title = i18n('app_name');
 
   // set up listeners

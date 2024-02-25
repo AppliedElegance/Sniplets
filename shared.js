@@ -25,7 +25,17 @@ const colors = {
  */
 const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
 /** @type {string} */
-const loc = i18n("@@ui_locale");
+const locale = i18n('@@ui_locale');
+const i18nOrdinalRules = new Intl.PluralRules(locale);
+const i18nSuffixes = {
+  'zero': i18n('plural_suffix_zero'),
+  'one': i18n('plural_suffix_one'),
+  'two': i18n('plural_suffix_two'),
+  'few': i18n('plural_suffix_few'),
+  'many': i18n('plural_suffix_many'),
+  'other': i18n('plural_suffix_other'),
+}; // set unused values to the same as other
+const i18nOrd = i => i + i18nSuffixes[i18nOrdinalRules.select(i)];
 
 // Storage helpers. Sync must be explicitly enabled.
 /**
@@ -317,7 +327,7 @@ async function requestFrames(action, target, data, args) {
 class TreeItem {
   constructor({ name, seq, color } = {}) {
     /** @type {string} */
-    this.name = name || "New Tree Item";
+    this.name = name || i18n('title_new_generic');
     /** @type {number} */
     this.seq = seq || 1;
     /** @type {string} */
@@ -328,7 +338,7 @@ class TreeItem {
 class Folder extends TreeItem {
   constructor({ name, seq, children, color } = {}) {
     super({
-      name: name || "New Folder",
+      name: name || i18n('title_new_folder'),
       seq: seq || 1,
       color: color,
     });
@@ -354,7 +364,7 @@ class Snippet extends TreeItem {
       }
     }
     super({
-      name: name || "New Snippet",
+      name: name || i18n('title_new_snippet'),
       seq: seq || 1,
       color: color,
     });
@@ -388,7 +398,7 @@ class DataBucket {
   async compress() {
     // check if already compressed
     if (typeof this.children === 'string') {
-      console.warn("Data is already in compressed form");
+      // console.warn("Data is already in compressed form");
       return false;
     }
 
@@ -519,7 +529,10 @@ class Space {
     for (let seq of path) {
       // console.log(seq);
       item = item.children.find((i) => i.seq == seq);
-      if (!item) throw new Error("That path doesn't exist");
+      if (!item) {
+        // throw new Error("That path doesn't exist");
+        return;
+      }
       pathNames.push(item.name);
     }
     return pathNames;
@@ -562,7 +575,7 @@ class Space {
 
     // ensure synced spaces are syncable and offer to switch otherwise
     if (this.synced && !dataBucket.syncable(this.name)) {
-      if (confirm("The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back.")) {
+      if (confirm(i18n('warning_sync_full'))) {
         return this.shift({ synced: false });
       }
       return false;
@@ -612,8 +625,8 @@ class Space {
       this.sequence(toFolder);
       if (JSON.stringify(fromPath) !== JSON.stringify(toPath))
         this.sequence(fromFolder);
-    } catch (error) {
-      console.error(error);
+    } catch (e) {
+      // console.error(e);
     }
     return fromItem;
   }
@@ -631,7 +644,7 @@ class Space {
       }
       return item;
     } catch (e) {
-      console.error("The path requested does not exist.", path, e);
+      // console.error("The path requested does not exist.", path, e);
       return;
     }
   }
@@ -643,9 +656,6 @@ class Space {
    * @returns 
    */
   async getProcessedSnippet(seq, path = this.path) {
-    // console.log("Checking locale...");
-    const locale = navigator.language;
-    // console.log(locale);
     // console.log("Getting item...");
     const item = this.getItem(path.concat(seq));
     // console.log(item);
@@ -690,11 +700,7 @@ class Space {
        * @param {*} date 
        */
       const formattedDateTime = (dateString, date) => {
-        // required for ordinal suffixes as not part of Intl yet
-        const pr = new Intl.PluralRules(locale, { type: "ordinal" });
-        const suffixes = {
-          "en": { "one": "st", "two": "nd", "few": "rd", "other": "th" },
-        };
+        // helper for setting up date objects
         const datePartsToObject = (obj, item) =>
           (item.type === "literal") ? obj : (obj[item.type] = item.value, obj);
   
@@ -801,7 +807,7 @@ class Space {
           case "DDDD":
             return longDate.weekday;
           case "DO":
-            return numericDate.day + (suffixes[locale.slice(0,2)][pr.select(+numericDate.day)] || "");
+            return i18nOrd(numericDate.day);
           case "MMM":
             return shortDate.month;
           case "MMMM":
@@ -966,7 +972,7 @@ class Space {
     const targetSpace = await getStorageData(name, synced);
     if (targetSpace[name]) {
       // confirm overwrite
-      if (!confirm(`Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed.`)) {
+      if (!confirm(i18n('warning_sync_overwrite'))) {
         return false;
       }
     }
@@ -976,7 +982,7 @@ class Space {
       const dataBucket = new DataBucket(this.data);
       await dataBucket.compress();
       if (!dataBucket.syncable(name)) {
-        alert("Sorry, the current snippets data is too large to sync.");
+        alert(i18n('error_sync_full'));
         return false;
       }
     }
@@ -1022,7 +1028,8 @@ class Space {
       data = new DataBucket(data);
       // console.log("Parsing data...", data);
       if (!(await data.parse())) {
-        throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
+        // throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
+        return;
       }
     }
 
@@ -1061,7 +1068,7 @@ class Settings {
     // console.log(defaultSpace, sort, view, control);
     /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = {};
-    this.defaultSpace.name = defaultSpace?.name || "Snippets";
+    this.defaultSpace.name = defaultSpace?.name || i18n('app_name');
     this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : true;
     /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
     this.sort = {};
@@ -1128,7 +1135,7 @@ async function buildContextMenus(space) {
   // create snipper for selected text
   addMenu({
     "id": JSON.stringify(menuData),
-    "title": "Snip selection...",
+    "title": i18n('action_snip_selection'),
     "contexts": ["selection"],
   });
 
@@ -1140,7 +1147,7 @@ async function buildContextMenus(space) {
     menuData.action = 'paste';
     chrome.contextMenus.create({
       "id": JSON.stringify(menuData),
-      "title": "Paste Snippet",
+      "title": i18n('action_paste'),
       "contexts": ["editable"],
     });
 
@@ -1173,7 +1180,7 @@ async function buildContextMenus(space) {
       } else {
         menuData.path = parentData.path.concat(['empty']);
         menuItem.id = JSON.stringify(menuData);
-        menuItem.title = "Empty…";
+        menuItem.title = i18n('folder_empty');
         menuItem.enabled = false;
         chrome.contextMenus.create(menuItem);
       }

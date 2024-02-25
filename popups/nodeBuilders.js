@@ -75,7 +75,7 @@ function buildSvg(title, sprite, fill) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('role', `img`);
   svg.setAttribute('focusable', false);
-  // Add an acessible title field for screenreaders
+  // Add an accessible title field for screenreaders
   const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
   svgTitle.textContent = title;
   // Add a use element referencing the spritesheet

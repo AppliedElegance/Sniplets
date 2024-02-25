@@ -251,5 +251,50 @@
   },
   "label_folder": {
     "message": "Folder"
+  },
+  "title_new_generic": {
+    "message": "New Tree Item"
+  },
+  "title_new_folder": {
+    "message": "New Folder"
+  },
+  "title_new_snippet": {
+    "message": "New Snippet"
+  },
+  "warning_sync_full": {
+    "message": "The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back."
+  },
+  "plural_suffix_zero": {
+    "message": "th"
+  },
+  "plural_suffix_one": {
+    "message": "st"
+  },
+  "plural_suffix_two": {
+    "message": "nd"
+  },
+  "plural_suffix_few": {
+    "message": "rd"
+  },
+  "plural_suffix_many": {
+    "message": "th"
+  },
+  "plural_suffix_other": {
+    "message": "th"
+  },
+  "warning_sync_overwrite": {
+    "message": "Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed."
+  },
+  "error_sync_full": {
+    "message": "Sorry, the current snippets data is too large to sync."
+  },
+  "action_snip_selection": {
+    "message": "Snip selection…"
+  },
+  "action_paste": {
+    "message": "Paste Snippet"
+  },
+  "folder_empty": {
+    "message": "Empty…"
   }
 }
