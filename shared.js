@@ -26,7 +26,7 @@ const colors = {
 const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
 /** @type {string} */
 const locale = i18n('@@ui_locale');
-const i18nOrdinalRules = new Intl.PluralRules(locale);
+const i18nOrdinalRules = new Intl.PluralRules(locale.replace('_', '-'));
 const i18nSuffixes = {
   'zero': i18n('plural_suffix_zero'),
   'one': i18n('plural_suffix_one'),
@@ -674,13 +674,13 @@ class Space {
     snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
       if (!snip.counters) snip.counters = [];
       snip.counters.push(p1);
-      console.log(p1, p2, this.data.counters, p1 in this.data.counters);
+      // console.log(p1, p2, this.data.counters, p1 in this.data.counters);
       if (p1 in this.data.counters === false) {
         // console.log("Adding counter...", p1);
         this.data.counters[p1] = this.data.counters.startVal;
       }
       const val = this.data.counters[p1];
-      console.log(val, typeof val);
+      // console.log(val, typeof val);
       this.data.counters[p1] += isNaN(p2) ? 1 : +p2;
       return val;
     });

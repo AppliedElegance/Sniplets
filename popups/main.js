@@ -646,13 +646,13 @@ function adjustTextArea(target, maxHeight) {
   const padding = 2 * 5; // 5px top & bottom padding
   const minHeight = 4 * 19; // 19px line height
   const overflowHeight = 7 * 19 + 5; // Add bottom padding to max 7 lines
-  console.log(target, maxHeight, overflowHeight);
+  // console.log(target, maxHeight, overflowHeight);
 
   /** @type {HTMLTextAreaElement} set target for events */
   const textarea = target.target || target;
   if (textarea.tagName !== 'TEXTAREA') return;
   const focusout = target.type === 'focusout';
-  console.log(maxHeight);
+  // console.log(maxHeight);
   if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight;
 
   // save current scroll position
@@ -663,19 +663,19 @@ function adjustTextArea(target, maxHeight) {
 
   // calculate current content height
   let scrollHeight = textarea.scrollHeight - padding;
-  console.log(scrollHeight, textarea.scrollHeight, textarea.offsetHeight, textarea.style.height.replaceAll(/\D/g, ''));
+  // console.log(scrollHeight, textarea.scrollHeight, textarea.offsetHeight, textarea.style.height.replaceAll(/\D/g, ''));
   if (focusout || textarea.style.height.replaceAll(/\D/g, '') === scrollHeight) {
     // check and update actual scroll height to allow shrinking
     textarea.style.height = `auto`;
     scrollHeight = textarea.scrollHeight - padding;
   }
   if (scrollHeight < minHeight) scrollHeight = minHeight;
-  console.log(textarea.style.height, scrollHeight);
+  // console.log(textarea.style.height, scrollHeight);
 
   // set max height to actual in case no limit set
   maxHeight ||= scrollHeight;
 
-  console.log(maxHeight, textarea.clientHeight);
+  // console.log(maxHeight, textarea.clientHeight);
   // update if needed
   if (maxHeight !== textarea.clientHeight) {
     const targetHeight = scrollHeight > maxHeight ? maxHeight : scrollHeight;
@@ -720,7 +720,7 @@ function handleMouseUp() {
  * @param {MouseEvent} event 
  */
 async function handleClick(event) {
-  console.log(event);
+  // console.log(event);
   // Only handle buttons as other inputs will be handled with change event
   /** @type {HTMLButtonElement|HTMLInputElement} */
   const target = event.target.closest('[type="button"]');
@@ -1098,7 +1098,7 @@ async function handleAction(target) {
         break;
       }
       try {
-        console.log(backup);
+        // console.log(backup);
         const f = await window.showSaveFilePicker({
           suggestedName: filename,
           types: [{
@@ -1445,7 +1445,7 @@ async function handleAction(target) {
       break; }
   
     case 'move': {
-      console.log(dataset);
+      // console.log(dataset);
       const movedItem = space.moveItem({
         fromSeq: dataset.seq,
         toSeq: target.value,
