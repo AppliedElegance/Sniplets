@@ -2,6 +2,8 @@ Ever wanted to save some text for later use, or throw some info over from one of
 
 This extension aims to become fully backup compatible with the Clippings extension for Firefox. The 0.10 release is a major overhaul from the previous release to be more secure, accessible and robust, as well as to support placeholders.
 
+Translations can now be requested and worked on by the community on [GitLocalize](https://gitlocalize.com/repo/9393).
+
 Roadmap:
 
 1.0 -> Add full counter support, implement shortcut keys
