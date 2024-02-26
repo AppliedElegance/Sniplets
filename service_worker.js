@@ -150,6 +150,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
         snip: snip,
       }}).then(() => true).catch(e => e);
     }
+    snip.richText = await getRichText(snip.content, settings.control);
     const result = await pasteSnippet(target, snip);
     if (!result?.pasted) {
       // possible cross-origin frame

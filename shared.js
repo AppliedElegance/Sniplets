@@ -124,6 +124,17 @@ async function pasteSnippet(target, snip) {
 
 // RichText processors
 /**
+ * Remove newlines and add HTML line break tags where appropriate
+ * 
+ * * (?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?) - don't match if non-inline ending tags are found just before a newline
+ * * (?:\r\n|\n) - match newlines on Windows/non-Windows
+ * 
+ * @param {string} text
+ */
+const tagNewlines = text => text.replaceAll(
+  /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\n)/g,
+  (match) => `<br>`).replaceAll(/(?:\r\n|\r|\n)/g, ``);
+/**
  * Place anchor tags around emails if not already linked
  * 
  * * (?<!<[^>]*) - ignore emails inside tag defs
@@ -143,45 +154,43 @@ const linkEmails = text => text.replaceAll(
 /**
  * Place anchor tags around urls if not already linked
  * 
- * * (?<!<[^>]*| - ignore urls inside tag defs
- * * [.+@a-zA-Z0-9]) - ignore emails pt1
- * * (?:(https?|ftp|chrome|edge|about|file\/):\/\/)? - only match openable urls if a protocol is included (file has one more slash indicating the root folder)
- * * (?:(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+) - find url sequences or ipv4 addresses (ipv6 is too complicated for a single line regex)
- * * (?::[0-9]+)? - include port references
- * * (?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)? - include allowed characters in subfolders
- * * (?![.+@a-zA-Z0-9]| - ignore emails pt2
- * * (?!<a).*?<\/a>) - ignore urls that are inside an anchor tag
+ * * <a.+?\/a>| - ignore anchor tags
+ * * <[^>]*?>| - ignore anything within tags
+ * * ( - start url capture
+ * * (?<![.+@a-zA-Z0-9]) - ignore emails and random text
+ * * (?:(https?|ftp|chrome|edge|about|file):\/+)? - capture protocols if available
+ * * (?: - start domain lookup
+ * * (?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+| - find url sequences
+ * * (?:[0-9]+\.){3}[0-9]+ - find ipv4 addresses (ipv6 is too complicated for a single line regex)
+ * * ) - end domain lookup
+ * * (?::[0-9]+)? - include port numbers
+ * * (?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)? - include all allowed url characters after domain
+ * * ) - end url capture
  * 
  * @param {string} text
  */
 const linkURLs = text => text.replaceAll(
-  /(?<!href="[^"]*|[.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file\/):\/\/)?(?:(?:(?:[a-zA-Z0-9]+\.)+[a-zA-Z]+)|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/[a-zA-Z0-9-._~:/?#[\]@!$&'()*+,;=%]*)?(?![.+@a-zA-Z0-9]|(?!<a).*?<\/a>)/ig,
-  (match, p1) => {
-    // console.log(match, p1);
+  /<a.+?\/a>|<[^>]*?>|((?<![.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file):\/+)?(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?)/gi,
+  (match, p1, p2) => {
+    console.log(match, p1, p2);
+    // skip anchors and tag attributes
+    if (!p1) return match;
     // skip IP addresses with no protocol
-    if (match.match(/^\d.*\.\d.*\.\d.*\.\d.*$/)) return match;
+    if (match.match(/^\d+\.\d+\.\d+\.\d+$/)) return match;
     // ensure what was picked up evaluates to a proper url (just in case)
-    const matchURL = new URL(((!p1) ? `http://` : ``) + match);
+    const matchURL = new URL(((!p2) ? `http://${match}` : match));
+    console.log(matchURL);
     return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match;
   });
-/**
- * Remove newlines and add HTML line break tags where appropriate
- * 
- * * (?<!<\/? - don't match if specific tags are found before a newline
- * * (?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+? - inline tags are okay to add breaks after
- * * (?:>| .*>)) - allow for opening tags with options
- * * (?:\r\n|\r|\n) - match newlines no matter how formatted (should always be \n, but just in case)
- * 
- * @param {string} text
- */
-const tagNewlines = text => text.replaceAll(
-  /(?<!<\/?(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z]+?(?:>| .*>))(?:\r\n|\r|\n)/g,
-  (match) => `<br>`).replaceAll(/(?:\r\n|\r|\n)/g, ``);
 
 function getRichText(text, {rtLineBreaks, rtLinkEmails, rtLinkURLs}) {
+  console.log(text, rtLineBreaks);
   if (rtLineBreaks) text = tagNewlines(text);
+  console.log(text, rtLinkEmails);
   if (rtLinkEmails) text = linkEmails(text);
+  console.log(text, rtLinkURLs);
   if (rtLinkURLs) text = linkURLs(text);
+  console.log(text);
   return text;
 }
 
@@ -218,16 +227,16 @@ function getFullSelection() {
 function placeText(snip) {
   // get clicked element
   const selNode = document.activeElement;
-  // console.log(snip, selNode);
+  console.log(snip, selNode);
 
   /**
    * Paste code
-   * @param {string} text 
+   * @param {string} content 
    * @param {string} richText 
    */
-  function paste(text, richText) {
+  function paste({ content, richText }) {
     // setup rich text for pasting or updating the clipboard if needed
-    richText ||= text;
+    richText ||= content;
     // console.log(text);
 
     // execCommand is deprecated but insertText is still supported in chrome as wontfix
@@ -236,18 +245,18 @@ function placeText(snip) {
     let pasted = false;
     if (selNode.value !== undefined) {
       // paste plaintext into inputs and textareas
-      pasted = document.execCommand('insertText', false, text);
+      pasted = document.execCommand('insertText', false, content);
       // forward-compatible alt code, kills the undo stack
       if (!pasted) {
         const selVal = selNode.value;
         const selStart = selNode.selectionStart;
-        selNode.value = selVal.slice(0, selStart) + text + selVal.slice(selNode.selectionEnd);
-        selNode.selectionStart = selNode.selectionEnd = selStart + text.length;
+        selNode.value = selVal.slice(0, selStart) + content + selVal.slice(selNode.selectionEnd);
+        selNode.selectionStart = selNode.selectionEnd = selStart + content.length;
         pasted = true;
       }
     } else { // contenteditable
       // check for plain-text setting
-      if (selNode.contentEditable === "plaintext-only") richText = text;
+      if (selNode.contentEditable === "plaintext-only") richText = content;
 
       // ckeditor does not allow any 3rd party programatic inputs in contenteditable fields but fails silently
       if (!selNode.classList.contains("ck")) {
@@ -283,12 +292,12 @@ function placeText(snip) {
 
     return {
       pasted: pasted,
-      text: text,
+      text: content,
       richText: richText,
     };
   }
 
-  return paste(snip.content, snip.richText);
+  return paste(snip);
 }
 
 function getFrameOrigins() {
