@@ -1,19 +1,23 @@
-/* All shared functions. */
 /* eslint-disable no-unused-vars */
 
+/** check if a value is explicitly boolean rather than just truthy/falsy */
 const isBool = arg => typeof arg === 'boolean';
 
 /** Default colors: Red|Orange|Yellow|Green|Blue|Purple|Grey */
-const colors = {
-  "Default": {  },
-  "Red": { value: "#D0312D", clippings: "red", square: "🟥 ", circle: "🔴 ", heart: "❤ ", book: "📕 " },
-  "Orange": { value: "#FFA500", clippings: "orange", square: "🟧 ", circle: "🟠 ", heart: "🧡 ", book: "📙 " },
-  "Yellow": { value: "#FFD700", clippings: "yellow", square: "🟨 ", circle: "🟡 ", heart: "💛 ", book: "📒 " },
-  "Green": { value: "#3CB043", clippings: "green", square: "🟩 ", circle: "🟢 ", heart: "💚 ", book: "📗 " },
-  "Blue": { value: "#3457D5", clippings: "blue", square: "🟦 ", circle: "🔵 ", heart: "💙 ", book: "📘 " },
-  "Purple": { value: "#A32CC4", clippings: "purple", square: "🟪 ", circle: "🟣 ", heart: "💜 " },
-  "Grey": { value: "#808080", clippings: "gray", square: `🔲 `, circle: "⚪ ", heart: "🤍 ", book: "📔 " },
-};
+const colors = new Map()
+.set('Default', {value: "inherit", clippings: "",       square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       snippet: "📝"})
+.set('Red',     {value: "#D0312D", clippings: "red",    square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('Orange',  {value: "#FFA500", clippings: "orange", square: "🟧",           circle: "🟠",           heart: "🧡",           book: "📙", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('Yellow',  {value: "#FFD700", clippings: "yellow", square: "🟨",           circle: "🟡",           heart: "💛",           book: "📒", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('Green',   {value: "#3CB043", clippings: "green",  square: "🟩",           circle: "🟢",           heart: "💚",           book: "📗", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('Blue',    {value: "#3457D5", clippings: "blue",   square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('Purple',  {value: "#A32CC4", clippings: "purple", square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get snippet() {return this.circle;}})
+.set('Grey',    {value: "#808080", clippings: "gray",   square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get snippet() {return this.circle;}});
+/** Safe getter for the colors that will return a default value if not available
+ * @param {string} [color] 
+ * @returns {{value:string,clippings:string,square:string,circle:string,heart:string,book?:string,folder:string,snippet:string}}
+ */
+const getColor = color => colors.get(colors.has(color) ? color : 'Default');
 
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
@@ -25,27 +29,51 @@ const colors = {
  */
 const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
 /** @type {string} */
-const locale = i18n('@@ui_locale');
-const i18nOrdinalRules = new Intl.PluralRules(locale.replace('_', '-'));
-const i18nSuffixes = {
-  'zero': i18n('plural_suffix_zero'),
-  'one': i18n('plural_suffix_one'),
-  'two': i18n('plural_suffix_two'),
-  'few': i18n('plural_suffix_few'),
-  'many': i18n('plural_suffix_many'),
-  'other': i18n('plural_suffix_other'),
-}; // set unused values to the same as other
-const i18nOrd = i => i + i18nSuffixes[i18nOrdinalRules.select(i)];
+const uiLocale = i18n('@@ui_locale').replace('_', '-');
+const i18nOrdinalRules = new Intl.PluralRules(uiLocale);
+const i18nOrd = (i) => i18n(`ordinal_${i18nOrdinalRules.select(i)}`, i);
+
+/** Open a new popup window
+ * @param {{[name:string]:string}} params
+ */
+function openPopup(params = {}) {
+  const src = new URL(chrome.runtime.getURL("popup/main.html"));
+  // console.log(src.href, params);
+  for (const [name, value] of Object.entries(params)) {
+    src.searchParams.append(name, value);
+  }
+  // console.log(src);
+  return chrome.windows.create({
+    url: src.href,
+    type: "popup",
+    width: 700, // 867 for screenshots
+    height: 460, // 540 for screenshots
+  }).then(() => true)
+  .catch((e) => (console.warn(e), false));
+}
+
+/** Open a new window for editing a snippet
+ * @param {number[]} path
+ * @param {number} seq
+ */
+const openForEditing = (path, seq) => openPopup({
+  action: 'focus',
+  path: path.join('-'),
+  seq: seq,
+  field: 'name',
+});
 
 // Storage helpers. Sync must be explicitly enabled.
 /**
  * Safely stores data to chrome.storage.local (default) or .sync.
- * @param {{[key:string]:*}} items - a { key: value } object to store
+ * @param {{[key:string]:*}} items - a {key: value} object to store
  * @param {boolean} [synced=false] - Whether to store the data in local (false, default) or sync (true).
  */
 function setStorageData(items, synced = false) {
-  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return bucket.set(items).catch(e => e);
+  const bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return bucket.set(items)
+  .then(() => true)
+  .catch((e) => (console.warn(e), false));
 }
 /**
  * Safely retrieves storage data from chrome.storage.local (default) or .sync.
@@ -53,73 +81,62 @@ function setStorageData(items, synced = false) {
  * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
  */
 function getStorageData(keys, synced = false) {
-  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return bucket.get(keys).catch(e => e);
+  const bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return bucket.get(keys)
+  .catch((e) => (console.warn(e), false));
 }
-/**
- * Safely removes storage data from chrome.storage.local (default) or .sync.
+/** Safely removes storage data from chrome.storage.local (default) or .sync.
  * @param {string|string[]} keys - The key name for the stored data.
  * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
  */
-function removeStorageData (keys, synced = false) {
-  let bucket = synced ? chrome.storage.sync : chrome.storage.local;
-  return bucket.remove(keys).catch(e => e);
+function removeStorageData(keys, synced = false) {
+  const bucket = synced ? chrome.storage.sync : chrome.storage.local;
+  return bucket.remove(keys)
+  .then(() => true)
+  .catch((e) => (console.warn(e), false));
 }
 
-/**
- * 
- * @param {string} text 
- * @param {{value:string}[]} fields 
- * @returns 
+/** Stores data required for following up on a task and opens a window to action it
+ * @param {string} type 
+ * @param {{[key:string]:*}} args 
  */
-const replaceFields = (text, fields) =>
-text.replaceAll(/\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g, (match, p1) =>
-fields.find(field => field.name === p1)?.value);
+async function setFollowup(type, args, popup = true) {
+  await chrome.storage.session.set({ followup: {
+    type: type,
+    args: args || {}, // default value for destructuring
+  }}).catch((e) => console.warn(e));
+  if (popup && chrome.action.openPopup && !chrome.runtime.getContexts({contextTypes:['POPUP']}).length) {
+    // console.log(chrome.action.openPopup().catch((e) => e));
+  } else {
+    return openPopup();
+  }
+}
+/** Fetch requests from session storage set using the `setFollowup()` function
+ * @returns {Promise<{type:string,message:*,args:Object}|void>}
+ */
+async function fetchFollowup() {
+  const {followup} = await chrome.storage.session.get('followup')
+  .catch(e => console.warn(e));
+  if (followup) chrome.storage.session.remove('followup')
+  .catch(e => console.warn(e));
+  // console.log(followup);
+  return followup;
+}
 
 /**
  * Send text to clipboard
- * @param {string} [plainText] 
- * @param {string} [richText] 
+ * @param {{content:string,nosubst:boolean}} snip 
  */
-function setClipboard(plainText, richText) {
-  // console.log(plainText, richText);
-  if(!plainText && !richText) return;
-  let item = {};
-  if (plainText) item["text/plain"] = new Blob([plainText], { type: "text/plain" });
-  if (richText) item["text/html"] = new Blob([richText], { type: "text/html" });
+async function setClipboard(snip) {
+  if(!snip.content) return;
+  const items = {
+    "text/plain":  new Blob([snip.content], {type: "text/plain"}),
+  };
+  if (!snip.nosubst) items["text/html"] = new Blob([await getRichText(snip)], {type: "text/html"});
   // console.log(`Copying to clipboard...`);
-  return navigator.clipboard.write([new ClipboardItem(item)]).then(() => true).catch(e => e);
-}
-
-function testAccess(target) {
-  const touchTarget = () => true;
-  return injectScript({
-    target: target,
-    func: touchTarget,
-  }).catch(e => e);
-}
-
-async function snipSelection(target) {
-  const src = {
-    target: target,
-    func: getFullSelection,
-  };
-  const results = await injectScript(src);
-  let result = results[0]?.result;
-
-  // check for result
-  if (!result) return false;
-  return new Snippet({ content: result.content });
-}
-
-async function pasteSnippet(target, snip) {
-  const src = {
-    target: target,
-    func: placeText,
-    args: [snip],
-  };
-  const results = await injectScript(src);
-  return results[0]?.result;
+  return navigator.clipboard.write([new ClipboardItem(items)])
+  .then(() => true)
+  .catch((e) => console.warn(e));
 }
 
 // RichText processors
@@ -133,7 +150,11 @@ async function pasteSnippet(target, snip) {
  */
 const tagNewlines = text => text.replaceAll(
   /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\n)/g,
-  (match) => `<br>`).replaceAll(/(?:\r\n|\r|\n)/g, ``);
+  (match) => `<br>`,
+).replaceAll(
+  /(?:\r\n|\r|\n)/g,
+  ``,
+);
 /**
  * Place anchor tags around emails if not already linked
  * 
@@ -150,7 +171,8 @@ const tagNewlines = text => text.replaceAll(
  */
 const linkEmails = text => text.replaceAll(
   /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
-  (match) => `<a href="mailto:${match}">${match}</a>`);
+  (match) => `<a href="mailto:${match}">${match}</a>`,
+);
 /**
  * Place anchor tags around urls if not already linked
  * 
@@ -172,169 +194,101 @@ const linkEmails = text => text.replaceAll(
 const linkURLs = text => text.replaceAll(
   /<a.+?\/a>|<[^>]*?>|((?<![.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file):\/+)?(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?)/gi,
   (match, p1, p2) => {
-    console.log(match, p1, p2);
+    // console.log(match, p1, p2);
     // skip anchors and tag attributes
     if (!p1) return match;
     // skip IP addresses with no protocol
     if (match.match(/^\d+\.\d+\.\d+\.\d+$/)) return match;
     // ensure what was picked up evaluates to a proper url (just in case)
     const matchURL = new URL(((!p2) ? `http://${match}` : match));
-    console.log(matchURL);
+    // console.log(matchURL);
     return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match;
-  });
+  },
+);
 
-function getRichText(text, {rtLineBreaks, rtLinkEmails, rtLinkURLs}) {
-  console.log(text, rtLineBreaks);
+/** Process and return snip contents according to rich text settings
+ * @param {{content:string,nosubst:boolean}} snip 
+ */
+const getRichText = async (snip) => {
+  // console.log(snip);
+  if (snip.nosubst) return snip.content;
+  let text = snip.content;
+  const settings = new Settings();
+  await settings.load();
+  // console.log(settings);
+  const {rtLineBreaks, rtLinkEmails, rtLinkURLs} = settings.control;
+  // console.log(text, rtLineBreaks);
   if (rtLineBreaks) text = tagNewlines(text);
-  console.log(text, rtLinkEmails);
+  // console.log(text, rtLinkEmails);
   if (rtLinkEmails) text = linkEmails(text);
-  console.log(text, rtLinkURLs);
+  // console.log(text, rtLinkURLs);
   if (rtLinkURLs) text = linkURLs(text);
-  console.log(text);
+  // console.log(text);
   return text;
-}
+};
 
 /**
- * Ensure script injection errors including permission blocks are always handled gracefully.
- * Requires the ["scripting"] permission.
- * @param {Object} src - The details of the script to inject.
- * @param {InjectionTarget} src.target - Details specifying the target into which to inject the script.
- * @param {string[]} src.files - The path of the JS or CSS files to inject, relative to the extension's root directory. Exactly one of files and func must be specified.
- * @param {void} src.func - A JavaScript function to inject. This function will be serialized, and then deserialized for injection. This means that any bound parameters and execution context will be lost. Exactly one of files and func must be specified.
- * @param {*[]} src.args - The arguments to carry into a provided function. This is only valid if the func parameter is specified. These arguments must be JSON-serializable.
- * @param {boolean} src.injectImmediately - Whether the injection should be triggered in the target as soon as possible. Note that this is not a guarantee that injection will occur prior to page load, as the page may have already loaded by the time the script reaches the target.
- * @param {ExecutionWorld} src.world - The JavaScript "world" to run the script in. Defaults to ISOLATED.
- * @returns {Promise<InjectionResult[]>|boolean}
+ * Settings object for persisting as window global
  */
-const injectScript = async (src) =>
-chrome.scripting.executeScript(src).catch((e) => (console.log(e), false));
-
-/** Injection script workaround for full selectionText with line breaks */
-function getFullSelection() {
-  const selection = window.getSelection();
-
-  // TODO: add rich text info
-  // let range = selection.getRangeAt(0);
-
-  return {
-    content: selection.toString(),
-    // richText: window.getSelection(),
-  };
-}
-
-/** Injection script for pasting. Pasting will be done as rich text in contenteditable fields.
- * @param {Snippet} snip */
-function placeText(snip) {
-  // get clicked element
-  const selNode = document.activeElement;
-  console.log(snip, selNode);
+class Settings {
+  /**
+   * @param {Settings} settings 
+   */
+  constructor(settings) {
+    if (settings) this.init(settings);
+  }
 
   /**
-   * Paste code
-   * @param {string} content 
-   * @param {string} richText 
+   * Take provided settings and initialize the remaining settings
+   * @param {Settings} settings 
    */
-  function paste({ content, richText }) {
-    // setup rich text for pasting or updating the clipboard if needed
-    richText ||= content;
-    // console.log(text);
-
-    // execCommand is deprecated but insertText is still supported in chrome as wontfix
-    // and produces the most desirable result. See par. 3 in:
-    // https://developer.mozilla.org/en-US/docs/Web/API/Document/execCommand
-    let pasted = false;
-    if (selNode.value !== undefined) {
-      // paste plaintext into inputs and textareas
-      pasted = document.execCommand('insertText', false, content);
-      // forward-compatible alt code, kills the undo stack
-      if (!pasted) {
-        const selVal = selNode.value;
-        const selStart = selNode.selectionStart;
-        selNode.value = selVal.slice(0, selStart) + content + selVal.slice(selNode.selectionEnd);
-        selNode.selectionStart = selNode.selectionEnd = selStart + content.length;
-        pasted = true;
-      }
-    } else { // contenteditable
-      // check for plain-text setting
-      if (selNode.contentEditable === "plaintext-only") richText = content;
-
-      // ckeditor does not allow any 3rd party programatic inputs in contenteditable fields but fails silently
-      if (!selNode.classList.contains("ck")) {
-        pasted = document.execCommand('insertHTML', false, richText);
-        // forward-compatible alt code, kills the undo stack
-        if (!pasted) {
-          const sel = window.getSelection();
-          const selRng = sel.getRangeAt(0);
-          selRng.deleteContents();
-          selRng.insertNode(document.createTextNode(richText));
-          sel.collapseToEnd();
-          pasted = true;
-        }
-      }
-    }
-
-    // event dispatch for editors that handle their own undo stack like stackoverflow
-    if (pasted) {
-      const keyEvent = {
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-      };
-      selNode.dispatchEvent(new KeyboardEvent('keydown', keyEvent));
-      selNode.dispatchEvent(new InputEvent('input'), {
-        bubbles: true,
-        composed: true,
-        inputType: "inputFromPaste",
-        data: richText,
-      });
-      selNode.dispatchEvent(new KeyboardEvent('keyup', keyEvent));
-    }
-
-    return {
-      pasted: pasted,
-      text: content,
-      richText: richText,
-    };
+  init({defaultSpace, sort, view, control} = {}) {
+    // console.log(defaultSpace, sort, view, control);
+    /** @type {{name:string,synced:boolean}} */
+    this.defaultSpace = {};
+    this.defaultSpace.name = defaultSpace?.name || i18n('app_name');
+    this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : true;
+    /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
+    this.sort = {};
+    this.sort.by = sort?.by || 'seq';
+    this.sort.groupBy = sort?.groupBy || '';
+    this.sort.foldersOnTop = isBool(sort?.foldersOnTop) ? sort.foldersOnTop : true;
+    /** @type {{rememberPath:boolean,sourceURL:boolean}} */
+    this.view = {};
+    this.view.rememberPath = isBool(view?.rememberPath) ? view.rememberPath : false;
+    this.view.sourceURL = isBool(view?.sourceURL) ? view.sourceURL : false;
+    /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
+    this.control = {};
+    this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : false;
+    this.control.preserveTags = isBool(control?.preserveTags) ? control.preserveTags : false;
+    this.control.rtLineBreaks = isBool(control?.rtLineBreaks) ? control.rtLineBreaks : true;
+    this.control.rtLinkEmails = isBool(control?.rtLinkEmails) ? control.rtLinkEmails : true;
+    this.control.rtLinkURLs = isBool(control?.rtLinkURLs) ? control.rtLinkURLs : true;
   }
 
-  return paste(snip);
-}
+  async load() {
+    const {settings} = await getStorageData('settings', true);
+    if (!settings) return settings; // return errors as-is
 
-function getFrameOrigins() {
-  const origins = [];
-  // add src of all iframes on page so user only needs to request permission once
-  for (let frame of document.getElementsByTagName("IFRAME")) {
-    if (frame.src && !origins.includes(frame.src)) {
-      origins.push((new URL(frame.src).origin) + "/*");
+    // legacy check
+    if (settings.foldersOnTop) {
+      settings.sort = {foldersOnTop: settings.foldersOnTop};
+      delete settings.foldersOnTop;
     }
-  }
-  return origins;
-}
 
-// Request permissions when necessary for cross-origin iframes
-async function requestFrames(action, target, data, args) {
-  // Get site origins
-  const results = await injectScript({
-    target: { tabId: target.tabId },
-    func: getFrameOrigins,
-  });
-  const origins = results[0]?.result;
-  // return script injection error if top level is blocked too
-  if (!origins) return false;
-  // send data to worker for further processing
-  return await chrome.storage.session.set({ request: {
-    type: 'permissions',
-    action: action,
-    target: target,
-    data: data,
-    args: args,
-    origins: origins,
-  }}).then(() => true).catch(e => e);
+    // upgrade settings object as needed and return the object
+    this.init(settings);
+    return this;
+  }
+
+  async save() {
+    setStorageData({settings: this}, true);
+  }
 }
 
 /** Base constructor for folders, snippets and any future items */
 class TreeItem {
-  constructor({ name, seq, color } = {}) {
+  constructor({name, seq, color} = {}) {
     /** @type {string} */
     this.name = name || i18n('title_new_generic');
     /** @type {number} */
@@ -345,7 +299,7 @@ class TreeItem {
 }
 /** Folders contain tree items and can be nested. */
 class Folder extends TreeItem {
-  constructor({ name, seq, children, color } = {}) {
+  constructor({name, seq, children, color} = {}) {
     super({
       name: name || i18n('title_new_folder'),
       seq: seq || 1,
@@ -357,7 +311,7 @@ class Folder extends TreeItem {
 }
 /** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
-  constructor({ name, seq, color, content, nosubst, shortcut, sourceURL } = {}) {
+  constructor({name, seq, color, shortcut, sourceURL, content = "", nosubst = false} = {}) {
     // generate name from content if provided
     if (!name && content) {
       // create snippet title from first line of text
@@ -366,10 +320,9 @@ class Snippet extends TreeItem {
       if (content.length > maxLength) {
         // cut down to size, then chuck trailing text if possible so no words are cut off
         name = name.slice(0, maxLength + 1);
-        name = (name.includes(' ')
-                 ? name.slice(0, name.lastIndexOf(' '))
-                 : name.slice(0, maxLength))
-                 + '…';
+        name = `${name.includes(' ')
+             ? name.slice(0, name.lastIndexOf(' '))
+             : name.slice(0, maxLength)}…`;
       }
     }
     super({
@@ -378,7 +331,7 @@ class Snippet extends TreeItem {
       color: color,
     });
     /** @type {string} */
-    this.content = content || "";
+    this.content = content;
     /** @type {boolean} */
     this.nosubst = nosubst;
     /** @type {string} */
@@ -389,16 +342,19 @@ class Snippet extends TreeItem {
 }
 /** Basic snippets data bucket */
 class DataBucket {
-  constructor({ version, children, counters } = {}) {
+  /**
+   * 
+   * @param {{version:string,children:(TreeItem|Folder|Snippet)[]|string,counters:number}} values 
+   */
+  constructor({version, children, counters} = {}) {
     /** @type {string} */
     this.version = version || "1.0";
-    /** @type {string} */
+    /** @type {number} */
     this.timestamp = Date.now();
     /** @type {(TreeItem|Folder|Snippet)[]|string} */
     this.children = children || [];
-    // console.log("setting counters...", counters);
-    const { startVal, ...cs } = counters || {};
-    // console.log("double-checking...", startVal, cs);
+    const {startVal, ...cs} = counters || {};
+    /** @type {{[name:string]:number}} */
     this.counters = cs || {};
     this.counters.startVal = +startVal || 0;
   }
@@ -407,12 +363,13 @@ class DataBucket {
   async compress() {
     // check if already compressed
     if (typeof this.children === 'string') {
+      // TODO: confirm the compressed string is valid
       // console.warn("Data is already in compressed form");
       return false;
     }
 
     // create a compression stream
-    const stream = new Blob([JSON.stringify(this.children)], { type: 'application/json' })
+    const stream = new Blob([JSON.stringify(this.children)], {type: 'application/json'})
       .stream().pipeThrough(new CompressionStream("gzip"));
     // read the compressed stream and convert to b64
     const blob = await new Response(stream).blob();
@@ -463,7 +420,7 @@ class DataBucket {
     }
 
     // create stream for decompression
-    const stream = new Blob([gzipData], { type: "application/json" })
+    const stream = new Blob([gzipData], {type: "application/json"})
       .stream().pipeThrough(new DecompressionStream("gzip"));
     // read the decompressed stream
     const dataBlob = await new Response(stream).blob();
@@ -479,7 +436,7 @@ class DataBucket {
    * @returns 
    */
   syncable(name) {
-    const size = new Blob([JSON.stringify({ [name]: this.data })]).size;
+    const {size} = new Blob([JSON.stringify({[name]: this.data})]);
     const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
     return (size <= maxSize);
   }
@@ -498,7 +455,7 @@ class DataBucket {
       content: o.content || "",
       shortcutKey: o.shortcutKey || "",
       sourceURL: o.sourceURL || "",
-      label: colors[o.color]?.clippings || "",
+      label: getColor(o.color).clippings,
       seq: o.seq - 1,
     });
     return {
@@ -519,32 +476,68 @@ class Space {
    *   synced: boolean
    *   data: DataBucket
    *   path: number[]|string
-   * }} details - Space will be empty until `load()` or `init()` are called unless provided
+   * }} details
    */
-  constructor(details) {
-    if (details) this.init(details);
+  constructor({name = i18n('app_name'), synced = false, data = new DataBucket(), path = []} = {}) {
+    this.name = name;
+    this.synced = synced;
+    this.data = data;
+    this.path = path;
   }
 
-  /**
-   * Return the fully named path represented by the seq array provided
-   * @param {number[]} path 
+  /** Set this space as the current space in the local browser
+   * @param {boolean} rememberPath 
    */
-  getPathNames(path = this.path) {
-    // console.log(this, this.name);
-    /** @type {string[]} */
-    const pathNames = [this.name];
-    let item = this.data;
-    // console.log(path[0], pathNames[0], path.length);
-    for (let seq of path) {
-      // console.log(seq);
-      item = item.children.find((i) => i.seq == seq);
-      if (!item) {
-        // throw new Error("That path doesn't exist");
+  async setAsCurrent(rememberPath) {
+    /** @type {{name:string,synced:boolean,path?:number[]}} */
+    const currentSpace = {
+      name: this.name,
+      synced: this.synced,
+    };
+    // save path as well if requested
+    if (rememberPath) currentSpace.path = this.path;
+    setStorageData({currentSpace: currentSpace});
+    return currentSpace;
+  }
+
+  /** load last used space or fall back to default */
+  async loadCurrent() {
+    const {currentSpace} = await getStorageData('currentSpace');
+    if (!(await this.load(currentSpace))) {
+      const settings = new Settings();
+      await settings.load();
+      if (await this.load(settings.defaultSpace)) {
+        this.setAsCurrent();
+        return true;
+      } else {
+        // should never happen unless memory is corrupt
         return;
       }
-      pathNames.push(item.name);
     }
-    return pathNames;
+    return true;
+  }
+
+  async save(compressed = true) {
+    // make sure the space has been initialized
+    // console.log(this);
+    if (!this.name?.length) return;
+
+    const dataBucket = new DataBucket(this.data);
+    // gzip compression adds about 8x more storage space
+    if (compressed) await dataBucket.compress();
+    // console.log(dataBucket);
+
+    // ensure synced spaces are syncable and offer to switch otherwise
+    if (this.synced && !dataBucket.syncable(this.name)) {
+      if (await confirmAction(i18n('warning_sync_full'), i18n('action_stop_sync'))) {
+        return this.shift({synced: false});
+      }
+      return false;
+    }
+
+    // update local timestamp and store data
+    this.data.timestamp = dataBucket.timestamp;
+    return setStorageData({[this.name]: dataBucket}, this.synced);
   }
 
   /**
@@ -555,7 +548,7 @@ class Space {
    *   path: number[]
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
-  async load({ name, synced, path = [] } = {}) {
+  async load({name, synced, path = []} = {}) {
     // console.log("Loading space...", name, synced, typeof synced, path);
     const bucket = await getStorageData(
       name || this.name,
@@ -574,82 +567,40 @@ class Space {
     return true;
   }
 
-  async save() {
-    // make sure the space has been initialized
-    if (!this.name?.length) return;
-
-    // gzip compression adds about 8x more storage space
-    const dataBucket = new DataBucket(this.data);
-    await dataBucket.compress();
-
-    // ensure synced spaces are syncable and offer to switch otherwise
-    if (this.synced && !dataBucket.syncable(this.name)) {
-      if (confirm(i18n('warning_sync_full'))) {
-        return this.shift({ synced: false });
+  /**
+   * Return the fully named path represented by the seq array provided
+   * @param {number[]} path 
+   */
+  getPathNames(path = this.path) {
+    // console.log(this, this.name);
+    /** @type {string[]} */
+    const pathNames = [this.name];
+    let item = this.data;
+    // console.log(path[0], pathNames[0], path.length);
+    for (const seq of path) {
+      // console.log(seq);
+      item = item.children.find((i) => i.seq == seq);
+      if (!item) {
+        // throw new Error("That path doesn't exist");
+        return;
       }
-      return false;
+      pathNames.push(item.name);
     }
-
-    // store data
-    await setStorageData({ [this.name]: dataBucket }, this.synced);
-    return true;
-  }
-
-  addItem(item, folderPath = this.path) {
-    let folder = this.getItem(folderPath).children;
-    item.seq = folder.length + 1;
-    folder.push(item);
-    return item;
-  }
-
-  editItem({ seq, field, value, folderPath = this.path }) {
-    let item = this.getItem(folderPath.concat([seq]));
-    item[field] = value;
-    return item;
-  }
-
-  deleteItem(seq, folderPath = this.path) {
-    /** @type {*[]} */
-    const folder = this.getItem(folderPath).children;
-    const i = folder.findIndex(o => o.seq === +seq);
-    const removedItem = folder.splice(i, 1)[0];
-    return removedItem;
-  }
-
-  moveItem({ fromPath = this.path, fromSeq, toPath = this.path, toSeq }) {
-    let fromFolder = this.getItem(fromPath);
-    let fromItem = this.getItem(fromPath.concat([fromSeq]));
-    fromSeq = fromFolder.children.indexOf(fromItem);
-    let toFolder = this.getItem(toPath);
-    if (toSeq) {
-      let toItem = this.getItem(toPath.concat([toSeq]));
-      toSeq = toFolder.children.indexOf(toItem);
-      // if (toSeq > fromSeq) toSeq++;
-    } else {
-      toSeq = toFolder.children.length;
-    }
-    try {
-      toFolder.children.splice(toSeq, 0,
-        fromFolder.children.splice(fromSeq, 1)[0]);
-      this.sequence(toFolder);
-      if (JSON.stringify(fromPath) !== JSON.stringify(toPath))
-        this.sequence(fromFolder);
-    } catch (e) {
-      // console.error(e);
-    }
-    return fromItem;
+    return pathNames;
   }
 
   /**
    * 
    * @param {number[]} path - Full path to the tree item
-   * @returns {TreeItem|Folder|Snippet}
+   * @returns {TreeItem|Folder|Snippet|void}
    */
   getItem(path) {
+    // console.log(path);
     try {
       let item = this.data;
-      for (let seq of path) {
-        item = item.children.find(o => o.seq === +seq);
+      for (const seq of path) {
+        // console.log(seq, +seq);
+        item = item.children.find((o) => (o.seq === +seq));
       }
       return item;
     } catch (e) {
@@ -658,11 +609,78 @@ class Space {
     }
   }
 
+  /** Add tree item to data bucket
+   * @param {TreeItem|Folder|Snippet} item 
+   * @param {number[]} [folderPath] 
+   */
+  addItem(item, folderPath = this.path) {
+    const folder = this.getItem(folderPath).children;
+    item.seq = folder.length + 1;
+    folder.push(item);
+    return item;
+  }
+
+  /** Edit tree item
+   * @param {number} seq 
+   * @param {string} field 
+   * @param {string} value
+   * @param {number[]} [folderPath] 
+   */
+  editItem(seq, field, value, folderPath = this.path) {
+    const item = this.getItem(folderPath.concat([seq]));
+    item[field] = value;
+    return item;
+  }
+
+  /** Move tree item
+   * @param {{path:number[],seq:number}} from
+   * @param {{path:number[],seq:number}} to
+   */
+  moveItem(from, to) {
+    // console.log(from, to);
+    if (!from || !to || isNaN(from.seq)) return;
+    if (!Array.isArray(from.path)) from.path = this.path;
+    if (!Array.isArray(to.path)) to.path = this.path;
+    if (JSON.stringify(to) === JSON.stringify(from)) return;
+    const toFolder = this.getItem(to.path);
+    // console.log(toFolder);
+    if (isNaN(to.seq)) to.seq = toFolder.children.length;
+    const fromFolder = this.getItem(from.path);
+    const fromItem = this.getItem(from.path?.concat([from.seq]));
+    const fromArraySeq = fromFolder.children.indexOf(fromItem);
+    if (!fromItem) return; //
+    const toArraySeq = isNaN(to.seq)
+                     ? toFolder.children.length
+                     : toFolder.children.indexOf(this.getItem(to.path.concat([to.seq])));
+    try {
+      toFolder.children.splice(toArraySeq, 0,
+        fromFolder.children.splice(fromArraySeq, 1)[0]);
+      this.sequence(toFolder);
+      if (JSON.stringify(from.path) !== JSON.stringify(to.path))
+        this.sequence(fromFolder);
+    } catch (e) {
+      // console.error(e);
+    }
+    return fromItem;
+  }
+
+  /** Remove tree item
+   * @param {number} seq 
+   * @param {number[]} [folderPath] 
+   */
+  deleteItem(seq, folderPath = this.path) {
+    /** @type {*[]} */
+    const folder = this.getItem(folderPath).children;
+    const i = folder.findIndex(o => o.seq === +seq);
+    const removedItem = folder.splice(i, 1)[0];
+    return removedItem;
+  }
+
   /**
    * Process placeholders and rich text options of a snippet and return the result
    * @param {number} seq 
    * @param {number[]} path 
-   * @returns 
+   * @returns {Promise<{snip:Snippet,customFields?:Map}
    */
   async getProcessedSnippet(seq, path = this.path) {
     // console.log("Getting item...");
@@ -675,7 +693,9 @@ class Space {
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
     if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") {
       snip.nosubst = true;
-      return snip;
+      return {
+        snip: snip,
+      };
     }
 
     // process counters, kept track internally to allow use across multiple snippets
@@ -694,17 +714,17 @@ class Space {
       return val;
     });
     // save space if counters were used and thus incremented
-    if (snip.counters?.length) await this.save();
+    if (snip.counters?.length) this.save();
   
     // placeholders
     // console.log("Processing placeholders...");
-    snip.content = snip.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, p1, p2, p3) => {
-      if (p3?.includes('|')) p3 = p3.split('|');
+    const customFields = new Map();
+    snip.content = snip.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, placeholder, format, defaultValue) => {
+      if (defaultValue?.includes('|')) defaultValue = defaultValue.split('|');
       const now = new Date();
   
-      // function for full date/time format string replacement (compatible with Clippings)
       /**
-       * 
+       * Full custom date/time format string replacement (compatible with Clippings)
        * @param {string} dateString 
        * @param {*} date 
        */
@@ -714,30 +734,30 @@ class Space {
           (item.type === "literal") ? obj : (obj[item.type] = item.value, obj);
   
         // generate localized replacement objects for full replacement support
-        const longDate = new Intl.DateTimeFormat(locale, {
+        const longDate = new Intl.DateTimeFormat(uiLocale, {
           hourCycle: "h12",
           weekday: "long", day: "numeric", month: "long",
           hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 3,
           dayPeriod: "long", timeZoneName: "long", era: "long",
         }).formatToParts(date).reduce(datePartsToObject, {});
-        const shortDate = new Intl.DateTimeFormat(locale, {
+        const shortDate = new Intl.DateTimeFormat(uiLocale, {
           hourCycle: "h12",
           weekday: "short", day: "numeric", month: "short",
           hour: "numeric", minute: "numeric", second: "numeric", fractionalSecondDigits: 1,
           timeZoneName: "short", era: "short",
         }).formatToParts(date).reduce(datePartsToObject, {});
-        const paddedDate = new Intl.DateTimeFormat(locale, {
+        const paddedDate = new Intl.DateTimeFormat(uiLocale, {
           hourCycle: "h23",
           year: "2-digit", month: "2-digit", day: "2-digit",
           hour: "2-digit", minute: "2-digit", second: "2-digit", fractionalSecondDigits: 2,
           timeZoneName: "longOffset",
         }).formatToParts(date).reduce(datePartsToObject, {});
         // numeric date/times will only not be padded if loaded individually
-        const numericDate = new Intl.DateTimeFormat(locale, {
+        const numericDate = new Intl.DateTimeFormat(uiLocale, {
           hourCycle: "h23", year: "numeric", hour: "numeric",
-        }).formatToParts(date).concat(new Intl.DateTimeFormat(locale, {
+        }).formatToParts(date).concat(new Intl.DateTimeFormat(uiLocale, {
           month: "numeric", minute: "numeric",
-        }).formatToParts(date).concat(new Intl.DateTimeFormat(locale, {
+        }).formatToParts(date).concat(new Intl.DateTimeFormat(uiLocale, {
           day: "numeric", second: "numeric", fractionalSecondDigits: 3,
         }).formatToParts(date))).reduce(datePartsToObject, {});
         // fix numeric 24 hours still being padded for some locals no matter how generated
@@ -763,15 +783,15 @@ class Space {
             }
             switch (p2) {
               case ".s":
-                seconds += "." + shortDate.fractionalSecond;
+                seconds += `.${shortDate.fractionalSecond}`;
                 break;
             
               case ".ss":
-                seconds += "." + paddedDate.fractionalSecond;
+                seconds += `.${paddedDate.fractionalSecond}`;
                 break;
             
               case ".sss":
-                seconds += "." + longDate.fractionalSecond;
+                seconds += `.${longDate.fractionalSecond}`;
                 break;
             
               default:
@@ -848,51 +868,51 @@ class Space {
       };
       const UA = navigator.userAgent;
       let host;
-      switch (p1.toUpperCase()) {
+      switch (placeholder.toUpperCase()) {
         case "DATE":
-          if (p2) {
+          if (format) {
             // shorthand date options
-            if (p2.toUpperCase() === "FULL") return new Intl.DateTimeFormat(locale, {
+            if (format.toUpperCase() === "FULL") return new Intl.DateTimeFormat(uiLocale, {
               dateStyle: "full",
             }).format(now);
-            if (p2.toUpperCase() === "LONG") return new Intl.DateTimeFormat(locale, {
+            if (format.toUpperCase() === "LONG") return new Intl.DateTimeFormat(uiLocale, {
               dateStyle: "long",
             }).format(now);
-            if (p2.toUpperCase() === "MEDIUM") return new Intl.DateTimeFormat(locale, {
+            if (format.toUpperCase() === "MEDIUM") return new Intl.DateTimeFormat(uiLocale, {
               dateStyle: "medium",
             }).format(now);
-            if (p2.toUpperCase() === "SHORT") return new Intl.DateTimeFormat(locale, {
+            if (format.toUpperCase() === "SHORT") return new Intl.DateTimeFormat(uiLocale, {
               dateStyle: "short",
             }).format(now);
   
-            return formattedDateTime(p2, now);
+            return formattedDateTime(format, now);
           }
           return now.toLocaleDateString();
   
         case "TIME":
-          if (p2) {
-            if (p2 === "full") return new Intl.DateTimeFormat(locale, {
+          if (format) {
+            if (format === "full") return new Intl.DateTimeFormat(uiLocale, {
               timeStyle: "full",
             }).format(now);
-            if (p2 === "long") return new Intl.DateTimeFormat(locale, {
+            if (format === "long") return new Intl.DateTimeFormat(uiLocale, {
               timeStyle: "long",
             }).format(now);
-            if (p2 === "medium") return new Intl.DateTimeFormat(locale, {
+            if (format === "medium") return new Intl.DateTimeFormat(uiLocale, {
               timeStyle: "medium",
             }).format(now);
-            if (p2 === "short") return new Intl.DateTimeFormat(locale, {
+            if (format === "short") return new Intl.DateTimeFormat(uiLocale, {
               timeStyle: "short",
             }).format(now);
   
-            return formattedDateTime(p2, now);
+            return formattedDateTime(format, now);
           }
           return now.toLocaleTimeString();
   
         case "HOSTAPP":
           host = UA.match(/Edg\/([0-9.]+)/);
-          if (host) return "Edge " + host[1];
+          if (host) return `Edge ${host[1]}`;
           host = UA.match(/Chrome\/([0-9.]+)/);
-          if (host) return "Chrome " + host[1];
+          if (host) return `Chrome ${host[1]}`;
           return match;
   
         case "UA":
@@ -905,37 +925,38 @@ class Space {
           return this.getPathNames(path).pop();
   
         case "PATH":
-          return this.getPathNames(path).join(p2 || `/`);
+          return this.getPathNames(path).join(format || `/`);
       
         default:
-          // custom field, save for future processing (array to maintain order)
-          if (!snip.customFields) snip.customFields = [];
-          if (!snip.customFields.find(field => field.name === p1)) {
-            let field = {
-              name: p1,
-            };
-            if (Array.isArray(p3)) {
-              field.type = `select`;
-              field.value = p3[0] || ``;
-              field.options = p3;
+          // custom field, save for future processing
+          if (!customFields.has(placeholder)) {
+            if (Array.isArray(defaultValue)) {
+              customFields.set(placeholder,{
+                type: 'select',
+                value: defaultValue[0] || '',
+                options: defaultValue,
+              });
             } else {
-              field.type = p2 || `text`;
-              field.value = p3 || ``;
+              customFields.set(placeholder,{
+                type: format || 'text',
+                value: defaultValue || '',
+              });
             }
-            // console.log(field);
-            snip.customFields.push(field);
           }
           return match;
       }
     });
 
-    // console.log(snip);
-    return snip;
+    // console.log(snip, customFields);
+    return {
+      snip: snip,
+      ...customFields.size ? {customFields: customFields} : {},
+    };
   }
 
-  sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'] } = {}) {
+  sort({by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all']} = {}) {
     // recursive function in case everything needs to be sorted
-    let sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
+    const sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
       if (!data.children)
         return;
       data.children.sort((a, b) => {
@@ -950,7 +971,7 @@ class Space {
       });
       this.sequence(data);
       if (recursive) {
-        for (let child of data.children) {
+        for (const child of data.children) {
           if (child.children?.length)
             sortFolder(child, recursive, by, foldersOnTop, reverse);
         }
@@ -974,7 +995,7 @@ class Space {
     return this;
   }
 
-  async shift({ name = this.name, synced = this.synced }) {
+  async shift({name = this.name, synced = this.synced}) {
     // passthrough in case of no changes
     if (synced === this.synced && name === this.name) return true;
     // check if new space already exists
@@ -997,7 +1018,7 @@ class Space {
     }
 
     // save old space details
-    const oldSpace = { name: this.name, synced: this.synced };
+    const oldSpace = {name: this.name, synced: this.synced};
 
     // update current space details
     this.name = name, this.synced = synced;
@@ -1011,7 +1032,7 @@ class Space {
     // let other instances know of shift
     // setStorageData({ shift: {
     //   oldSpace: oldSpace,
-    //   newSpace: { name: name, synced: synced },
+    //   newSpace: {name: name, synced: synced},
     // } }, true);
 
     return true;
@@ -1026,7 +1047,8 @@ class Space {
    *   path: number[]|string
    * }} details
    */
-  async init({ name, synced, data, path } = {}) {
+  async init({name, synced, data, path} = {}) {
+    // console.log(name, synced, data, path);
     // check defaults if either name or synced are blank
     const settings = new Settings();
     if (!name || !synced) await settings.load();
@@ -1059,87 +1081,36 @@ class Space {
 }
 
 /**
- * Settings object for persisting as window global
- */
-class Settings {
-  /**
-   * @param {Settings} settings 
-   */
-  constructor(settings) {
-    if (settings) this.init(settings);
-  }
-
-  /**
-   * Take provided settings and initialize the remaining settings
-   * @param {Settings} settings 
-   */
-  init({ defaultSpace, sort, view, control } = {}) {
-    // console.log(defaultSpace, sort, view, control);
-    /** @type {{name:string,synced:boolean}} */
-    this.defaultSpace = {};
-    this.defaultSpace.name = defaultSpace?.name || i18n('app_name');
-    this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : true;
-    /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
-    this.sort = {};
-    this.sort.by = sort?.by || 'seq';
-    this.sort.groupBy = sort?.groupBy || '';
-    this.sort.foldersOnTop = isBool(sort?.foldersOnTop) ? sort.foldersOnTop : true;
-    /** @type {{rememberPath:boolean,sourceURL:boolean}} */
-    this.view = {};
-    this.view.rememberPath = isBool(view?.rememberPath) ? view.rememberPath : false;
-    this.view.sourceURL = isBool(view?.sourceURL) ? view.sourceURL : false;
-    /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
-    this.control = {};
-    this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : false;
-    this.control.preserveTags = isBool(control?.preserveTags) ? control.preserveTags : false;
-    this.control.rtLineBreaks = isBool(control?.rtLineBreaks) ? control.rtLineBreaks : true;
-    this.control.rtLinkEmails = isBool(control?.rtLinkEmails) ? control.rtLinkEmails : true;
-    this.control.rtLinkURLs = isBool(control?.rtLinkURLs) ? control.rtLinkURLs : true;
-  }
-
-  async load() {
-    const { settings } = await getStorageData('settings', true);
-    if (!settings) return settings; // return errors as-is
-
-    // legacy check
-    if (settings.foldersOnTop) {
-      settings.sort = { foldersOnTop: settings.foldersOnTop };
-      delete settings.foldersOnTop;
-    }
-
-    // upgrade settings object as needed and return the object
-    this.init(settings);
-    return this;
-  }
-
-  async save() {
-    setStorageData({ settings: this }, true);
-  }
-}
-
-/**
  * (Re)build context menu for snipping and pasting
  * @param {Space} space 
  */
 async function buildContextMenus(space) {
-  // console.log(structuredClone(space));
-  // clear current
+  // Since there's no way to poll current menu's, clear all first
   await new Promise((resolve, reject) =>
     chrome.contextMenus.removeAll(() =>
-      chrome.runtime.lastError
+      (chrome.runtime.lastError)
       ? reject(chrome.runtime.lastError)
-      : resolve()));
-  let menuData = {
-    space: {
+      : resolve()))
+  .catch((e) => console.warn(e));
+  if (!space?.name) return;
+
+  const addMenu = (properties) =>
+    new Promise((resolve, reject) =>
+      chrome.contextMenus.create(properties, () =>
+        (chrome.runtime.lastError)
+        ? reject(chrome.runtime.lastError)
+        : resolve()))
+    .catch((e) => console.warn(e));
+  
+  /** @type {{action:string,path:number[],seq:number,menuSpace:{name:string,synced:boolean}}} */
+  const menuData = {
+    action: 'snip',
+    menuSpace: {
       name: space.name,
       synced: space.synced,
+      path: [],
     },
-    action: 'snip',
   };
-
-  const addMenu = properties => new Promise((resolve, reject) =>
-  chrome.contextMenus.create(properties, () =>
-  chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve(true)));
 
   // create snipper for selected text
   addMenu({
@@ -1150,9 +1121,8 @@ async function buildContextMenus(space) {
 
   // build paster for saved snippets
   // console.log(space);
-  if (space.data) {
+  if (space.data?.children?.length) {
     // set root menu item
-    menuData.path = [];
     menuData.action = 'paste';
     chrome.contextMenus.create({
       "id": JSON.stringify(menuData),
@@ -1166,28 +1136,27 @@ async function buildContextMenus(space) {
      * @param {*} parentData 
      */
     const buildFolder = async (folder, parentData) => {
-      let menuItem = {
+      const menuItem = {
         "contexts": ["editable"],
         "parentId": JSON.stringify(parentData),
       };
       // clone parent object to avoid polluting it
-      let menuData = structuredClone(parentData);
+      const menuData = structuredClone(parentData);
+      // console.log(menuData, parentData);
+      if (menuData.seq) menuData.menuSpace.path.push(menuData.seq);
+      // list snippets in folder
       if (folder.length) {
         folder.forEach(item => {
-          menuData.path = parentData.path.concat([item.seq]) ?? [item.seq];
+          menuData.seq = item.seq;
           menuItem.id = JSON.stringify(menuData);
           // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
-          const color = colors[item.color];
-          menuItem.title = ((item instanceof Folder)
-                           ? (color?.square || "📁 ")
-                           : (color?.circle || "📝 "))
-                         + item.name.replaceAll("&", "&&")
-                         + "\xA0\xA0\xA0\xA0"; // padding for nicer display
+          const color = getColor(item.color);
+          menuItem.title = `${(item instanceof Folder) ? color.folder : color.snippet}\xA0\xA0${item.name.replaceAll("&", "&&")}`;
           chrome.contextMenus.create(menuItem);
           if (item instanceof Folder) buildFolder(item.children, menuData);
         });
       } else {
-        menuData.path = parentData.path.concat(['empty']);
+        menuData.seq = undefined;
         menuItem.id = JSON.stringify(menuData);
         menuItem.title = i18n('folder_empty');
         menuItem.enabled = false;
@@ -1195,24 +1164,6 @@ async function buildContextMenus(space) {
       }
     };
     // build paste snippet menu tree
-    if (space.data.children) buildFolder(space.data.children, menuData);
+    buildFolder(space.data.children, menuData);
   }
-}
-
-/**
- * Replaces html tags with markdown symbols
- * @param {string} text 
- * @returns {string}
- */
-function mdify(text) {
-  return text;
-}
-
-/**
- * Replaces markdown symbols with html tags
- * @param {string} text 
- * @returns {string}
- */
-function parseMD(text) {
-  return text;
 }

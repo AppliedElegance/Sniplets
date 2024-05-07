@@ -1,4 +1,8 @@
 {
+  "locale": {
+    "message": "en",
+    "description": "locale name describing this translation (may have fallen back from a more specific locale)"
+  },
   "app_name": {
     "message": "Snippets",
     "description": "Name of the extension."
@@ -11,28 +15,32 @@
     "message": "Open Snippets",
     "description": "Description of shortcut for opening the extension."
   },
+  "app_command_copy": {
+    "message": "Snip selected text",
+    "description": "Description of shortcut for initiating a snip action."
+  },
   "app_command_paste": {
     "message": "Paste a snippet",
     "description": "Description of shortcut for initiating a paste action."
   },
   "warning_site_permissions": {
-    "message": "This field requires additional permissions for context menus and shortcuts to work. To continue, please press the appropriate button and accept the request.",
+    "message": "This selection requires additional permissions for context menus to work. Please press the appropriate button and accept the request to continue.",
     "description": "Warning displayed to the user when additional site permissions are needed for context menus."
   },
   "request_site_permissions": {
-    "message": "Allow full access on <em>this</em> site",
+    "message": "Permit access only on the selected site",
     "description": "Button text for requesting full permissions on a specific domain."
   },
   "request_all_site_permissions": {
-    "message": "Allow full access on <em>all</em> sites",
+    "message": "Permit access on all sites",
     "description": "Button text for requesting full permissions on all allowed domains."
   },
   "error_paste_failed": {
-    "message": "Sorry, either the page is no longer available or pasting into this field has been blocked by your browser. Please check and try again, or copy the selected snippet using the clipboard feature and paste it in manually.",
+    "message": "Sorry, something went wrong. Possibly the page is no longer available or pasting into this field has been blocked specifically by your browser or another extension. Please check and try again, or copy the selected snippet using the clipboard feature and paste it in manually.",
     "description": "Error message displayed to the user when unable to fulfil a paste request."
   },
   "error_paste_blocked": {
-    "message": "Sorry, pasting directly into this page is blocked by your browser. Please copy the selected snippet to the clipboard and paste it in manually.",
+    "message": "Sorry, pasting directly into this page is blocked by your browser. If you used a keyboard shortcut, please try again using the context menu. Otherwise, please copy the selected snippet to the clipboard and paste it in manually.",
     "description": "Error message displayed to the user when trying to paste from the context menu on a page where scripts are not allowed."
   },
   "error_snip_failed": {
@@ -201,6 +209,12 @@
   "title_counter_manage": {
     "message": "Counters"
   },
+  "title_snip_blocked": {
+    "message": "Snip Blocked"
+  },
+  "title_paste_blocked": {
+    "message": "Paste Blocked"
+  },
   "submit": {
     "message": "Submit"
   },
@@ -264,23 +278,59 @@
   "warning_sync_full": {
     "message": "The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back."
   },
-  "plural_suffix_zero": {
-    "message": "th"
+  "ordinal_zero": {
+    "message": "$number$th",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "0"
+      }
+    }
   },
-  "plural_suffix_one": {
-    "message": "st"
+  "ordinal_one": {
+    "message": "$number$st",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
   },
-  "plural_suffix_two": {
-    "message": "nd"
+  "ordinal_two": {
+    "message": "$number$nd",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
   },
-  "plural_suffix_few": {
-    "message": "rd"
+  "ordinal_few": {
+    "message": "$number$rd",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
   },
-  "plural_suffix_many": {
-    "message": "th"
+  "ordinal_many": {
+    "message": "$number$th",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
   },
-  "plural_suffix_other": {
-    "message": "th"
+  "ordinal_other": {
+    "message": "$number$th",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "100"
+      }
+    }
   },
   "warning_sync_overwrite": {
     "message": "Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed."
@@ -296,5 +346,74 @@
   },
   "folder_empty": {
     "message": "Empty…"
+  },
+  "warning_no_frameid": {
+    "message": "Due to browser limitations, keyboard shortcuts cannot be used reliably inside embedded windows. Please use the context menu here or copy and paste manually."
+  },
+  "request": {
+    "message": "Request"
+  },
+  "ignore_missing_frameids": {
+    "message": "Don't show this warning again."
+  },
+  "deny_site_permissions": {
+    "message": "Deny Access"
+  },
+  "action_clear": {
+    "message": "Clear"
+  },
+  "action_clear_all_data": {
+    "message": "Clear All Data"
+  },
+  "action_clear_srcs": {
+    "message": "Clear Saved Sources"
+  },
+  "action_restore": {
+    "message": "Restore Backup"
+  },
+  "remember_choice": {
+    "message": "Remember my choice"
+  },
+  "request_origins": {
+    "message": "Additional site permissions are required to use menus and shortcuts within the embedded page you've selected. Please select how you would like to proceed:"
+  },
+  "action_request": {
+    "message": "Request"
+  },
+  "action_cancel": {
+    "message": "Cancel"
+  },
+  "action_permit": {
+    "message": "Permit"
+  },
+  "action_reinitialize": {
+    "message": "Clear Corrupt Data"
+  },
+  "warning_space_corrupt": {
+    "message": "The current extension storage seems to be corrupt. Would you like to clear it?"
+  },
+  "error_snip_blocked": {
+    "message": "Sorry, something went wrong. Likely, your browser has completely blocked the extension from accessing your selection. If you used a keyboard shortcut, please try again with the right-click context menu. Otherwise, please copy and paste the selection manually into a new snippet."
+  },
+  "error_scripting_blocked": {
+    "message": "For security reasons, the browser does not allow extensions to affect this page ($url$). Please copy and paste manually using the popup window..",
+    "placeholders": {
+      "url": {
+        "content": "$1",
+        "example": "https://github.com/jpc-ae/Snippets"
+      }
+    }
+  },
+  "title_scripting_blocked": {
+    "message": "Action Blocked"
+  },
+  "error_ck_blocked": {
+    "message": "Unfortunately, the CKEditor used by this site reverts any changes made by extensions. Please use the copy feature and paste manually instead."
+  },
+  "title_snip_not_found": {
+    "message": "Snippet Not Found"
+  },
+  "warning_snip_not_found": {
+    "message": "Sorry, the requested snippet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current snippets to prevent data loss."
   }
 }

@@ -28,4 +28,4 @@ Ever wanted to save some text for later use, or throw some info over from one of
 - dark theme
 - rtl toggle
 - rich text editing for inline rtl text
-- 
+- clear cloud data

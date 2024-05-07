@@ -361,7 +361,7 @@ input:focus + label,
 
 dialog {
   font-size: larger;
-  width: 75%;
+  width: fit-content;
   max-width: 600px;
 }
 
@@ -471,4 +471,7 @@ figure {
   .tree {
     display: none;
   }
+}
+
+@media (prefers-color-scheme: dark) {
 }

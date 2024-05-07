@@ -1,4 +1,3 @@
-/* Helpers for building and manipulating the DOM */
 /* eslint-disable no-unused-vars */
 
 /**
@@ -9,7 +8,7 @@
 function buildNode(tagName, attributes) {
   const element = document.createElement(tagName);
 
-  for (let a in attributes) {
+  for (const a in attributes) {
     // ignores falsy values (false must be a string value for attributes)
     if (!attributes[a]) continue;
     switch (a) {
@@ -19,7 +18,7 @@ function buildNode(tagName, attributes) {
       break; }
     
     case 'dataset': // append `data-*` attributes
-      for (let key in attributes.dataset) {
+      for (const key in attributes.dataset) {
         element.dataset[key] = attributes.dataset[key];
       }
       break;
@@ -32,7 +31,7 @@ function buildNode(tagName, attributes) {
       if (typeof attributes.style === 'string') {
         element.style.cssText = attributes.style;
       } else {
-        for (let key in attributes.style) {
+        for (const key in attributes.style) {
           element.style[key] = attributes.style[key];
         }
       }
@@ -41,9 +40,13 @@ function buildNode(tagName, attributes) {
     case 'textContent': // add text content within tag (should not be used along with children)
       element.textContent = attributes.textContent;
       break;
+
+    case 'innerHTML': // add template content within tag (should not be used along with children)
+      element.innerHTML = attributes.innerHTML;
+      break;
     
     case 'events': // attach event listeners directly to element
-      for (let e of attributes.events) {
+      for (const e of attributes.events) {
         element.addEventListener(e.type, e.listener, e.options || false);
       }
       break;
@@ -75,7 +78,7 @@ function buildSvg(title, sprite, fill) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('role', `img`);
   svg.setAttribute('focusable', false);
-  // Add an accessible title field for screenreaders
+  // Add an accessible title field for screen readers
   const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
   svgTitle.textContent = title;
   // Add a use element referencing the spritesheet
@@ -114,15 +117,37 @@ function setSvgFill(target, fill) {
  */
 function toggleChecked(useNode, check) {
   const sprite = useNode.href.baseVal;
-  const isChecked = sprite.slice(-8) === `-checked`;
+  const isChecked = sprite.slice(-7) === `checked`;
   if (isChecked === check) return;
   useNode.setAttribute('href', (isChecked) ? sprite.slice(0, -8) : `${ sprite }-checked`);
 }
 
 /**
- * Builder for popover menus with an icon
+ * builder for icon buttons
+ * @param {string} name 
+ * @param {string} sprite 
+ * @param {string} color 
+ * @param {Object} dataset 
+ * @returns {HTMLButtonElement}
+ */
+function buildActionIcon(name, sprite, color, dataset) {
+  return buildNode('button', {
+    type: `button`,
+    classList: [`icon`],
+    dataset: dataset,
+    children: [buildSvg(
+      name,
+      sprite,
+      color,
+    )],
+  });
+}
+
+/**
+ * Builder for icon popover menus
  * @param {string} id 
  * @param {string} sprite 
+ * @param {string} color 
  * @param {HTMLElement[]} list 
  */
 function buildPopoverMenu(id, sprite, color, list) {
@@ -144,8 +169,10 @@ function buildPopoverMenu(id, sprite, color, list) {
 
 /**
  * Build a clickable menu item
- * @param {string} name - Name to display
- * @param {Object} dataset - Should include an action and any related properties
+ * @param {string} title - Text to display
+ * @param {string} name - Name of control
+ * @param {string} value - Initial value of the button
+ * @param {{[key:string]:string}} data - `data-` (`dataset`) attributes
  */
 function buildMenuItem(title, name, value, data) {
   return buildNode('p', {
@@ -171,6 +198,7 @@ function buildMenuSeparator() {
 /**
  * Submenu builder
  * @param {string} label - Menu name, will be postpended with `…`
+ * @param {string} id - Unique identifier
  * @param {HTMLElement[]} items - Submenu items
  */
 function buildSubMenu(label, id, items) {
@@ -242,30 +270,11 @@ function buildMenuControl(type, name, value, checked, { id, title, dataset } = {
 }
 
 /**
- * builder for icon buttons
- * @param {string} name 
- * @param {string} sprite 
- * @param {string} color 
- * @param {Object} dataset 
- * @returns {HTMLButtonElement}
- */
-function buildActionIcon(name, sprite, color, dataset) {
-  return buildNode('button', {
-    type: `button`,
-    classList: [`icon`],
-    dataset: dataset,
-    children: [buildSvg(
-      name,
-      sprite,
-      color,
-    )],
-  });
-}
-
-/**
  * Builder for TreeItem widgets depending on their extended class
  * @param {TreeItem} item - Folder or Snippet
  * @param {TreeItem[]} list - Folder list which includes `item`, for calculating dropzone targets
+ * @param {number[]} path - Seq path to item
+ * @param {Settings} settings - What to show
  * @returns {HTMLElement[]}
  */
 function buildItemWidget(item, list, path, settings) {
@@ -279,11 +288,11 @@ function buildItemWidget(item, list, path, settings) {
   const widgetMenu = buildPopoverMenu(
     `item-menu-${ item.seq }`,
     `icon-${ item.constructor.name.toLowerCase() }`,
-    colors[item.color]?.value || `inherit`,
+    getColor(item.color).value,
     [
-      buildSubMenu(i18n('color'), `item-${ item.seq }-color-menu`, Object.keys(colors).map((color, i) =>
+      buildSubMenu(i18n('color'), `item-${ item.seq }-color-menu`, [...colors].map(([color], i) =>
         buildMenuControl('radio', `item-${ item.seq }-color`,
-        color, ((color === item.color) || (!colors[color].value && !item.color)), {
+        color, ((color === item.color) || (!item.color && color === 'Default')), {
           id: `item-${ item.seq }-color-${ i }`,
           dataset: { action: 'edit', field: 'color', seq: item.seq },
         }),
@@ -309,6 +318,7 @@ function buildItemWidget(item, list, path, settings) {
   // only folders can be 'opened'
   const widgetTitle = buildNode('input', {
     type: (isFolder) ? `button` : `text`,
+    name: `name`,
     value: item.name,
     dataset: {
       action: (isFolder) ? `open-folder` : `edit`,
@@ -332,7 +342,7 @@ function buildItemWidget(item, list, path, settings) {
         field: `copy`, // so it can be focused
         seq: item.seq,
       }),
-      buildActionIcon(i18n('action_delete'), `icon-delete`, colors.Red.value, {
+      buildActionIcon(i18n('action_delete'), `icon-delete`, getColor('Red').value, {
         action: `delete`,
         seq: item.seq,
       }),
@@ -438,100 +448,5 @@ function buildTreeWidget(collapsible, color, target, text) {
         ],
       }),
     ],
-  });
-}
-
-/**
- * Builder for modal dialogue
- * @param {{
- * title:string
- * message:string
- * content:HTMLElement[]
- * fields:{type:string,name:string,label:string,value:string,options:string[]}[]
- * buttons:{[key:string]:*}[]
- * }} options
- * @param {boolean} [narrow=false] 
- * @returns {HTMLDialogElement}
- */
-function buildModal({ title, message, content, fields, buttons }, narrow = false) {  
-  // set up container
-  const form = buildNode('form', {
-    method: `dialog`,
-  });
-
-  // add title
-  if (title) form.append(buildNode('h1', { textContent: title }));
-
-  // add message
-  if (message) form.append(buildNode('p', { textContent: message }));
-
-  // add any custom content
-  if (content) form.append(...content);
-
-  // add fields
-  if (fields) {
-    const formFields = buildNode('div', {
-      classList: [`fields`],
-    });
-    fields.forEach((field, i) => {
-      // console.log(field);
-      if (i > 0) {
-        formFields.append(buildNode('div', {
-          classList: [`divider`],
-        }));
-      }
-      const isSelect = (field.type === 'select');
-      formFields.append(buildNode('div', {
-        classList: [`field`],
-        children: [
-          buildNode('label', {
-            for: field.name,
-            textContent: `${ field.label }:`,
-          }),
-          buildNode(isSelect ? 'select' : 'input', {
-            type: field.type,
-            name: field.name,
-            id: field.name,
-            title: field.label,
-            value: field.value,
-            children: isSelect && field.options.map(option => buildNode('option', {
-              value: option,
-              textContent: option,
-            })),
-          }),
-        ],
-      }));
-    });
-    form.append(formFields);
-  }
-
-  // add buttons
-  if (buttons) {
-    const formButtons = buildNode('div', {
-      classList: [`buttons`],
-    });
-    for (let button of buttons) {
-      formButtons.append(buildNode('button', {
-        type: `submit`,
-        ...button,
-      }));
-    }
-    form.append(formButtons);
-  }
-
-  // add cancel button last for tab position:
-  const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, colors.Red.value);
-  cancelButton.type = `submit`;
-  cancelButton.value = `cancel`;
-  cancelButton.formMethod = `dialog`;
-  form.append(buildNode('div', {
-    classList: [`x`],
-    children: [cancelButton],
-  }));
-
-  // return modal
-  return buildNode('dialog', {
-    classList: narrow && [`narrow`],
-    children: [form],
   });
 }
