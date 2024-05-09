@@ -290,10 +290,11 @@ function buildItemWidget(item, list, path, settings) {
     `icon-${ item.constructor.name.toLowerCase() }`,
     getColor(item.color).value,
     [
-      buildSubMenu(i18n('color'), `item-${ item.seq }-color-menu`, [...colors].map(([color], i) =>
+      buildSubMenu(i18n('color'), `item-${ item.seq }-color-menu`, Array.from(colors).map(([color, {label}], i) =>
         buildMenuControl('radio', `item-${ item.seq }-color`,
-        color, ((color === item.color) || (!item.color && color === 'Default')), {
+        color, ((color === item.color) || (!item.color && color === 'default')), {
           id: `item-${ item.seq }-color-${ i }`,
+          title: label,
           dataset: { action: 'edit', field: 'color', seq: item.seq },
         }),
       )),
@@ -342,7 +343,7 @@ function buildItemWidget(item, list, path, settings) {
         field: `copy`, // so it can be focused
         seq: item.seq,
       }),
-      buildActionIcon(i18n('action_delete'), `icon-delete`, getColor('Red').value, {
+      buildActionIcon(i18n('action_delete'), `icon-delete`, getColor('red').value, {
         action: `delete`,
         seq: item.seq,
       }),

@@ -157,7 +157,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
  * @param {string} richText
  */
 const paste = (snip, richText) => {
-  // console.log(snip);
+  console.log(snip, richText);
   if (!snip?.content) return {
     error: 'nosnip',
   };

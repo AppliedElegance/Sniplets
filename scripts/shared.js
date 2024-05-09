@@ -1,24 +1,5 @@
 /* eslint-disable no-unused-vars */
 
-/** check if a value is explicitly boolean rather than just truthy/falsy */
-const isBool = arg => typeof arg === 'boolean';
-
-/** Default colors: Red|Orange|Yellow|Green|Blue|Purple|Grey */
-const colors = new Map()
-.set('Default', {value: "inherit", clippings: "",       square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       snippet: "📝"})
-.set('Red',     {value: "#D0312D", clippings: "red",    square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('Orange',  {value: "#FFA500", clippings: "orange", square: "🟧",           circle: "🟠",           heart: "🧡",           book: "📙", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('Yellow',  {value: "#FFD700", clippings: "yellow", square: "🟨",           circle: "🟡",           heart: "💛",           book: "📒", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('Green',   {value: "#3CB043", clippings: "green",  square: "🟩",           circle: "🟢",           heart: "💚",           book: "📗", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('Blue',    {value: "#3457D5", clippings: "blue",   square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('Purple',  {value: "#A32CC4", clippings: "purple", square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get snippet() {return this.circle;}})
-.set('Grey',    {value: "#808080", clippings: "gray",   square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get snippet() {return this.circle;}});
-/** Safe getter for the colors that will return a default value if not available
- * @param {string} [color] 
- * @returns {{value:string,clippings:string,square:string,circle:string,heart:string,book?:string,folder:string,snippet:string}}
- */
-const getColor = color => colors.get(colors.has(color) ? color : 'Default');
-
 /**
  * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} messageName 
@@ -34,6 +15,24 @@ const i18nNum = (i, options = {useGrouping: false}) =>
   new Intl.NumberFormat(uiLocale, options).format(i);
 const i18nOrd = (i) =>
   i18n(`ordinal_${new Intl.PluralRules(uiLocale).select(i)}`, i);
+
+const colors = new Map()
+.set('default', {value: "inherit", label: i18n('color_default'), square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       snippet: "📝"})
+.set('red',     {value: "#D0312D", label: i18n('color_red'),     square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('orange',  {value: "#FFA500", label: i18n('color_orange'),  square: "🟧",           circle: "🟠",           heart: "🧡",           book: "📙", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('yellow',  {value: "#FFD700", label: i18n('color_yellow'),  square: "🟨",           circle: "🟡",           heart: "💛",           book: "📒", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('green',   {value: "#3CB043", label: i18n('color_green'),   square: "🟩",           circle: "🟢",           heart: "💚",           book: "📗", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('blue',    {value: "#3457D5", label: i18n('color_blue'),    square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get snippet() {return this.circle;}})
+.set('purple',  {value: "#A32CC4", label: i18n('color_purple'),  square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get snippet() {return this.circle;}})
+.set('gray',    {value: "#808080", label: i18n('color_gray'),    square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get snippet() {return this.circle;}});
+/** Safe getter for the colors that will return a default value if not available
+ * @param {string} [color] 
+ * @returns {{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,snippet:string}}
+ */
+const getColor = color => colors.get(colors.has(color) ? color : 'default');
+// legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files)
+const legacyColors = new Map().set('Red','red').set('Orange','orange').set('Yellow','yellow')
+.set('Green','green').set('Blue','blue').set('Purple','purple').set('Grey','gray');
 
 /** Open a new popup window
  * @param {{[name:string]:string}} params
@@ -213,20 +212,18 @@ const linkURLs = text => text.replaceAll(
  * @param {{content:string,nosubst:boolean}} snip 
  */
 const getRichText = async (snip) => {
-  // console.log(snip);
+  // don't process flagged snippets
   if (snip.nosubst) return snip.content;
+  // work on string copy
   let text = snip.content;
+  // check what processing has been enabled
   const settings = new Settings();
   await settings.load();
-  // console.log(settings);
   const {rtLineBreaks, rtLinkEmails, rtLinkURLs} = settings.control;
-  // console.log(text, rtLineBreaks);
+  // process according to settings
   if (rtLineBreaks) text = tagNewlines(text);
-  // console.log(text, rtLinkEmails);
   if (rtLinkEmails) text = linkEmails(text);
-  // console.log(text, rtLinkURLs);
   if (rtLinkURLs) text = linkURLs(text);
-  // console.log(text);
   return text;
 };
 
@@ -300,22 +297,22 @@ class Settings {
 
 /** Base constructor for folders, snippets and any future items */
 class TreeItem {
-  constructor({name, seq, color} = {}) {
+  constructor({name = i18n('title_new_generic'), seq, color} = {}) {
     /** @type {string} */
-    this.name = name || i18n('title_new_generic');
+    this.name = name;
     /** @type {number} */
-    this.seq = seq || 1;
+    this.seq = seq;
     /** @type {string} */
-    this.color = color;
+    this.color = legacyColors.get(color) || color; // legacy color mapping check
   }
 }
 /** Folders contain tree items and can be nested. */
 class Folder extends TreeItem {
-  constructor({name, seq, children, color} = {}) {
+  constructor({name = i18n('title_new_folder'), seq, children, color, label} = {}) {
     super({
-      name: name || i18n('title_new_folder'),
-      seq: seq || 1,
-      color: color,
+      name: name,
+      seq: seq,
+      color: color || label, // clippings uses the label field
     });
     /** @type {(TreeItem|Folder|Snippet)[]} */
     this.children = children || [];
@@ -323,7 +320,7 @@ class Folder extends TreeItem {
 }
 /** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
-  constructor({name, seq, color, shortcut, sourceURL, content = "", nosubst = false} = {}) {
+  constructor({name, seq, color, label, shortcut, sourceURL, content = "", nosubst = false} = {}) {
     // generate name from content if provided
     if (!name && content) {
       // create snippet title from first line of text
@@ -340,7 +337,7 @@ class Snippet extends TreeItem {
     super({
       name: name || i18n('title_new_snippet'),
       seq: seq || 1,
-      color: color,
+      color: color || label,
     });
     /** @type {string} */
     this.content = content;
@@ -355,17 +352,16 @@ class Snippet extends TreeItem {
 /** Basic snippets data bucket */
 class DataBucket {
   /**
-   * 
    * @param {{version:string,children:(TreeItem|Folder|Snippet)[]|string,counters:number}} values 
    */
-  constructor({version, children, counters} = {}) {
+  constructor({version = "1.0", children = [], counters = {}} = {}) {
     /** @type {string} */
-    this.version = version || "1.0";
+    this.version = version;
     /** @type {number} */
     this.timestamp = Date.now();
     /** @type {(TreeItem|Folder|Snippet)[]|string} */
-    this.children = children || [];
-    const {startVal, ...cs} = counters || {};
+    this.children = children;
+    const {startVal, ...cs} = counters;
     /** @type {{[name:string]:number}} */
     this.counters = cs || {};
     this.counters.startVal = +startVal || 0;
@@ -467,7 +463,7 @@ class DataBucket {
       content: o.content || "",
       shortcutKey: o.shortcutKey || "",
       sourceURL: o.sourceURL || "",
-      label: getColor(o.color).clippings,
+      label: o.color,
       seq: o.seq - 1,
     });
     return {
@@ -707,22 +703,19 @@ class Space {
     }
 
     // process counters, kept track internally to allow use across multiple snippets
-    // console.log("Processing counters...");
+    let counters = false;
     snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
-      if (!snip.counters) snip.counters = [];
-      snip.counters.push(p1);
-      // console.log(p1, p2, this.data.counters, p1 in this.data.counters);
-      if (p1 in this.data.counters === false) {
-        // console.log("Adding counter...", p1);
+      counters = true;
+      // add new counters to tracking list
+      if (!(p1 in this.data.counters)) {
         this.data.counters[p1] = this.data.counters.startVal;
       }
       const val = this.data.counters[p1];
-      // console.log(val, typeof val);
       this.data.counters[p1] += isNaN(p2) ? 1 : +p2;
       return val;
     });
     // save space if counters were used and thus incremented
-    if (snip.counters?.length) this.save();
+    if (counters) await this.save();
   
     // placeholders
     // console.log("Processing placeholders...");
