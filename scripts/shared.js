@@ -108,7 +108,7 @@ async function setFollowup(type, args, popup = true) {
     type: type,
     args: args || {}, // default value for destructuring
   }}).catch((e) => console.warn(e));
-  if (popup && !chrome.runtime.getContexts({contextTypes:['POPUP']}).length) {
+  if (popup && !chrome.runtime.getContexts({contextTypes:['POPUP']}).length && chrome.action.openPopup) {
     chrome.action.openPopup();
   } else {
     return openPopup();
