@@ -44,7 +44,6 @@ module.exports = {
         "arrow-body-style": "error",
     },
     "globals": {
-        "isBool": false,
         "colors": false,
         "getColor": false,
         "i18n": false,

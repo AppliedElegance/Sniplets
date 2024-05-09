@@ -113,7 +113,7 @@ function showModal({title, message, content, fields, buttons}, onChange) {
   }
 
   // console.log("Adding cancel button...");
-  const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, getColor('Red').value);
+  const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, getColor('red').value);
   cancelButton.type = `submit`;
   cancelButton.value = `esc`;
   form.append(buildNode('div', {
@@ -243,7 +243,7 @@ function showAbout() {
  * @returns {Promise<Map<string,{type:string,value:string,options:string[]}>>}
  */
 async function mergeCustomFields(content, fields) {
-  // console.log(fields, fields instanceof Map);
+  console.log(content, fields, fields instanceof Map);
   if (!fields?.size) return content;
   //build modal
   const submission = await showModal({
@@ -278,8 +278,8 @@ async function mergeCustomFields(content, fields) {
     button.value = JSON.stringify(Array.from(fields.entries()));
     // console.log(button.value, fields);
   });
-  // console.log(confirmedFields);
   const confirmedFields = submission && new Map(JSON.parse(submission));
+  if (!confirmedFields) return content;
   return content.replaceAll(
     /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
     (match, placeholder) => confirmedFields.get(placeholder)?.value || match,

@@ -461,5 +461,29 @@
   },
   "menu_adjust_textarea": {
     "message": "Resize editors automatically"
+  },
+  "color_default": {
+    "message": "Default"
+  },
+  "color_red": {
+    "message": "Red"
+  },
+  "color_orange": {
+    "message": "Orange"
+  },
+  "color_yellow": {
+    "message": "Yellow"
+  },
+  "color_green": {
+    "message": "Green"
+  },
+  "color_blue": {
+    "message": "Blue"
+  },
+  "color_purple": {
+    "message": "Purple"
+  },
+  "color_gray": {
+    "message": "Grey"
   }
 }

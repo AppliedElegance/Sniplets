@@ -71,7 +71,8 @@ const loadPopup = async () => {
         if (!text) return; // modal cancelled
         snip.content = text;
       }
-      insertSnip(target, snip);
+      // await since window.close will cancel unresolved promises
+      await insertSnip(target, snip);
       window.close();
     };
     switch (type) {
@@ -960,9 +961,10 @@ async function handleAction(target) {
   // backup/restore/clear data
   case 'initialize':
     if (!await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data'))) break;
+    // clear each in order to ensure service worker knows what's going on
+    await chrome.storage.session.clear();
     await chrome.storage.local.clear();
     await chrome.storage.sync.clear();
-    await chrome.storage.session.clear();
     // reinitialize
     settings.init();
     // console.log(settings);
@@ -1057,7 +1059,8 @@ async function handleAction(target) {
         settings.save();
         // showAlert("Settings have been restored.");
       }
-      if (backup.userClippingsRoot) { // check for clippings data
+      // check for clippings data
+      if (backup.userClippingsRoot) {
         // console.log("Creating new DataBucket...");
         const newData = new DataBucket({children: backup.userClippingsRoot});
         // console.log("Parsing data...", structuredClone(newData), newData);

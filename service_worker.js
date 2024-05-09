@@ -88,7 +88,8 @@ chrome.runtime.onStartup.addListener(async () => {
 //   console.log(message, sender);
 // });
 
-// TODO: add setting to load popout instead of popup in case set (the below code only triggers when no popup url set)
+// TODO: add setting to load popout instead of popup
+// (the below code only triggers when no popup url set)
 chrome.action.onClicked.addListener(() => openPopup());
 
 // set up context menu listener
@@ -142,40 +143,42 @@ chrome.commands.onCommand.addListener(async (command, {id, url}) => {
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   // console.log(changes, areaName);
+  const sync = (areaName === 'sync');
+
+  // prepare currentSpace details for checks
+  const {currentSpace} = await getStorageData('currentSpace') || {};
+
   for (const key in changes) {
-    // ignore currentSpace updates
+    // ignore updates to currentSpace itself
     if (key === 'currentSpace') continue;
 
     // check for data updates
     if (changes[key].newValue?.children) {
-      const s = {
-        name: key,
-        synced: (areaName === 'sync'),
-      };
-
       // send a message to update any open windows
-      // console.log(key, changes[key].newValue);
-      // (ok to fail silently in case there are no open windows)
       chrome.runtime.sendMessage({
         type: 'updateSpace',
         args: {
+          name: key,
+          synced: sync,
           timestamp: changes[key].newValue.timestamp,
         },
-      }).catch((e) => (console.warn(e), false));
+      }).catch(() => false);
 
       // check if current space was changed
-      const {currentSpace} = await getStorageData('currentSpace');
-      // console.log(key, currentSpace);
-      if (!currentSpace || currentSpace.name === key) {
+      const {name, synced} = currentSpace || {};
+      if (!currentSpace || (name === key && synced === sync)) {
         const space = new Space();
-        await space.init({...s, data: changes[key].newValue});
+        await space.init({
+          name: key,
+          synced: sync,
+          data: changes[key].newValue,
+        });
         buildContextMenus(space);
       }
     }
 
-    // check for removed sync data without local data
-    // console.log(areaName, changes, changes[key]);
-    if (areaName === 'sync'
+    // check for removed sync data without local data as long as there's a currentSpace
+    if (sync && currentSpace
     && changes[key].oldValue?.children
     && !changes[key].newValue) {
       const bucket = await getStorageData(key, false);
@@ -183,6 +186,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
         setFollowup('unsync', {
           actionSpace: {
             name: key,
+            synced: sync,
             data: changes[key].oldValue,
           },
         }, false);
