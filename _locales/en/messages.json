@@ -76,11 +76,11 @@
     "description": "Menu text for showing the xxx menu."
   },
   "menu_show_src": {
-    "message": "Show field in list",
+    "message": "Show sources field",
     "description": "Menu text for toggling the option to show the source field underneath the snippets editor."
   },
   "menu_save_src": {
-    "message": "Save automatically",
+    "message": "Save page URL as source",
     "description": "Menu text for toggling the option to automatically associate the page url with snips when using the context menu."
   },
   "menu_clear_src": {
@@ -89,15 +89,7 @@
   },
   "menu_counters": {
     "message": "Counters",
-    "description": "Menu text for showing the xxx menu."
-  },
-  "menu_count_0": {
-    "message": "0",
-    "description": "Menu text for setting the initial value of counters to 0."
-  },
-  "menu_count_1": {
-    "message": "1",
-    "description": "Menu text for setting the initial value of counters to 1."
+    "description": "Menu text for showing the Counters menu."
   },
   "menu_count_x": {
     "message": "Custom",
@@ -148,7 +140,7 @@
     "description": "Menu text for initiating restoration of a backup."
   },
   "menu_reinit": {
-    "message": "Clear All Data",
+    "message": "Clear all data & settings",
     "description": "Menu text for clearing all data and reverting back to a clean install state."
   },
   "menu_about": {
@@ -159,10 +151,10 @@
     "message": "Cancel"
   },
   "action_stop_sync": {
-    "message": "Stop Syncing."
+    "message": "Stop Syncing"
   },
   "action_start_sync": {
-    "message": "Start Syncing."
+    "message": "Start Syncing"
   },
   "action_add_folder": {
     "message": "New Folder"
@@ -183,7 +175,7 @@
     "message": "Sorry, a folder can't be moved inside its child folder."
   },
   "warning_clear_data": {
-    "message": "This action will clear all data and can't be undone. Are you sure you wish to do so?"
+    "message": "This action will clear all data and reset your settings to their defaults. It can't be undone so please ensure to backup any important data first. Are you sure you wish to continue?"
   },
   "file_save_type": {
     "message": "Backup File"
@@ -332,7 +324,7 @@
       }
     }
   },
-  "warning_sync_overwrite": {
+  "warning_data_overwrite": {
     "message": "Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed."
   },
   "error_sync_full": {
@@ -415,5 +407,59 @@
   },
   "warning_snip_not_found": {
     "message": "Sorry, the requested snippet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current snippets to prevent data loss."
+  },
+  "menu_clear_sync": {
+    "message": "Clear cloud data"
+  },
+  "menu_data": {
+    "message": "Data"
+  },
+  "menu_save_tags": {
+    "message": "Include tags (experimental)"
+  },
+  "menu_snip": {
+    "message": "Snipping"
+  },
+  "menu_paste": {
+    "message": "Pasting"
+  },
+  "menu_count_init": {
+    "message": "Initial value"
+  },
+  "menu_data_compression": {
+    "message": "Use data compression"
+  },
+  "action_overwrite": {
+    "message": "Overwrite"
+  },
+  "error_shift_failed": {
+    "message": "Sorry, something went wrong with moving the data. The change was reverted to avoid data loss."
+  },
+  "warning_sync_stopped": {
+    "message": "Another browser you're signed in on has stopped synchronizing it's data. Would you like to keep synchronizing on this browser, or use local storage instead?"
+  },
+  "action_keep_syncing": {
+    "message": "Keep Synchronizing"
+  },
+  "action_use_local": {
+    "message": "Use Local Storage"
+  },
+  "error_data_corrupt": {
+    "message": "Sorry, the data could not be recovered. Please make a backup on the other brower and restore it here to keep it manually."
+  },
+  "warning_new_sync_data": {
+    "message": "Another browser has started synchronizing their data. Would you like to accept the sync and overwrite your current data, or keep working locally?"
+  },
+  "warning_sync_overwrite": {
+    "message": "It looks like another browser is already trying to synchronize data. Please confirm which data you would like to keep."
+  },
+  "action_keep_local": {
+    "message": "Keep Local Data"
+  },
+  "action_keep_sync": {
+    "message": "Keep Incoming Data"
+  },
+  "menu_adjust_textarea": {
+    "message": "Resize editors automatically"
   }
 }

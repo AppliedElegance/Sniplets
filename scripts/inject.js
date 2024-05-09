@@ -21,7 +21,7 @@ const isBlockedURL = url => {
 const reportBlockedURL = (url) => {
   setFollowup('alert', {
     title: i18n('title_scripting_blocked'),
-    message: i18n('error_scripting_blocked', url),
+    message: i18n('error_scripting_blocked', new URL(url).hostname),
   });
   return;
 };
@@ -268,7 +268,7 @@ const paste = (snip, richText) => {
     };
   };
 
-  return insertText(window, snip);
+  return insertText(window);
 };
 
 /** Inject paste code for retrieving selection
@@ -309,8 +309,14 @@ async function pasteSnippet(target, seq, actionSpace, {pageUrl, frameUrl} = {}) 
     });
     return;
   }
-  const {snip, customFields} = await space.getProcessedSnippet(seq);
-  // console.log(customFields);
+  const {snip, customFields} = await space.getProcessedSnippet(seq) || {};
+  if (!snip) {
+    setFollowup('alert', {
+      title: i18n('title_snip_not_found'),
+      message: i18n('warning_snip_not_found'),
+    });
+    return;
+  }
 
   // use copy action to check for permission errors before confirming custom fields
   const testInjection = {

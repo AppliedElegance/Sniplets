@@ -6,7 +6,7 @@
  * title?:string
  * message?:string
  * content?:HTMLElement[]
- * fields?:{type:string,name:string,label:string,value:string,options:string[],checked:Boolean}[]
+ * fields?:{type:string,name:string,label:string,value:string,id:string,options:string[]|{id:string,label:string,value:string}[],checked:Boolean}[]
  * buttons?:{title:string,value:string,id:string}[]
  * }} options
  * @param {Function} [onChange] 
@@ -33,38 +33,63 @@ function showModal({title, message, content, fields, buttons}, onChange) {
     });
     fields.forEach((field, i) => {
       // console.log(field);
+      field.id ||= field.name;
       if (i > 0) {
         formFields.append(buildNode('div', {
           classList: [`divider`],
         }));
       }
-      const isSelect = (field.type === 'select');
-      const isCheckable = (['checkbox', 'radio'].includes(field.type));
-      formFields.append(buildNode('div', {
-        classList: [`field`, `${field.type}-control`],
-        children: [
-          ...isCheckable ? [] : [buildNode('label', {
-            for: field.name,
-            textContent: field.label + (isCheckable ? '' : ':'),
-          })],
-          buildNode(isSelect ? 'select' : 'input', {
-            type: field.type,
-            name: field.name,
-            id: field.name,
-            title: field.label,
-            value: field.value,
-            checked: field.checked,
-            children: isSelect && field.options.map(option => buildNode('option', {
-              value: option,
-              textContent: option,
-            })),
-          }),
-          ...isCheckable ? [buildNode('label', {
-            for: field.name,
-            textContent: `${ field.label }:`,
-          })] : [],
-        ],
-      }));
+
+      if (field.type === 'radio') {
+        formFields.append(buildNode('fieldset', {
+          children: field.options.map((option, i) => buildMenuControl(
+            field.type,
+            field.name,
+            option.value,
+            i === 0,
+            {
+              id: option.id,
+              title: option.label,
+            },
+          )),
+        }));
+      } else if (field.type === 'checked') {
+        formFields.append(buildNode('fieldset', {
+          children: [buildMenuControl(
+            field.type,
+            field.name,
+            field.value,
+            i === 0,
+            {
+              id: field.id,
+              title: field.label,
+            },
+          )],
+        }));
+      } else {
+        const isSelect = (field.type === 'select');
+        formFields.append(buildNode('div', {
+          classList: [`field`],
+          children: [
+            buildNode('label', {
+              for: field.id,
+              textContent: field.label,
+            }),
+            buildNode(isSelect ? 'select' : 'input', {
+              type: field.type,
+              name: field.name,
+              id: field.id,
+              title: field.label,
+              value: field.value,
+              checked: field.checked,
+              children: isSelect && field.options.map(option => buildNode('option', {
+                value: option,
+                textContent: option,
+              })),
+            }),
+          ],
+        }));
+      }
     });
     form.append(formFields);
   }
@@ -142,17 +167,46 @@ function showAlert(message, title) {
   });
 }
 
-/** Modal confirmation, returns `true` for the action, `false` if cancelled, or undefined if escaped
+/** Modal confirmation, returns `true` for the OK action, `false` if cancelled, or undefined if escaped
  * @param {string} message - confirmation message
- * @param {string} action - confirmation button text
+ * @param {string} [okLabel] - confirmation button text
+ * @param {string} [cancelLabel] - cancel button text
  */
-function confirmAction(message, action) {
+function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
   return showModal({
     message: message,
     buttons: [
-      {title: action || i18n('ok'), value: `true`},
-      {title: i18n('cancel'), value: `false`},
+      {title: okLabel, value: `true`},
+      {title: cancelLabel, value: `false`},
     ],
+  });
+}
+
+/** Modal confirmation, returns `true` for the action, `false` if cancelled, or undefined if escaped
+ * @param {string} message - confirmation message
+ * @param {{title:string,value:string}[]} selections - list of available selections
+ * @param {string|{title:string,value:string}[]} [okLabel] - confirmation button text, may be array
+ * @param {string} [cancelLabel] - cancel button text
+ */
+function confirmSelection(message, selections, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
+  return showModal({
+    message: message,
+    fields: [{
+      type: 'radio',
+      name: 'selection',
+      options: selections.map((option, i) => ({
+        id: `selection-${i}`,
+        label: option.title,
+        value: option.value,
+      })),
+    }],
+    buttons: [
+      {title: okLabel, value: selections[0].value, id: 'submit-request'},
+      {title: cancelLabel, value: 'esc'},
+    ],
+  }, ({target}) => {
+    const button = target.closest('dialog').querySelector('#submit-request');
+    button.value = target.value;
   });
 }
 
@@ -235,33 +289,12 @@ async function mergeCustomFields(content, fields) {
 async function requestOrigins(origins) {
   const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || []);
   // console.log(origins?.length);
-  const request = await showModal({
-    message: i18n('request_origins'),
-    fields: [
-      {
-        type: `radio`,
-        name: `request`,
-        label: i18n('request_all_site_permissions'),
-        value: allUrls,
-        checked: true,
-      },
-      ...origins?.length ? [{
-        type: `radio`,
-        name: `request`,
-        label: i18n('request_site_permissions'),
-        value: JSON.stringify(origins),
-      }] : [],
-    ],
-    buttons: [
-      {title: i18n('action_permit'), value: allUrls, id: 'submit-request'},
-      {title: i18n('action_cancel'), value: 'esc'},
-    ],
-  }, ({target}) => {
-    const permitButton = target.closest('dialog').querySelector('#submit-request');
-    permitButton.value = target.value;
-  });
+  const request = await confirmSelection(i18n('request_origins'), [
+    {title: i18n('request_all_site_permissions'), value: allUrls},
+    {title: i18n('request_site_permissions'), value: JSON.stringify(origins)},
+  ], i18n('action_permit'));
   if (request) {
-    return await chrome.permissions.request({origins: JSON.parse(request)})
+    return chrome.permissions.request({origins: JSON.parse(request)})
     .catch((e) => console.warn(e));
   }
   return false;

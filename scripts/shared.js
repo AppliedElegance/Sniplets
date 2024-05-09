@@ -30,8 +30,10 @@ const getColor = color => colors.get(colors.has(color) ? color : 'Default');
 const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
 /** @type {string} */
 const uiLocale = i18n('@@ui_locale').replace('_', '-');
-const i18nOrdinalRules = new Intl.PluralRules(uiLocale);
-const i18nOrd = (i) => i18n(`ordinal_${i18nOrdinalRules.select(i)}`, i);
+const i18nNum = (i, options = {useGrouping: false}) =>
+  new Intl.NumberFormat(uiLocale, options).format(i);
+const i18nOrd = (i) =>
+  i18n(`ordinal_${new Intl.PluralRules(uiLocale).select(i)}`, i);
 
 /** Open a new popup window
  * @param {{[name:string]:string}} params
@@ -97,16 +99,17 @@ function removeStorageData(keys, synced = false) {
 }
 
 /** Stores data required for following up on a task and opens a window to action it
- * @param {string} type 
- * @param {{[key:string]:*}} args 
+ * @param {string} type Action which needs handling in a popup window
+ * @param {{[key:string]:*}} args Properties needed by the followup function
+ * @param {boolean} [popup=true] Open in the popup rather than a new window
  */
 async function setFollowup(type, args, popup = true) {
   await chrome.storage.session.set({ followup: {
     type: type,
     args: args || {}, // default value for destructuring
   }}).catch((e) => console.warn(e));
-  if (popup && chrome.action.openPopup && !chrome.runtime.getContexts({contextTypes:['POPUP']}).length) {
-    // console.log(chrome.action.openPopup().catch((e) => e));
+  if (popup && !chrome.runtime.getContexts({contextTypes:['POPUP']}).length) {
+    chrome.action.openPopup();
   } else {
     return openPopup();
   }
@@ -242,28 +245,37 @@ class Settings {
    * Take provided settings and initialize the remaining settings
    * @param {Settings} settings 
    */
-  init({defaultSpace, sort, view, control} = {}) {
+  init({defaultSpace, sort, view, control, data} = {}) {
     // console.log(defaultSpace, sort, view, control);
-    /** @type {{name:string,synced:boolean}} */
-    this.defaultSpace = {};
-    this.defaultSpace.name = defaultSpace?.name || i18n('app_name');
-    this.defaultSpace.synced = isBool(defaultSpace?.synced) ? defaultSpace.synced : true;
-    /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
-    this.sort = {};
-    this.sort.by = sort?.by || 'seq';
-    this.sort.groupBy = sort?.groupBy || '';
-    this.sort.foldersOnTop = isBool(sort?.foldersOnTop) ? sort.foldersOnTop : true;
-    /** @type {{rememberPath:boolean,sourceURL:boolean}} */
-    this.view = {};
-    this.view.rememberPath = isBool(view?.rememberPath) ? view.rememberPath : false;
-    this.view.sourceURL = isBool(view?.sourceURL) ? view.sourceURL : false;
-    /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
-    this.control = {};
-    this.control.saveSource = isBool(control?.saveSource) ? control.saveSource : false;
-    this.control.preserveTags = isBool(control?.preserveTags) ? control.preserveTags : false;
-    this.control.rtLineBreaks = isBool(control?.rtLineBreaks) ? control.rtLineBreaks : true;
-    this.control.rtLinkEmails = isBool(control?.rtLinkEmails) ? control.rtLinkEmails : true;
-    this.control.rtLinkURLs = isBool(control?.rtLinkURLs) ? control.rtLinkURLs : true;
+    const setDefaultSpace = ({name = i18n('app_name'), synced = true} = {}) => ({
+      name: name,
+      synced: synced,
+    });
+    this.defaultSpace = setDefaultSpace(defaultSpace);
+    const setSort = ({by = 'seq', groupBy = '', foldersOnTop = true} = {}) => ({
+      by: by,
+      groupBy: groupBy,
+      foldersOnTop: foldersOnTop,
+    });
+    this.sort = setSort(sort);
+    const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false} = {}) => ({
+      adjustTextArea: adjustTextArea,
+      sourceURL: sourceURL,
+      rememberPath: rememberPath,
+    });
+    this.view = setView(view);
+    const setControl = ({saveSource = false, preserveTags = false, rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true} = {}) => ({
+      saveSource: saveSource,
+      preserveTags: preserveTags,
+      rtLineBreaks: rtLineBreaks,
+      rtLinkEmails: rtLinkEmails,
+      rtLinkURLs: rtLinkURLs,
+    });
+    this.control = setControl(control);
+    const setData = ({compress = true} = {}) => ({
+      compress: compress,
+    });
+    this.data = setData(data);
   }
 
   async load() {
@@ -517,45 +529,37 @@ class Space {
     return true;
   }
 
-  async save(compressed = true) {
+  async save() {
     // make sure the space has been initialized
-    // console.log(this);
     if (!this.name?.length) return;
 
     const dataBucket = new DataBucket(this.data);
-    // gzip compression adds about 8x more storage space
-    if (compressed) await dataBucket.compress();
-    // console.log(dataBucket);
+    // gzip compression adds about 8x more storage space, but can be toggled
+    const settings = new Settings();
+    await settings.load();
+    if (settings.data.compress) await dataBucket.compress();
 
-    // ensure synced spaces are syncable and offer to switch otherwise
-    if (this.synced && !dataBucket.syncable(this.name)) {
-      if (await confirmAction(i18n('warning_sync_full'), i18n('action_stop_sync'))) {
-        return this.shift({synced: false});
-      }
-      return false;
-    }
+    // ensure synced spaces are syncable
+    if (this.synced && !dataBucket.syncable(this.name)) return false;
 
     // update local timestamp and store data
     this.data.timestamp = dataBucket.timestamp;
     return setStorageData({[this.name]: dataBucket}, this.synced);
   }
 
-  /**
-   * 
+  /** Load a stored DataBucket into the space
    * @param {{
    *   name: string
    *   synced: boolean
    *   path: number[]
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
-  async load({name, synced, path = []} = {}) {
+  async load({name = this.name, synced = this.synced, path = []} = {}) {
+    if (!name) return false;
     // console.log("Loading space...", name, synced, typeof synced, path);
-    const bucket = await getStorageData(
-      name || this.name,
-      synced || this.synced,
-    );
+    const bucket = await getStorageData(name, synced);
     // console.log("Getting data from bucket...", bucket);
-    const data = bucket[name || this.name];
+    const data = bucket[name];
     // console.log("Confirming data...", data);
     if (!data) return;
     await this.init({
@@ -643,14 +647,14 @@ class Space {
     if (!Array.isArray(to.path)) to.path = this.path;
     if (JSON.stringify(to) === JSON.stringify(from)) return;
     const toFolder = this.getItem(to.path);
-    // console.log(toFolder);
-    if (isNaN(to.seq)) to.seq = toFolder.children.length;
+    // console.log(toFolder, toFolder.children.length);
     const fromFolder = this.getItem(from.path);
     const fromItem = this.getItem(from.path?.concat([from.seq]));
     const fromArraySeq = fromFolder.children.indexOf(fromItem);
+    // console.log(fromFolder, fromItem, fromArraySeq);
     if (!fromItem) return; //
     const toArraySeq = isNaN(to.seq)
-                     ? toFolder.children.length
+                     ? toFolder.children.length + 1
                      : toFolder.children.indexOf(this.getItem(to.path.concat([to.seq])));
     try {
       toFolder.children.splice(toArraySeq, 0,
@@ -659,7 +663,7 @@ class Space {
       if (JSON.stringify(from.path) !== JSON.stringify(to.path))
         this.sequence(fromFolder);
     } catch (e) {
-      // console.error(e);
+      console.warn(e);
     }
     return fromItem;
   }
@@ -686,9 +690,13 @@ class Space {
     // console.log("Getting item...");
     const item = this.getItem(path.concat(seq));
     // console.log(item);
-    if (!item?.content) return;
+    if (!item) return;
     // avoid touching space
     const snip = new Snippet(item);
+    if (!snip.content) return {
+      // nothing to process
+      snip: snip,
+    };
     
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
     if (snip.name.slice(0,9).toUpperCase() === "[NOSUBST]") {
@@ -993,49 +1001,6 @@ class Space {
       }
     }
     return this;
-  }
-
-  async shift({name = this.name, synced = this.synced}) {
-    // passthrough in case of no changes
-    if (synced === this.synced && name === this.name) return true;
-    // check if new space already exists
-    const targetSpace = await getStorageData(name, synced);
-    if (targetSpace[name]) {
-      // confirm overwrite
-      if (!confirm(i18n('warning_sync_overwrite'))) {
-        return false;
-      }
-    }
-
-    if (synced) {
-      // check for sync size constraints
-      const dataBucket = new DataBucket(this.data);
-      await dataBucket.compress();
-      if (!dataBucket.syncable(name)) {
-        alert(i18n('error_sync_full'));
-        return false;
-      }
-    }
-
-    // save old space details
-    const oldSpace = {name: this.name, synced: this.synced};
-
-    // update current space details
-    this.name = name, this.synced = synced;
-
-    // attempt to move the space
-    if (!await this.save()) return false;
-
-    // delete old data if syncing
-    if (synced) removeStorageData(oldSpace.name, oldSpace.synced);
-
-    // let other instances know of shift
-    // setStorageData({ shift: {
-    //   oldSpace: oldSpace,
-    //   newSpace: {name: name, synced: synced},
-    // } }, true);
-
-    return true;
   }
 
   /**

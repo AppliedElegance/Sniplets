@@ -22,14 +22,13 @@ const setCurrentSpace = () => space.setAsCurrent(settings.view.rememberPath);
 const resizing = new ResizeObserver(adjustPath);
 
 // Listen for updates on the fly in case of multiple popout windows
-chrome.runtime.onMessage.addListener(async (message) => {
-  // console.log(message, space);
-  if (message.type === 'update'
-  && space.name === message.name
-  && space.data.timestamp !== message.data.timestamp) {
-    // reload with updates
-    await space.load();
-    loadSnippets();
+chrome.runtime.onMessage.addListener(async ({type, args}) => {
+  if (type === 'updateSpace') {
+    const {timestamp} = args;
+    if (timestamp > space.data.timestamp) {
+      await space.loadCurrent();
+      loadSnippets();
+    }
   }
 });
 
@@ -46,19 +45,6 @@ const loadPopup = async () => {
   }
   // console.log("Settings loaded...", settings);
 
-  // load up the current space
-  if (!await space.loadCurrent()) {
-    // this should never happen unless the space data is corrupt or something didn't save properly
-    if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
-      await space.init(settings.defaultSpace);
-      space.save();
-    } else {
-      window.close();
-      return;
-    }
-  }
-  // console.log("Space loaded...", space);
-
   // load parameters
   const params = Object.fromEntries(new URLSearchParams(location.search));
   // console.log("Processing parameters...", params);
@@ -70,22 +56,17 @@ const loadPopup = async () => {
     document.body.style.height = "550px";
   }
 
-  // update path if needed
-  if (params.path) {
-    space.path = params.path.split('-').map(v => +v).filter(v => v);
-    if (settings.view.rememberPath) setCurrentSpace();
-  }
-
-  // check for requests
+  // check for followups before loading
   const followup = await fetchFollowup();
   if (followup) {
-    // console.log(followup, followup.args?.snip);
-    /** @type {{type:string,args:{title:string,message:string,origins:string[],target:InjectionTarget,action:string,actionSpace:{name:string,synced:boolean,path:number[]},snip:Snippet,customFields:*[]}}} */
-    const {type, args: {title, message, origins, target, action, actionSpace, snip, customFields}} = followup;
+    /** @type {{type:string,args:{[key:string]:*}}} */
+    const {type, args} = followup;
     const mergeAndPaste = async () => {
+      const {snip, target} = args;
+      const customFields = new Map(args.customFields || []);
       // console.log(target, snip, customFields);
-      if (customFields?.length) {
-        const text = await mergeCustomFields(snip.content, new Map(customFields));
+      if (customFields.size) {
+        const text = await mergeCustomFields(snip.content, customFields);
         // console.log(text);
         if (!text) return; // modal cancelled
         snip.content = text;
@@ -95,14 +76,14 @@ const loadPopup = async () => {
     };
     switch (type) {
     case 'alert':
-      await showAlert(message, title);
+      await showAlert(args.message, args.title);
       break;
     
     case 'permissions': {
-      if (await requestOrigins(origins)) {
-        switch (action) {
+      if (await requestOrigins(args.origins)) {
+        switch (args.action) {
         case 'snip': 
-          snipSelection(target, actionSpace);
+          snipSelection(args.target, args.actionSpace);
           window.close(); // in popup, happens automatically after this function completes
           return;
       
@@ -119,15 +100,42 @@ const loadPopup = async () => {
       break; }
       
     case 'placeholders':
-      if (action === 'paste') await mergeAndPaste(); // should always be true
+      if (args.action === 'paste') await mergeAndPaste(); // should always be true
       break;
 
+    case 'unsync': {
+      args.actionSpace.synced = (await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))) || false;
+      if (await space.init(args.actionSpace) && await space.save()) {
+        await space.setAsCurrent();
+      } else {
+        showAlert(i18n('error_data_corrupt'));
+        break;
+      }
+      break; }
+    
     default:
       break;
     } // end switch(type)
   } // end followup
 
-  // console.log("Loading snippets", space);
+  // load up the current space
+  if (!await space.loadCurrent()) {
+    // should hopefully never happen
+    if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
+      await space.init(settings.defaultSpace);
+      space.save();
+    } else {
+      window.close();
+      return;
+    }
+  }
+
+  // update path if needed
+  if (params.path) {
+    space.path = params.path.split('-').map(v => +v).filter(v => v);
+    if (settings.view.rememberPath) setCurrentSpace();
+  }
+
   loadSnippets();
 
   // set up listeners
@@ -244,42 +252,50 @@ function buildMenu() {
   // console.log(startVal, counters);
   return [
     buildSubMenu(i18n("menu_view"), `settings-view`, [
-      buildMenuControl('checkbox', `toggle-remember-path`,
-      i18n("menu_remember_path"), settings.view.rememberPath),
       buildMenuControl('checkbox', `toggle-folders-first`,
-      i18n("menu_folders_first"), settings.sort.foldersOnTop),
-    ]),
-    buildSubMenu(i18n("menu_src"), `settings-src-urls`, [
+        i18n("menu_folders_first"), settings.sort.foldersOnTop),
+        buildMenuControl('checkbox', `toggle-adjust-editors`,
+          i18n("menu_adjust_textarea"), settings.view.adjustTextArea),
       buildMenuControl('checkbox', `toggle-show-source`,
-      i18n("menu_show_src"), settings.view.sourceURL),
-      buildMenuControl('checkbox', `toggle-save-source`,
-      i18n("menu_save_src"), settings.control.saveSource),
+        i18n("menu_show_src"), settings.view.sourceURL),
+        buildMenuControl('checkbox', `toggle-remember-path`,
+          i18n("menu_remember_path"), settings.view.rememberPath),
+    ]),
+    buildSubMenu(i18n("menu_data"), `settings-data`, [
+      buildMenuControl('checkbox', `toggle-data-compression`,
+        i18n("menu_data_compression"), settings.data.compress),
+      buildMenuSeparator(),
       buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
+      // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
+      buildMenuItem(i18n("menu_reinit"), `initialize`),
+    ]),
+    buildSubMenu(i18n("menu_snip"), `settings-snip`, [
+      buildMenuControl('checkbox', `toggle-save-source`,
+        i18n("menu_save_src"), settings.control.saveSource),
+      buildMenuControl('checkbox', `toggle-save-tags`,
+        i18n("menu_save_tags"), settings.control.preserveTags),
+    ]),
+    buildSubMenu(i18n("menu_paste"), `settings-paste`, [
+      buildMenuControl('checkbox', `toggle-rt-line-breaks`,
+        i18n("menu_rt_br"), settings.control.rtLineBreaks),
+      buildMenuControl('checkbox', `toggle-rt-link-urls`,
+        i18n("menu_rt_url"), settings.control.rtLinkURLs),
+      buildMenuControl('checkbox', `toggle-rt-link-emails`,
+        i18n("menu_rt_email"), settings.control.rtLinkEmails),
     ]),
     buildSubMenu(i18n("menu_counters"), `settings-counters`, [
-      buildSubMenu(`Initial Value`, `counter-init`, [
+      buildSubMenu(i18n('menu_count_init'), `counter-init`, [
         buildMenuControl('radio', `set-counter-init`,
-        i18n("menu_count_0"), startVal === 0, {id: `counter-init-0`}),
+          i18nNum(0), startVal === 0, {id: `counter-init-0`}),
         buildMenuControl('radio', 'set-counter-init',
-        i18n("menu_count_1"), startVal === 1, {id: `counter-init-1`}),
+          i18nNum(1), startVal === 1, {id: `counter-init-1`}),
         buildMenuControl('radio', 'set-counter-init',
-        startVal, customStartVal, { id: `counter-init-x`,
-          title: `${i18n("menu_count_x")}${customStartVal ? ` (${startVal})` : `` }…`,
-        }),
+          startVal, customStartVal, { id: `counter-init-x`,
+            title: i18n("menu_count_x") + (customStartVal ? ` (${i18nNum(startVal)})…` : `…`),
+          }),
       ]),
       Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
       Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
-    ]),
-    buildSubMenu(i18n("menu_rt"), `settings-rt`, [
-      // buildMenuControl('checkbox', `toggle-preserve-tags`,
-      // `Snip with formatting`, settings.control.preserveTags),
-      // buildMenuSeparator(),
-      buildMenuControl('checkbox', `toggle-rt-line-breaks`,
-      i18n("menu_rt_br"), settings.control.rtLineBreaks),
-      buildMenuControl('checkbox', `toggle-rt-link-urls`,
-      i18n("menu_rt_url"), settings.control.rtLinkURLs),
-      buildMenuControl('checkbox', `toggle-rt-link-emails`,
-      i18n("menu_rt_email"), settings.control.rtLinkEmails),
     ]),
     buildSubMenu(i18n("menu_backups"), `settings-backup`, [
       buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, {action: 'backup'}),
@@ -287,7 +303,6 @@ function buildMenu() {
       buildMenuItem(i18n("menu_bak_clip"), `backup-clippings`, `clippings61`, {action: 'backup'}),
       buildMenuSeparator(),
       buildMenuItem(i18n("menu_restore"), `restore`),
-      buildMenuItem(i18n("menu_reinit"), `initialize`),
     ]),
     buildMenuItem(`${i18n("menu_about")}…`, `about`),
   ];
@@ -523,9 +538,10 @@ function buildList() {
       ])),
     }));
 
-    // keep items to a reasonable height
-    for (const textarea of container.getElementsByTagName('textarea'))
+    // set textarea height as appropriate
+    for (const textarea of container.getElementsByTagName('textarea')) {
       adjustTextArea(textarea, 0);
+    }
   }
 
   // maintain scroll position as much as possible
@@ -573,7 +589,7 @@ function adjustTextArea(target, maxHeight) {
   // console.log(textarea.style.height, scrollHeight);
 
   // set max height to actual in case no limit set
-  maxHeight ||= scrollHeight;
+  if (!settings.view.adjustTextArea || !maxHeight) maxHeight = scrollHeight;
 
   // console.log(maxHeight, textarea.clientHeight);
   // update if needed
@@ -596,7 +612,7 @@ function adjustTextArea(target, maxHeight) {
 function handleMouseDown(event) {
   // prevent focus pull on buttons but handle & indicate action
   const target = event.target.closest('[data-action]');
-  if (target?.type === `button`) {
+  if (target?.type === `button` && target.dataset?.action !== 'open-folder') {
     event.stopPropagation();
     event.preventDefault();
     target.style.boxShadow = `none`;
@@ -713,9 +729,10 @@ function handleFocusOut(event) {
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
-  // console.log(event);
   // ignore text drags
-  if (['input', 'textarea'].includes(event.target.tagName.toLowerCase())) {
+  if (['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
+  && event.target.dataset?.action !== 'open-folder') {
+    // console.log('stopping');
     event.stopPropagation();
     event.preventDefault();
     return;
@@ -723,14 +740,12 @@ function handleDragDrop(event) {
   // only allow moves
   event.dataTransfer.effectAllowed = "move";
   // picked up item
-  let item = event.target;
-  while (item && item.tagName !== 'LI') {
-    item = item.parentElement;
-  }
-  let list = item.parentElement;
+  const item = event.target.closest('li');
+  const list = item.parentElement;
   event.dataTransfer.setData("text/html", item.toString());
   let dropTarget = item;
   const dropClasses = [`folder-highlight`, `move-above`, `move-below`];
+  // console.log(item, list, dropTarget);
 
   // wait for browser to pick up the item with a nice outline before hiding anything
   setTimeout(() => {
@@ -797,36 +812,33 @@ function handleDragDrop(event) {
 
   const drop = async function (event) {
     // place the contents in a folder or swap positions
-    let {target} = event;
-    while (target && target.tagName !== 'LI')
-      target = target.parentElement;
+    const target = event.target.closest('li');
     if (target) {
       // make sure we went somewhere
       if (JSON.stringify(target.dataset) === JSON.stringify(item.dataset))
         return dragEnd();
       // data for moving item
       const moveFrom = {
-        path: item.dataset.path.length ? item.dataset.path.split('-') : [],
+        path: item.dataset.path?.length ? item.dataset.path.split('-') : [],
         seq: item.dataset.seq,
       };
       const moveTo = {
-        path: target.dataset.path.length ? target.dataset.path.split('-') : [],
+        path: target.dataset.path?.length ? target.dataset.path.split('-') : [],
         seq: target.dataset.seq,
       };
       if (target.classList.contains('folder')) {
         // no need to push seq for root
-        if (moveTo.path[0] === "root") {
+        if (moveTo.path.length && moveTo.path[0] === "root") {
           moveTo.path = [];
         } else {
           moveTo.path.push(moveTo.seq);
+          moveTo.seq = undefined;
         }
         //make sure we're not trying to put a folder inside its child
         if (moveTo.path.length > moveFrom.path.length
         && moveTo.path.slice(0, moveFrom.path.length + 1).join() === moveFrom.path.concat([moveFrom.seq]).join()) {
           showAlert(i18n('error_folder_to_child'));
           return dragEnd();
-        } else {
-          moveTo.seq = '';
         }
       } else {
         // adjust resort based on position
@@ -873,11 +885,6 @@ function handleDragDrop(event) {
       }
       item.classList.remove('placeholder');
     }
-  
-    // allow for garbage collection
-    list = null;
-    item = null;
-    dropTarget = null;
 
     // clean up listeners
     document.removeEventListener('dragenter', dragEnter);
@@ -950,7 +957,7 @@ async function handleAction(target) {
     }
     break; }
   
-  // backup/restore/clear all data
+  // backup/restore/clear data
   case 'initialize':
     if (!await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data'))) break;
     await chrome.storage.local.clear();
@@ -1097,7 +1104,7 @@ async function handleAction(target) {
   // copy processed snippet
   case 'copy': {
     // get requested item
-    const {snip, customFields} = await space.getProcessedSnippet(dataset.seq);
+    const {snip, customFields} = await space.getProcessedSnippet(dataset.seq) || {};
     // console.log(snip);
     if (!snip) break;
     // rebuild settings menu in case there was an update to counters
@@ -1131,17 +1138,78 @@ async function handleAction(target) {
     buildList();
     break;
 
+  case 'toggle-adjust-editors':
+    settings.view.adjustTextArea = !settings.view.adjustTextArea;
+    settings.save();
+    buildList();
+    break;
+
   case 'toggle-show-source':
     settings.view.sourceURL = !settings.view.sourceURL;
     settings.save();
     buildList();
     break;
-  
-  case 'toggle-save-source':
-    settings.control.saveSource = !settings.control.saveSource;
-    // TODO: confirm whether to delete existing sources
+
+  case 'toggle-data-compression':
+    settings.data.compress = !settings.data.compress;
     settings.save();
+    space.save();
     break;
+
+  case 'toggle-sync': {
+    // check for sync size constraints
+    // console.log(space);
+    if (!space.synced) {
+      const testBucket = new DataBucket(this.data);
+      // console.log(testBucket);
+      if (settings.data.compress) await testBucket.compress();
+      if (!testBucket.syncable(space.name)) {
+        alert(i18n('error_sync_full'));
+        return false;
+      }
+    }
+
+    // check if data already exists
+    const targetBucket = await getStorageData(space.name, !space.synced);
+    // console.log(targetBucket);
+    if (targetBucket && targetBucket[space.name]) {
+      // console.log('Working on it');
+      const response = await confirmSelection(i18n('warning_sync_overwrite'), [
+        {title: i18n('action_keep_local'), value: 'local'},
+        {title: i18n('action_keep_sync'), value: 'sync'},
+      ], i18n('action_start_sync'));
+      // console.log(response);
+      switch (response) {
+      case 'sync':
+        // update local data before moving, set to false since it'll be reset after
+        if (!await space.init({name: space.name, synced: false, data: targetBucket[space.name]})) {
+          alert(i18n('error_shift_failed'));
+          return false;
+        }
+        break;
+
+      case 'local':
+        // pretend there's no data
+        break;
+    
+      default:
+        return false;
+      }
+    }
+    
+    // attempt to move the space
+    space.synced = !space.synced;
+    if (await space.save()) {
+      await space.setAsCurrent();
+      removeStorageData(space.name, !space.synced);
+      buildHeader();
+      loadSnippets();
+    } else {
+      space.synced = !space.synced;
+      alert(i18n('error_shift_failed'));
+      return false;
+    }
+    break; }
 
   case 'clear-src-urls':
     if (await confirmAction(i18n('warning_clear_src'), i18n('action_clear_srcs'))) {
@@ -1160,7 +1228,13 @@ async function handleAction(target) {
     }
     break;
   
-  case 'toggle-preserve-tags':
+  case 'toggle-save-source':
+    settings.control.saveSource = !settings.control.saveSource;
+    // TODO: confirm whether to delete existing sources
+    settings.save();
+    break;
+  
+  case 'toggle-save-tags':
     settings.control.preserveTags = !settings.control.preserveTags;
     settings.save();
     break;
@@ -1180,36 +1254,13 @@ async function handleAction(target) {
     settings.save();
     break;
 
-  case 'toggle-sync':
-    // // Check for existing sync data
-    // if (!space.synced) {
-    //   const syncData = getStorageData(space.name, true);
-    //   if (syncData[space.name] && await confirmAction(`It looks like there is previously synced data available. Would you like to overwrite that data with your current local data (Yes) or delete you local copy (No)?`)) {
-
-    //   }
-    // }
-    // console.log(`Shifting...`, space);
-    if (await space.shift({synced: !space.synced})) {
-      // update current/default spaces if necessary
-      // if (settings.defaultSpace.name === space.name) {
-      //   // console.log(`Updating default space...`);
-      //   settings.defaultSpace.synced = space.synced;
-      //   settings.save();
-      // }
-      // console.log(`Updating current space...`);
-      setCurrentSpace();
-      // console.log(`rebuilding header`);
-      buildHeader();
-    }
-    break;
-
   // counters
   case 'set-counter-init': {
     // console.log(target.value);
     let startVal = +target.value;
     if (target.id === `counter-init-x`) {
       // custom starting value, show modal
-      const modal = showModal({
+      const val = await showModal({
         title: i18n('title_counter_init'),
         fields: [{
           type: `number`,
@@ -1222,18 +1273,12 @@ async function handleAction(target) {
           value: startVal,
           children: [buildNode('h2', {textContent: i18n('submit')})],
         }],
-      }, true);
-      document.body.append(modal);
-      modal.addEventListener('change', event => {
-        const button = modal.querySelector('#submitCounterDefaults');
-        button.value = event.target.value;
+      }, ({target}) => {
+        const submitButton = target.closest('dialog').querySelector('#submitCounterDefaults');
+        submitButton.value = target.value;
       });
-      modal.showModal();
-      startVal = await new Promise((resolve) =>
-        modal.addEventListener('close', () =>
-          isNaN(modal.returnValue)
-          ? resolve(0)
-          : resolve(+modal.returnValue)));
+      if (!val) break; // modal cancelled
+      if (!isNaN(val) && (parseInt(target.value) === Math.abs(+val))) startVal = +val;
     }
     space.data.counters.startVal = startVal;
     space.save();
@@ -1243,7 +1288,7 @@ async function handleAction(target) {
   case 'manage-counters': {
     // eslint-disable-next-line no-unused-vars
     const {startVal, ...counters} = space.data.counters;
-    const modal = showModal({
+    const values = await showModal({
       title: i18n('title_counter_manage'),
       fields: Object.entries(counters).sort((a, b) => a - b).map(([key, value], i) => ({
           type: `number`,
@@ -1258,20 +1303,17 @@ async function handleAction(target) {
           children: [buildNode('h2', {textContent: i18n('submit')})],
         },
       ],
-    }, true);
-    document.body.append(modal);
-    modal.addEventListener('change', event => {
-      const button = modal.querySelector('#submitCounters');
+    }, ({target}) => {
+      const button = target.closest('dialog').querySelector('#submitCounters');
       const changes = JSON.parse(button.value);
-      changes[event.target.title] = +event.target.value;
+      const val = +target.value;
+      if (!isNaN(val) && (parseInt(target.value) === Math.abs(val))) changes[target.title] = val;
       button.value = JSON.stringify(changes);
     });
-    modal.showModal();
-    modal.addEventListener('close', () => {
-      const changes = JSON.parse(modal.returnValue);
-      for (const key in changes) space.data.counters[key] = changes[key];
-      space.save();
-    });
+    if (!values) break; // modal cancelled
+    const changes = JSON.parse(values);
+    for (const key in changes) space.data.counters[key] = changes[key];
+    space.save();
     break; }
 
   case 'clear-counters': {
