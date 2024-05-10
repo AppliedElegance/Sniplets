@@ -262,14 +262,6 @@ function buildMenu() {
         buildMenuControl('checkbox', `toggle-remember-path`,
           i18n("menu_remember_path"), settings.view.rememberPath),
     ]),
-    buildSubMenu(i18n("menu_data"), `settings-data`, [
-      buildMenuControl('checkbox', `toggle-data-compression`,
-        i18n("menu_data_compression"), settings.data.compress),
-      buildMenuSeparator(),
-      buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
-      // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
-      buildMenuItem(i18n("menu_reinit"), `initialize`),
-    ]),
     buildSubMenu(i18n("menu_snip"), `settings-snip`, [
       buildMenuControl('checkbox', `toggle-save-source`,
         i18n("menu_save_src"), settings.control.saveSource),
@@ -297,6 +289,14 @@ function buildMenu() {
       ]),
       Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
       Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
+    ]),
+    buildSubMenu(i18n("menu_data"), `settings-data`, [
+      buildMenuControl('checkbox', `toggle-data-compression`,
+        i18n("menu_data_compression"), settings.data.compress),
+      buildMenuSeparator(),
+      buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
+      // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
+      buildMenuItem(i18n("menu_reinit"), `initialize`),
     ]),
     buildSubMenu(i18n("menu_backups"), `settings-backup`, [
       buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, {action: 'backup'}),

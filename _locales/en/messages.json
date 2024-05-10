@@ -100,7 +100,7 @@
     "description": "Menu text for opening a modal with all current counters so they can be edited manually."
   },
   "menu_count_clear": {
-    "message": "Clear All",
+    "message": "Clear counters",
     "description": "Menu text for deleting all counters currently being tracked."
   },
   "menu_rt": {
@@ -124,19 +124,19 @@
     "description": "Menu text for showing the xxx menu."
   },
   "menu_bak_data": {
-    "message": "Data Backup",
+    "message": "Back up data",
     "description": "Menu text for initiating a xxx backup of xxx."
   },
   "menu_bak_full": {
-    "message": "Full Backup",
+    "message": "Back up data & settings",
     "description": "Menu text for initiating a xxx backup of xxx."
   },
   "menu_bak_clip": {
-    "message": "Clippings Backup",
+    "message": "Back up for Clippings",
     "description": "Menu text for initiating a xxx backup of xxx."
   },
   "menu_restore": {
-    "message": "Restore",
+    "message": "Restore data",
     "description": "Menu text for initiating restoration of a backup."
   },
   "menu_reinit": {
@@ -412,7 +412,7 @@
     "message": "Clear cloud data"
   },
   "menu_data": {
-    "message": "Data"
+    "message": "Stored Data"
   },
   "menu_save_tags": {
     "message": "Include tags (experimental)"
@@ -424,7 +424,7 @@
     "message": "Pasting"
   },
   "menu_count_init": {
-    "message": "Initial value"
+    "message": "Initial Value"
   },
   "menu_data_compression": {
     "message": "Use data compression"
