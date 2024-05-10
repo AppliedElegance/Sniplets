@@ -1028,7 +1028,7 @@ async function handleAction(target) {
     break; }
   
   case 'restore': {
-    console.log("Checking current data", space.data);
+    // console.log("Checking current data", space.data);
     if (space.data.children.length && !await confirmAction(i18n('warning_restore_bak', i18n('action_restore'))))
       break;
     try {
@@ -1046,7 +1046,7 @@ async function handleAction(target) {
       const fileContents = await fileData.text();
       // console.log('Grabbed contents', fileContents);
       const backup = JSON.parse(fileContents);
-      console.log('Parsed data', backup);
+      // console.log('Parsed data', backup);
 
       // restore current space and settings if present
       // console.log("Starting restore...");
@@ -1057,7 +1057,7 @@ async function handleAction(target) {
       }
       space.path.length = 0;
       if (backup.currentSpace) {
-        console.log('updating current space', backup.currentSpace);
+        // console.log('updating current space', backup.currentSpace);
         setStorageData({currentSpace: backup.currentSpace});
       }
 
@@ -1103,7 +1103,10 @@ async function handleAction(target) {
       }
       // console.log("Loading snippets...");
       loadSnippets();
-    } catch (e) { console.log(e); /* assume cancelled */}
+    } catch (e) {
+      // console.warn(e);
+      /* assume cancelled */
+    }
     break; }
 
   // copy processed snippet

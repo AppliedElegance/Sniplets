@@ -243,7 +243,7 @@ function showAbout() {
  * @returns {Promise<Map<string,{type:string,value:string,options:string[]}>>}
  */
 async function mergeCustomFields(content, fields) {
-  console.log(content, fields, fields instanceof Map);
+  // console.log(content, fields, fields instanceof Map);
   if (!fields?.size) return content;
   //build modal
   const submission = await showModal({
