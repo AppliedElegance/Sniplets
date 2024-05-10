@@ -243,7 +243,7 @@ function showAbout() {
  * @returns {Promise<Map<string,{type:string,value:string,options:string[]}>>}
  */
 async function mergeCustomFields(content, fields) {
-  console.log(content, fields, fields instanceof Map);
+  // console.log(content, fields, fields instanceof Map);
   if (!fields?.size) return content;
   //build modal
   const submission = await showModal({
@@ -282,7 +282,10 @@ async function mergeCustomFields(content, fields) {
   if (!confirmedFields) return content;
   return content.replaceAll(
     /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
-    (match, placeholder) => confirmedFields.get(placeholder)?.value || match,
+    (match, placeholder) => {
+      const value = confirmedFields.get(placeholder)?.value
+      return (typeof value === 'string') ? value : match;
+    },
   );
 }
 

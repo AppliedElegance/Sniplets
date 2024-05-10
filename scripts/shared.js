@@ -243,7 +243,7 @@ class Settings {
    * @param {Settings} settings 
    */
   init({defaultSpace, sort, view, control, data} = {}) {
-    // console.log(defaultSpace, sort, view, control);
+    // console.log(defaultSpace, sort, view, control, data);
     const setDefaultSpace = ({name = i18n('app_name'), synced = true} = {}) => ({
       name: name,
       synced: synced,

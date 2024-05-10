@@ -107,7 +107,7 @@ const loadPopup = async () => {
     case 'unsync': {
       args.actionSpace.synced = (await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))) || false;
       if (await space.init(args.actionSpace) && await space.save()) {
-        await space.setAsCurrent();
+        setCurrentSpace();
       } else {
         showAlert(i18n('error_data_corrupt'));
         break;
@@ -262,14 +262,6 @@ function buildMenu() {
         buildMenuControl('checkbox', `toggle-remember-path`,
           i18n("menu_remember_path"), settings.view.rememberPath),
     ]),
-    buildSubMenu(i18n("menu_data"), `settings-data`, [
-      buildMenuControl('checkbox', `toggle-data-compression`,
-        i18n("menu_data_compression"), settings.data.compress),
-      buildMenuSeparator(),
-      buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
-      // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
-      buildMenuItem(i18n("menu_reinit"), `initialize`),
-    ]),
     buildSubMenu(i18n("menu_snip"), `settings-snip`, [
       buildMenuControl('checkbox', `toggle-save-source`,
         i18n("menu_save_src"), settings.control.saveSource),
@@ -297,6 +289,14 @@ function buildMenu() {
       ]),
       Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
       Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
+    ]),
+    buildSubMenu(i18n("menu_data"), `settings-data`, [
+      buildMenuControl('checkbox', `toggle-data-compression`,
+        i18n("menu_data_compression"), settings.data.compress),
+      buildMenuSeparator(),
+      buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
+      // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
+      buildMenuItem(i18n("menu_reinit"), `initialize`),
     ]),
     buildSubMenu(i18n("menu_backups"), `settings-backup`, [
       buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, {action: 'backup'}),
@@ -967,11 +967,10 @@ async function handleAction(target) {
     await chrome.storage.sync.clear();
     // reinitialize
     settings.init();
-    // console.log(settings);
-    settings.save();
+    await settings.save();
     await space.init(settings.defaultSpace);
-    // console.log(space);
-    space.save();
+    await setCurrentSpace();
+    await space.save();
     loadPopup();
     break;
 
@@ -1051,16 +1050,19 @@ async function handleAction(target) {
 
       // restore current space and settings if present
       // console.log("Starting restore...");
-      space.path.length = 0;
-      // console.log("Checking data", structuredClone(space), structuredClone(backup));
-      if (backup.currentSpace) setStorageData({currentSpace: backup.currentSpace});
       if (backup.settings) {
-        settings.init(settings);
+        settings.init(backup.settings);
         settings.save();
         // showAlert("Settings have been restored.");
       }
-      // check for clippings data
-      if (backup.userClippingsRoot) {
+      space.path.length = 0;
+      if (backup.currentSpace) {
+        // console.log('updating current space', backup.currentSpace);
+        setStorageData({currentSpace: backup.currentSpace});
+      }
+
+      // restore data
+      if (backup.userClippingsRoot) { // check for clippings data
         // console.log("Creating new DataBucket...");
         const newData = new DataBucket({children: backup.userClippingsRoot});
         // console.log("Parsing data...", structuredClone(newData), newData);
@@ -1101,7 +1103,10 @@ async function handleAction(target) {
       }
       // console.log("Loading snippets...");
       loadSnippets();
-    } catch {/* assume cancelled */}
+    } catch (e) {
+      // console.warn(e);
+      /* assume cancelled */
+    }
     break; }
 
   // copy processed snippet
@@ -1203,7 +1208,7 @@ async function handleAction(target) {
     // attempt to move the space
     space.synced = !space.synced;
     if (await space.save()) {
-      await space.setAsCurrent();
+      setCurrentSpace();
       removeStorageData(space.name, !space.synced);
       buildHeader();
       loadSnippets();
@@ -1272,16 +1277,16 @@ async function handleAction(target) {
           value: startVal,
         }],
         buttons: [{
-          id: `submitCounterDefaults`,
+          title: i18n('submit'),
           value: startVal,
-          children: [buildNode('h2', {textContent: i18n('submit')})],
+          id: `submitCounterDefaults`,
         }],
       }, ({target}) => {
         const submitButton = target.closest('dialog').querySelector('#submitCounterDefaults');
         submitButton.value = target.value;
       });
       if (!val) break; // modal cancelled
-      if (!isNaN(val) && (parseInt(target.value) === Math.abs(+val))) startVal = +val;
+      if (!isNaN(val) && (parseInt(val) === Math.abs(+val))) startVal = +val;
     }
     space.data.counters.startVal = startVal;
     space.save();
@@ -1299,18 +1304,16 @@ async function handleAction(target) {
           label: key,
           value: value,
         })),
-      buttons: [
-        {
-          id: `submitCounters`,
-          value: `{}`,
-          children: [buildNode('h2', {textContent: i18n('submit')})],
-        },
-      ],
+      buttons: [{
+        title: i18n('submit'),
+        value: `{}`,
+        id: `submitCounters`,
+      }],
     }, ({target}) => {
       const button = target.closest('dialog').querySelector('#submitCounters');
       const changes = JSON.parse(button.value);
       const val = +target.value;
-      if (!isNaN(val) && (parseInt(target.value) === Math.abs(val))) changes[target.title] = val;
+      if (!isNaN(val) && (parseInt(val) === Math.abs(val))) changes[target.title] = val;
       button.value = JSON.stringify(changes);
     });
     if (!values) break; // modal cancelled

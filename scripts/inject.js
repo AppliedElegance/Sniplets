@@ -57,10 +57,26 @@ const returnSnip = ({preserveTags, saveSource}) => {
     }
 
       const selection = window.getSelection();
+      let text;
+      // TODO: add option to convert lists to numbers/bullets
+      if (preserveTags) {
+        const range = selection.getRangeAt(0);
+        const content = range.cloneContents();
+        const container = range.commonAncestorContainer;
+        if(['UL', 'OL'].includes(container.tagName)) {
+          const list = container.cloneNode();
+          list.append(content);
+          text = list.outerHTML;
+        } else {
+          const temp = document.createElement('template');
+          temp.content.append(content);
+          text = temp.content.innerHTML;
+        }
+      } else {
+        text = selection.toString();
+      }
       return {
-        content: preserveTags
-        ? selection.getRangeAt(0).cloneContents().childNodes[1].innerHTML
-        : selection.toString(),
+        content: text,
         ...saveSource ? {sourceURL: window.location.href} : {},
       };
   };
@@ -157,7 +173,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
  * @param {string} richText
  */
 const paste = (snip, richText) => {
-  console.log(snip, richText);
+  // console.log(snip, richText);
   if (!snip?.content) return {
     error: 'nosnip',
   };
