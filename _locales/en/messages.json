@@ -172,10 +172,10 @@
     "message": "Snippet Name"
   },
   "error_folder_to_child": {
-    "message": "Sorry, a folder can't be moved inside its child folder."
+    "message": "Sorry, a folder can’t be moved inside its child folder."
   },
   "warning_clear_data": {
-    "message": "This action will clear all data and reset your settings to their defaults. It can't be undone so please ensure to backup any important data first. Are you sure you wish to continue?"
+    "message": "This action will clear all data and reset your settings to their defaults. It can’t be undone so please ensure to backup any important data first. Are you sure you wish to continue?"
   },
   "file_save_type": {
     "message": "Backup File"
@@ -346,7 +346,7 @@
     "message": "Request"
   },
   "ignore_missing_frameids": {
-    "message": "Don't show this warning again."
+    "message": "Don’t show this warning again."
   },
   "deny_site_permissions": {
     "message": "Deny Access"
@@ -367,7 +367,7 @@
     "message": "Remember my choice"
   },
   "request_origins": {
-    "message": "Additional site permissions are required to use menus and shortcuts within the embedded page you've selected. Please select how you would like to proceed:"
+    "message": "Additional site permissions are required to use menus and shortcuts within the embedded page you’ve selected. Please select how you would like to proceed:"
   },
   "action_request": {
     "message": "Request"
@@ -436,7 +436,7 @@
     "message": "Sorry, something went wrong with moving the data. The change was reverted to avoid data loss."
   },
   "warning_sync_stopped": {
-    "message": "Another browser you're signed in on has stopped synchronizing it's data. Would you like to keep synchronizing on this browser, or use local storage instead?"
+    "message": "Another browser you’re signed in on has stopped synchronizing it's data. Would you like to keep synchronizing on this browser, or use local storage instead?"
   },
   "action_keep_syncing": {
     "message": "Keep Synchronizing"
@@ -445,7 +445,7 @@
     "message": "Use Local Storage"
   },
   "error_data_corrupt": {
-    "message": "Sorry, the data could not be recovered. Please make a backup on the other brower and restore it here to keep it manually."
+    "message": "Sorry, the data could not be recovered. Please make a backup on the other browser and restore it here to keep it manually."
   },
   "warning_new_sync_data": {
     "message": "Another browser has started synchronizing their data. Would you like to accept the sync and overwrite your current data, or keep working locally?"

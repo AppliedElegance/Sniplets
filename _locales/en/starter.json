@@ -1,1 +1,70 @@
-{"version":"1.0","createdBy":"Snippets","data":{"version":"1.0","timestamp":1708709808073,"children":[{"name":"Placeholders","seq":1,"children":[{"name":"Basic Placeholders","seq":1,"content":"The name of this snippet (Basic Placeholders):\n$[NAME]\n\nThe folder this snippet is in (Placeholders):\n$[FOLDER]\n\nThe full path to this snippet (Snippets/Placeholders):\n$[PATH]\n\nSame as above with a custom delimiter (Snippets > Placeholders):\n$[PATH( > )]\n\nThe name and version of your browser:\n$[HOSTAPP]\n\nThe User Agent your browser identifies as:\n$[UA]"},{"name":"Custom Placeholders","seq":2,"content":"Values for custom placeholders will be confirmed when pasting or using the clipboard feature:\n$[Custom Placeholder]\n\nA default value can be added in curly braces:\n$[Default{Text}]\n\nIf your placeholder should be chosen from a list, you can separate the values with a pipe (|) symbol where the first option will be default:\n$[Select Value{Option 1|Option 2|Option 3}]\n\nIf you want a special type of input field, you can specify its name in brackets:\n$[Date & Time(datetime-local)]\n\nIt's possible to combine types and default values as long as the values are valid for the input type:\n$[Date Picker(date){2024-05-04}] $[Time Picker(time){16:30}]\n\nThe above can be especially useful for rich text fields like so:\n<span style=\"background-color:$[Color(color){#FFF444}]\">Highlighted Text</span>"},{"name":"Date","seq":3,"content":"The default date display for the locale:\n$[DATE]\n\nThe current date and time with custom formatting:\n$[DATE(ddd, MMM DD, YYYY hh:mm:ss A ZZ)]\n\nLocale-based date strings of decreasing length:\n$[DATE(full)]\n$[DATE(long)]\n$[DATE(medium)]\n$[DATE(short)]"},{"name":"Time","seq":4,"content":"The default time display:\n$[TIME]\n\nThe current time with custom formatting:\n$[TIME(h:mm A Z)]\n\nLocale-based time strings of decreasing length:\n$[TIME(full)]\n$[TIME(long)]\n$[TIME(medium)]\n$[TIME(short)]"},{"name":"Counters","seq":5,"content":"Counters will use the default starting value chosen in the settings menu, and will then increase by one each time it's encountered. \n\nA default auto-incrementing counter (0 > 1):\n#[COUNTER]\n\nAdding a number in brackets after the counter name will change the increment.\n\nThis will increase COUNTER by 2 after replacement (1 > 3):\n#[COUNTER(2)]\n\nThis will decrease COUNTER by 2 after replacement (3 > 1):\n#[COUNTER(-2)]\n\nThis will preserve the value of COUNTER after replacement (1 > 1):\n#[COUNTER(0)]"},{"name":"RichText","seq":6,"content":"<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won't turn into spaces. URLs without anchor tags like https://github.com/jpc-ae/Snippets/issues will be hotlinked automatically along with email addresses like noreply@example.com. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this snippet will add both plain and rich text versions of this processed snippet ($[PATH]/$[NAME]) to the clipboard, just like if you'd copied it from a webpage."},{"name":"[NOSUBST] Disabled","seq":7,"content":"The following text will be pasted as-is and without any rich text processing due to the inclusion of [NOSUBST] at the beginning of the snippet name:\n$[NAME], $[FOLDER], $[PATH]\n$[HOSTAPP], $[UA]\n#[COUNTER]\n$[DATE], $[TIME]\nunlinked.com, email@unlinked.com"},{"name":"Enhancements","seq":8,"content":"The following enhanced placeholders are incompatible with Clippings and should be avoided if regularly sharing backups:\n\n$[PATH] & $[PATH(>)]\nPATH placeholders will be treated as custom fields, while PATH placeholders with custom delimiters (in brackets) will be ignored completely.\n\n$[DATE(short)], $[TIME(long)], etc.\nClippings does not understand the \"full\", \"long\", \"medium\" and \"short\" datetime formats and so will ignore these fields completely.\n\n#[COUNTER(0)]\nClippings has no facility for controlling counters and will ignore fields with custom incrementation completely."}]},{"name":"Welcome to Snippets!","seq":2,"content":"On the top line you will find a settings menu, the current folder path, a sync icon that allows you to swap between syncronizing your snippets or keeping them local, buttons for adding new folders and snippets in the current folder and a pop-out button to make organizing your snippets easier (unless you're already in a separate window).\n\nClicking on a folder name will open it. Try clicking the Placeholders folder to see how the path updates."},{"name":"🢀 Try clicking the icon!","seq":3,"color":"Red","content":"Folder and snippet icons can be clicked to open their menu. The options currently available allow you to change the icon colour, move the item up or down manually, or create a copy of it. To move items around, you can also drag their border and drop them into a folder or position.\n\nOn the right are buttons to rename (folders), copy (snippets) or delete. Once you get the hang of it, feel free to delete the tutorials! You can delete everything right away by going to the settings menu at the top left under \"Backups\" and clicking \"Clear All Data\"."}],"counters":{"startVal":0}}}
+{
+  "version": "1.0",
+  "createdBy": "Snippets",
+  "data": {
+    "version": "1.0",
+    "timestamp": 1708709808073,
+    "children": [
+      {
+        "name": "Placeholders",
+        "seq": 1,
+        "children": [
+          {
+            "name": "Basic Placeholders",
+            "seq": 1,
+            "content": "The name of this snippet (Basic Placeholders):\n$[NAME]\n\nThe folder this snippet is in (Placeholders):\n$[FOLDER]\n\nThe full path to this snippet (Snippets/Placeholders):\n$[PATH]\n\nSame as above with a custom delimiter (Snippets > Placeholders):\n$[PATH( > )]\n\nThe name and version of your browser:\n$[HOSTAPP]\n\nThe User Agent your browser identifies as:\n$[UA]"
+          },
+          {
+            "name": "Custom Placeholders",
+            "seq": 2,
+            "content": "Values for custom placeholders will be confirmed when pasting or using the clipboard feature:\n$[Custom Placeholder]\n\nA default value can be added in curly braces:\n$[Default{Text}]\n\nIf your placeholder should be chosen from a list, you can separate the values with a pipe (|) symbol where the first option will be default:\n$[Select Value{Option 1|Option 2|Option 3}]\n\nIf you want a special type of input field, you can specify its name in brackets:\n$[Date & Time(datetime-local)]\n\nIt’s possible to combine types and default values as long as the values are valid for the input type:\n$[Date Picker(date){2024-05-04}] $[Time Picker(time){16:30}]\n\nThe above can be especially useful for rich text fields like so:\n<span style=\"background-color:$[Color(color){#FFF444}]\">Highlighted Text</span>"
+          },
+          {
+            "name": "Date",
+            "seq": 3,
+            "content": "The default date display for the locale:\n$[DATE]\n\nThe current date and time with custom formatting:\n$[DATE(ddd, MMM DD, YYYY hh:mm:ss A ZZ)]\n\nLocale-based date strings of decreasing length:\n$[DATE(full)]\n$[DATE(long)]\n$[DATE(medium)]\n$[DATE(short)]"
+          },
+          {
+            "name": "Time",
+            "seq": 4,
+            "content": "The default time display:\n$[TIME]\n\nThe current time with custom formatting:\n$[TIME(h:mm A Z)]\n\nLocale-based time strings of decreasing length:\n$[TIME(full)]\n$[TIME(long)]\n$[TIME(medium)]\n$[TIME(short)]"
+          },
+          {
+            "name": "Counters",
+            "seq": 5,
+            "content": "Counters will use the default starting value chosen in the settings menu, and will then increase by one each time it’s encountered. \n\nA default auto-incrementing counter (next value +1):\n#[COUNTER], #[COUNTER]\n\nAdding a number in brackets after the counter name will change the increment.\n\nThis will increase COUNTER by 2 after replacement:\n#[COUNTER(2)], #[COUNTER(2)]\n\nThis will decrease COUNTER by 2 after replacement:\n#[COUNTER(-2)], #[COUNTER(-2)]\n\nThis will preserve the value of COUNTER after replacement:\n#[COUNTER(0)], #[COUNTER(0)]"
+          },
+          {
+            "name": "RichText",
+            "seq": 6,
+            "content": "<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won’t turn into spaces. URLs without anchor tags like https://github.com/jpc-ae/Snippets/issues will be hotlinked automatically along with email addresses like noreply@example.com. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this snippet will add both plain and rich text versions of this processed snippet ($[PATH]/$[NAME]) to the clipboard, just like if you’d copied it from a webpage."
+          },
+          {
+            "name": "[NOSUBST] Disabled",
+            "seq": 7,
+            "content": "The following text will be pasted as-is and without any rich text processing due to the inclusion of [NOSUBST] at the beginning of the snippet name:\n$[NAME], $[FOLDER], $[PATH]\n$[HOSTAPP], $[UA]\n#[COUNTER]\n$[DATE], $[TIME]\nunlinked.com, email@unlinked.com"
+          },
+          {
+            "name": "Enhancements",
+            "seq": 8,
+            "content": "The following enhanced placeholders are incompatible with Clippings and should be avoided if regularly sharing backups:\n\n$[PATH] & $[PATH(>)]\nPATH placeholders ($[PATH]) will be treated as blank custom fields, while PATH placeholders with custom delimiters (like $[PATH(>)]) will be ignored completely.\n\n$[DATE(short)], $[TIME(long)], etc.\nClippings does not understand the “full”, “long”, “medium” and “short” date & time formats and so will ignore these fields completely.\n\n#[COUNTER(0)]\nClippings has no facility for controlling counters and will ignore fields with custom incrementation completely."
+          }
+        ]
+      },
+      {
+        "name": "Welcome to Snippets!",
+        "seq": 2,
+        "content": "On the top line you will find a settings menu, the current folder path, a sync icon that allows you to swap between synchronizing your snippets or keeping them local, buttons for adding new folders and snippets in the current folder and a pop-out button to make organizing your snippets easier (unless you’re already in a separate window).\n\nClicking on a folder name will open it. Try clicking the Placeholders folder to see how the path updates."
+      },
+      {
+        "name": "🢀 Try clicking the icon!",
+        "seq": 3,
+        "color": "Red",
+        "content": "Folder and snippet icons can be clicked to open their menu. The options currently available allow you to change the icon colour and move the item up or down manually. To move snippets around, you can also drag their border and drop them into a folder or position, and for folders just drag their button.\n\nOn the right are buttons to rename (folders), copy to clipboard (snippets) or delete. Once you get the hang of it, feel free to delete the tutorials! You can delete everything and start fresh right away by going to the settings menu at the top left under “Data” and clicking “Clear All Data and settings”."
+      }
+    ],
+    "counters": {
+      "startVal": 0
+    }
+  }
+}
