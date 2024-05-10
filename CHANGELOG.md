@@ -5,6 +5,7 @@
 
 - Added compression toggle in case of issues on certain platforms (try toggling off if paste commands don't work)
 - Added preliminary support for including html tags when snipping
+- Added CKEditor support for pasting
 - Added Alt+Shift+C keyboard shortcut for snipping (may not work in embedded pages)
 - Added Alt+Shift+X keyboard shortcut for opening the Snippets manager
 - Added view option to disable the maximum editor size when not editing
