@@ -1,3 +1,22 @@
+# 0.10.2 (2024-05-10)
+
+> Enhanced Clippings import & preliminary keyboard shortcut support
+> Special thanks to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
+
+- Added compression toggle in case of issues on certain platforms (try toggling off if paste commands don't work)
+- Added preliminary support for including html tags when snipping
+- Added Alt+Shift+C keyboard shortcut for snipping (may not work in embedded pages)
+- Added Alt+Shift+X keyboard shortcut for opening the Snippets manager
+- Added view option to disable the maximum editor size when not editing
+- Added an about page
+- Rearranged and clarified items in the Settings menu
+- Moved all text to i18n file for future translation efforts
+- Cleaned up some background errors and made them more visible in case of known limitations
+- Enhanced sync behaviour when working in multiple windows/workstations
+- Enhanced confirmation and alert windows
+- Fixed an issue with importing label colors from clippings
+- Fixed an issue where clearing all data needed to be done twice before it was visible
+
 # 0.10.1 (2023-12-12)
 
 > Custom placeholder support & major bugfix for context menus
