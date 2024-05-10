@@ -18,8 +18,15 @@ const space = new Space();
 /** Update currently viewed space */
 const setCurrentSpace = () => space.setAsCurrent(settings.view.rememberPath);
 
-// for handling resize of header path
-const resizing = new ResizeObserver(adjustPath);
+// for handling resize of header path, debounce may cause flashing but prevents loop errors
+const debounce = function setDelay(f, delay) {
+  let timer = 0;
+  return function(...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => f.apply(this, args), delay);
+  };
+};
+const resizing = new ResizeObserver(debounce(adjustPath, 0));
 
 // Listen for updates on the fly in case of multiple popout windows
 chrome.runtime.onMessage.addListener(async ({type, args}) => {
@@ -351,44 +358,42 @@ function buildHeader() {
   setHeaderPath();
 }
 
-/**
- * Hide folder entries as needed
+/** Hide folder entries as needed
  * @param {ResizeObserverEntry[]} entries 
  */
 function adjustPath() {
-  // console.log(entries);
-  const s = $('folder-up');
-  if (!s) return; // path not generated yet
-  const t = $('path');
-  const sb = s.querySelector('button');
-  // console.log(entries, t, s, sb, t.offsetHeight, t.childElementCount);
-  if (t.offsetHeight > 32 & t.childElementCount > 2) {
+  const maxHeight = 33; // normal is 32, 33 allows for subpixels
+  const upIcon = $('folder-up');
+  if (!upIcon) return; // path not generated yet
+  const container = $('path');
+  /** @type {HTMLElement[]} */
+  const pathList = Array.from(container.getElementsByTagName('li'));
+  if (container.offsetHeight > maxHeight & container.childElementCount > 2) {
+    // show up icon
+    upIcon.style.removeProperty('display');
     // hide parts of the folder path in case it's too long
-    s.style.removeProperty('display');
-    /** @type {HTMLElement} */
-    let f = s.nextSibling;
-    while (t.offsetHeight > 33) {
-      if (!f.nextSibling) break; // always leave the last one
-      f.style.display = `none`;
-      s.dataset.path = f.dataset.path;
-      s.dataset.seq = f.dataset.seq;
-      // console.log(f, f.querySelector('button'), f.querySelector('button').target);
-      sb.dataset.target = f.querySelector('button').dataset.target || ``;
-      f = f.nextSibling;
+    const folderList = pathList.slice(1, -1); // always show current folder name
+    for (const folder of folderList) {
+      if (maxHeight > container.offsetHeight) break;
+      folder.style.display = 'none';
+      upIcon.dataset.path = folder.dataset.path;
+      upIcon.dataset.seq = folder.dataset.seq;
+      upIcon.querySelector('button').dataset.target = folder.querySelector('button').dataset.target;
     }
   } else {
     // show parts of the folder path as space becomes available
     /** @type {HTMLElement[]} */
-    const ps = Array.from(t.getElementsByTagName('li')).filter(e => e.style.display === `none`).reverse();
-    if (ps[0] === s) return;
+    const hiddenFolders = pathList.filter(e => e.style.display === 'none').reverse();
+    if (hiddenFolders[0] === upIcon) return; // folder-up hidden, we're fine
     let i = 1;
-    for (const p of ps) {
-      p.style.removeProperty('display');
-      const isRoot = (ps.length === i++ && p.textContent === space.name);
-      if (isRoot) s.style.display = `none`;
-      if (t.offsetHeight > 32) {
-        p.style.display = `none`;
-        if (isRoot) s.style.removeProperty('display');
+    for (const folder of hiddenFolders) {
+      folder.style.removeProperty('display');
+      const isRoot = (hiddenFolders.length === i++ && folder.textContent === space.name);
+      if (isRoot) upIcon.style.display = 'none';
+      if (container.offsetHeight > maxHeight) {
+        // revert last and stop unhinding folders when there's no more space
+        folder.style.display = 'none';
+        if (isRoot) upIcon.style.removeProperty('display');
         break;
       }
     }
@@ -432,7 +437,7 @@ function buildTree() {
       folderItem.append(buildTreeWidget(
         !!subFolders,
         getColor(folder.color).value,
-        (isRoot) ? `` : level.concat([folder.seq]).join('-'),
+        (isRoot) ? '' : level.concat([folder.seq]).join('-'),
         (isRoot) ? space.name : folder.name,
       ));
       // add sub-list if subfolders were found
@@ -477,7 +482,7 @@ function buildList() {
             classList: [`delimiter`],
             dataset: {
               seq: `.5`,
-              path: path,
+              path: path.join('-'),
             },
           }),
         ].concat(groupedItems.folder.flatMap((folder, i, a) => [
@@ -485,7 +490,7 @@ function buildList() {
               classList: [`folder`],
               dataset: {
                 seq: folder.seq,
-                path: path,
+                path: path.join('-'),
               },
               children: buildItemWidget(folder, groupedItems.folder, path, settings),
             }),
@@ -493,7 +498,7 @@ function buildList() {
               classList: [(i < a.length - 1) ? `separator` : `delimiter`],
               dataset: {
                 seq: String(folder.seq + .5),
-                path: path,
+                path: path.join('-'),
               },
               children: (i < a.length - 1) && [buildNode('hr')],
             }),
@@ -513,7 +518,7 @@ function buildList() {
           classList: [`delimiter`],
           dataset: {
             seq: .5,
-            path: path,
+            path: path.join('-'),
           },
         }),
       ].concat(items.flatMap((item) => [
@@ -521,7 +526,7 @@ function buildList() {
           classList: [item.constructor.name.toLowerCase()],
           dataset: {
             seq: item.seq,
-            path: path,
+            path: path.join('-'),
           },
           children: [buildNode('div', {
             classList: [`card`, `drag`],
@@ -533,7 +538,7 @@ function buildList() {
           classList: [`delimiter`],
           dataset: {
             seq: item.seq + .5,
-            path: path,
+            path: path.join('-'),
           },
         }),
       ])),
@@ -837,7 +842,7 @@ function handleDragDrop(event) {
         }
         //make sure we're not trying to put a folder inside its child
         if (moveTo.path.length > moveFrom.path.length
-        && moveTo.path.slice(0, moveFrom.path.length + 1).join() === moveFrom.path.concat([moveFrom.seq]).join()) {
+        && moveTo.path.slice(0, moveFrom.path.length + 1).join('-') === moveFrom.path.concat([moveFrom.seq]).join('-')) {
           showAlert(i18n('error_folder_to_child'));
           return dragEnd();
         }
@@ -1382,29 +1387,21 @@ async function handleAction(target) {
     // console.log(item, dataset);
     space.save();
     // update tree if changes were made to a folder
-    if (item instanceof Folder) {
-      const treeItem = $('tree').querySelector(`li[data-path="${dataset.path || space.path}"][data-seq="${dataset.seq}"]`);
-      if (treeItem) {
-        treeItem.replaceChildren(buildTreeWidget(
-          !!getSubFolders(item.children),
-          getColor(item.color).value,
-          space.path.concat(item.seq).join('-'),
-          item.name,
-        ));
-      }
-    }
+    if (item instanceof Folder) buildTree();
     break; }
 
-  case 'move': {
+  case 'move':
     // console.log(dataset);
-    const movedItem = space.moveItem(
-      {seq: dataset.seq},
-      {seq: target.value},
-    );
-    space.save();
-    buildList();
-    if (movedItem instanceof Folder) buildTree();
-    break; }
+    if (target.value) {
+      const movedItem = space.moveItem(
+        {seq: dataset.seq},
+        {seq: target.value},
+      );
+      space.save();
+      buildList();
+      if (movedItem instanceof Folder) buildTree();
+    }
+    break;
   
   // interface controls
   case 'pop-out': {
