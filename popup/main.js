@@ -63,7 +63,17 @@ const loadPopup = async () => {
     document.body.style.height = "550px";
   }
 
-  // check for followups before loading
+  // set up listeners
+  document.addEventListener('mousedown', handleMouseDown, false);
+  document.addEventListener('dragstart', handleDragDrop, false);
+  document.addEventListener('click', handleClick, false);
+  document.addEventListener('mouseup', handleMouseUp, false);
+  document.addEventListener('keydown', handleKeydown, false);
+  document.addEventListener('keyup', handleKeyup, false);
+  document.addEventListener('change', handleChange, false);
+  document.addEventListener('focusout', handleFocusOut, false);
+
+  // check for followups before loading snippets
   const followup = await fetchFollowup();
   if (followup) {
     /** @type {{type:string,args:{[key:string]:*}}} */
@@ -145,16 +155,6 @@ const loadPopup = async () => {
   }
 
   loadSnippets();
-
-  // set up listeners
-  document.addEventListener('mousedown', handleMouseDown, false);
-  document.addEventListener('dragstart', handleDragDrop, false);
-  document.addEventListener('click', handleClick, false);
-  document.addEventListener('mouseup', handleMouseUp, false);
-  document.addEventListener('keydown', handleKeydown, false);
-  document.addEventListener('keyup', handleKeyup, false);
-  document.addEventListener('change', handleChange, false);
-  document.addEventListener('focusout', handleFocusOut, false);
 
   // textarea adjustments
   document.addEventListener('focusin', adjustTextArea, false);
@@ -616,12 +616,14 @@ function adjustTextArea(target, maxHeight) {
  * @param {MouseEvent} event 
  */
 function handleMouseDown(event) {
+  // console.log(event);
   // prevent focus pull on buttons but handle & indicate action
   const target = event.target.closest('[data-action]');
-  if (target?.type === `button` && target.dataset?.action !== 'open-folder') {
+  // console.log(target, target?.type, target.dataset?.action);
+  if (target?.type === 'button' && target.dataset?.action !== 'open-folder') {
     event.stopPropagation();
     event.preventDefault();
-    target.style.boxShadow = `none`;
+    target.style.boxShadow = 'none';
     window.clicked = target; // for releasing click
   }
 }
@@ -697,11 +699,11 @@ function handleChange(event) {
   const {dataset} = target;
   dataset.action ||= target.name;
 
-  // handle action
+  // console.log(target, dataset);
   handleAction(target);
   
   // update menu if needed
-  // console.log("Checking type", dataset.type);
+  // console.log("Checking type", target.type);
   if (target.type === 'checkbox') {
     // console.log("Toggling checkbox");
     toggleChecked(target.parentElement.querySelector('use'));
