@@ -282,7 +282,10 @@ async function mergeCustomFields(content, fields) {
   if (!confirmedFields) return content;
   return content.replaceAll(
     /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
-    (match, placeholder) => confirmedFields.get(placeholder)?.value || match,
+    (match, placeholder) => {
+      const value = confirmedFields.get(placeholder)?.value
+      return (typeof value === 'string') ? value : match;
+    },
   );
 }
 

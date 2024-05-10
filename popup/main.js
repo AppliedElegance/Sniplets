@@ -1272,16 +1272,16 @@ async function handleAction(target) {
           value: startVal,
         }],
         buttons: [{
-          id: `submitCounterDefaults`,
+          title: i18n('submit'),
           value: startVal,
-          children: [buildNode('h2', {textContent: i18n('submit')})],
+          id: `submitCounterDefaults`,
         }],
       }, ({target}) => {
         const submitButton = target.closest('dialog').querySelector('#submitCounterDefaults');
         submitButton.value = target.value;
       });
       if (!val) break; // modal cancelled
-      if (!isNaN(val) && (parseInt(target.value) === Math.abs(+val))) startVal = +val;
+      if (!isNaN(val) && (parseInt(val) === Math.abs(+val))) startVal = +val;
     }
     space.data.counters.startVal = startVal;
     space.save();
@@ -1299,18 +1299,16 @@ async function handleAction(target) {
           label: key,
           value: value,
         })),
-      buttons: [
-        {
-          id: `submitCounters`,
-          value: `{}`,
-          children: [buildNode('h2', {textContent: i18n('submit')})],
-        },
-      ],
+      buttons: [{
+        title: i18n('submit'),
+        value: `{}`,
+        id: `submitCounters`,
+      }],
     }, ({target}) => {
       const button = target.closest('dialog').querySelector('#submitCounters');
       const changes = JSON.parse(button.value);
       const val = +target.value;
-      if (!isNaN(val) && (parseInt(target.value) === Math.abs(val))) changes[target.title] = val;
+      if (!isNaN(val) && (parseInt(val) === Math.abs(val))) changes[target.title] = val;
       button.value = JSON.stringify(changes);
     });
     if (!values) break; // modal cancelled
