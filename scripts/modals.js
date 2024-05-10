@@ -182,6 +182,7 @@ function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel
   });
 }
 
+// FIXME: update control icon
 /** Modal confirmation, returns `true` for the action, `false` if cancelled, or undefined if escaped
  * @param {string} message - confirmation message
  * @param {{title:string,value:string}[]} selections - list of available selections
@@ -195,7 +196,7 @@ function confirmSelection(message, selections, okLabel = i18n('ok'), cancelLabel
       type: 'radio',
       name: 'selection',
       options: selections.map((option, i) => ({
-        id: `selection-${i}`,
+        id: `selection-${i+1}`,
         label: option.title,
         value: option.value,
       })),
