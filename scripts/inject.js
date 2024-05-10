@@ -58,6 +58,7 @@ const returnSnip = ({preserveTags, saveSource}) => {
 
       const selection = window.getSelection();
       let text;
+      // TODO: add option to convert lists to numbers/bullets
       if (preserveTags) {
         const range = selection.getRangeAt(0);
         const content = range.cloneContents();

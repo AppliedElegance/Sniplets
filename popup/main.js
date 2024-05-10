@@ -107,7 +107,7 @@ const loadPopup = async () => {
     case 'unsync': {
       args.actionSpace.synced = (await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))) || false;
       if (await space.init(args.actionSpace) && await space.save()) {
-        await space.setAsCurrent();
+        setCurrentSpace();
       } else {
         showAlert(i18n('error_data_corrupt'));
         break;
@@ -967,11 +967,10 @@ async function handleAction(target) {
     await chrome.storage.sync.clear();
     // reinitialize
     settings.init();
-    // console.log(settings);
-    settings.save();
+    await settings.save();
     await space.init(settings.defaultSpace);
-    // console.log(space);
-    space.save();
+    await setCurrentSpace();
+    await space.save();
     loadPopup();
     break;
 
@@ -1029,7 +1028,7 @@ async function handleAction(target) {
     break; }
   
   case 'restore': {
-    // console.log("Checking current data", space.data);
+    console.log("Checking current data", space.data);
     if (space.data.children.length && !await confirmAction(i18n('warning_restore_bak', i18n('action_restore'))))
       break;
     try {
@@ -1047,20 +1046,23 @@ async function handleAction(target) {
       const fileContents = await fileData.text();
       // console.log('Grabbed contents', fileContents);
       const backup = JSON.parse(fileContents);
-      // console.log('Parsed data', backup);
+      console.log('Parsed data', backup);
 
       // restore current space and settings if present
       // console.log("Starting restore...");
-      space.path.length = 0;
-      // console.log("Checking data", structuredClone(space), structuredClone(backup));
-      if (backup.currentSpace) setStorageData({currentSpace: backup.currentSpace});
       if (backup.settings) {
-        settings.init(settings);
+        settings.init(backup.settings);
         settings.save();
         // showAlert("Settings have been restored.");
       }
-      // check for clippings data
-      if (backup.userClippingsRoot) {
+      space.path.length = 0;
+      if (backup.currentSpace) {
+        console.log('updating current space', backup.currentSpace);
+        setStorageData({currentSpace: backup.currentSpace});
+      }
+
+      // restore data
+      if (backup.userClippingsRoot) { // check for clippings data
         // console.log("Creating new DataBucket...");
         const newData = new DataBucket({children: backup.userClippingsRoot});
         // console.log("Parsing data...", structuredClone(newData), newData);
@@ -1101,7 +1103,7 @@ async function handleAction(target) {
       }
       // console.log("Loading snippets...");
       loadSnippets();
-    } catch {/* assume cancelled */}
+    } catch (e) { console.log(e); /* assume cancelled */}
     break; }
 
   // copy processed snippet
@@ -1203,7 +1205,7 @@ async function handleAction(target) {
     // attempt to move the space
     space.synced = !space.synced;
     if (await space.save()) {
-      await space.setAsCurrent();
+      setCurrentSpace();
       removeStorageData(space.name, !space.synced);
       buildHeader();
       loadSnippets();
