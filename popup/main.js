@@ -1120,13 +1120,13 @@ async function handleAction(target) {
   case 'copy': {
     // get requested item
     const {snip, customFields} = await space.getProcessedSnippet(dataset.seq) || {};
-    // console.log(snip);
+    // console.log(snip, customFields);
     if (!snip) break;
     // rebuild settings menu in case there was an update to counters
     if (snip.counters) $('settings').replaceChildren(...buildMenu());
     // get custom fields if necessary
     if (customFields) {
-      const content = await mergeCustomFields(customFields);
+      const content = await mergeCustomFields(snip.content, customFields);
       if (!content) break; // modal cancelled
       snip.content = content;
     }

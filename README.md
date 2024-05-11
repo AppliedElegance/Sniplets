@@ -3,7 +3,7 @@ Ever wanted to save some text for later use, or throw some info over from one of
 > [!TIP]
 > Translations can now be requested and worked on by the community on .
 
-## Latest Version Highlights (0.10.2 2024-05-10)
+## Latest Version Highlights (0.10.3 2024-05-10)
 
 > The 0.10 release series is a major overhaul from previous releases as the extension approaches feature parity with Snippets.
 
