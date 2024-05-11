@@ -1,6 +1,6 @@
-# 0.10.2 (2024-05-10)
+# 0.10.3 (2024-05-10)
 
-> Enhanced Clippings import & preliminary keyboard shortcut support
+> Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)
 > Special thanks to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
 
 - Added compression toggle in case of issues on certain platforms (try toggling off if paste commands don't work)
@@ -10,13 +10,15 @@
 - Added Alt+Shift+X keyboard shortcut for opening the Snippets manager
 - Added view option to disable the maximum editor size when not editing
 - Added an about page
+- Enhanced sync behaviour when working in multiple windows/workstations
+- Enhanced confirmation and alert windows
 - Rearranged and clarified items in the Settings menu
 - Moved all text to i18n file for future translation efforts
 - Cleaned up some background errors and made them more visible in case of known limitations
-- Enhanced sync behaviour when working in multiple windows/workstations
-- Enhanced confirmation and alert windows
 - Fixed an issue with importing label colors from clippings
+- Fixed an issue where settings were not imported from a full backup
 - Fixed an issue where clearing all data needed to be done twice before it was visible
+- Fixed an issue moving deeply nested items around
 
 # 0.10.1 (2023-12-12)
 
