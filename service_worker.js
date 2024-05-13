@@ -72,6 +72,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       await space.save();
     }
   } else {
+    console.log('currentSpace is available');
     buildContextMenus(space);
   }
   await space.setAsCurrent(settings.control.saveSource);
@@ -80,8 +81,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.runtime.onStartup.addListener(async () => {
   // rebuild context menus in case of crash or CCleaner deletion
   const space = new Space();
-  await space.loadCurrent();
-  buildContextMenus(space);
+  if (await space.loadCurrent()) buildContextMenus(space);
 });
 
 // chrome.runtime.onMessage.addListener((message, sender) => {
@@ -172,7 +172,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
           synced: isSyncChange,
           data: changes[key].newValue,
         });
-        // console.log(space, areaName);
+        console.log(changes[key], space, areaName);
         buildContextMenus(space);
       }
     }

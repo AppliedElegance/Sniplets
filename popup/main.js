@@ -28,82 +28,7 @@ const debounce = function setDelay(f, delay) {
 };
 const resizing = new ResizeObserver(debounce(adjustPath, 0));
 
-const checkUnsync = async () => {
-  // checked for unsynced data
-  const {unsynced} = await getStorageData('unsynced');
-  if (unsynced) {
-    // make sure it hasn't already been restored
-    const syncData = await getStorageData(unsynced.name, true);
-    if (!syncData[unsynced.name]) {
-      // make it possible to keep local data or keep synchronizing on this machine just in case
-      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
-      if (keepSync === true || keepSync === false) {
-        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
-          showAlert(i18n('error_data_corrupt'));
-        } else if (keepSync === false) {
-          // check currentSpace and update if necessary
-          let currentSpace = await getCurrentSpace();
-          if (!currentSpace) currentSpace = settings.defaultSpace;
-          if (currentSpace.name === syncData.name) {
-            currentSpace.synced = keepSync;
-            await setStorageData({currentSpace: currentSpace});
-          }
-        }
-      } else {
-        showAlert(i18n('error_data_corrupt'));
-      }
-    }
-    // remove backup, each browser instance will have their own
-    removeStorageData('unsynced');
-  }
-}
-
-// Listen for updates on the fly in case of multiple popout windows
-chrome.runtime.onMessage.addListener(async ({type, args}) => {
-  await checkUnsync();
-  if (type === 'updateSpace') {
-    const {timestamp} = args;
-    if (timestamp > space.data.timestamp) {
-      await space.loadCurrent();
-      loadSnippets();
-    }
-  }
-});
-
-// reusable onDOMContentLoaded
-const loadPopup = async () => {
-  // accessibility
-  document.documentElement.lang = uiLocale;
-  document.title = i18n('app_name');
-
-  // load up settings with sanitation check for sideloaded versions
-  if (!await settings.load()) {
-    settings.init();
-    settings.save();
-  }
-  // console.log("Settings loaded...", settings);
-
-  // load parameters
-  const params = Object.fromEntries(new URLSearchParams(location.search));
-  // console.log("Processing parameters...", params);
-
-  // check if opened as popup and set style accordingly
-  if (params.popout) {
-    window.popout = params.popout; // for building header
-    document.body.style.width = "400px"; // column flex collapses width unless set
-    document.body.style.height = "550px";
-  }
-
-  // set up listeners
-  document.addEventListener('mousedown', handleMouseDown, false);
-  document.addEventListener('dragstart', handleDragDrop, false);
-  document.addEventListener('click', handleClick, false);
-  document.addEventListener('mouseup', handleMouseUp, false);
-  document.addEventListener('keydown', handleKeydown, false);
-  document.addEventListener('keyup', handleKeyup, false);
-  document.addEventListener('change', handleChange, false);
-  document.addEventListener('focusout', handleFocusOut, false);
-
+const checkFollowup = async () => {
   // check for followups before loading snippets
   const followup = await fetchFollowup();
   if (followup) {
@@ -157,7 +82,83 @@ const loadPopup = async () => {
     } // end switch(type)
   } // end followup
 
-  await checkUnsync();
+  // checked for unsynced data
+  const {unsynced} = await getStorageData('unsynced');
+  if (unsynced) {
+    // make sure it hasn't already been restored
+    const syncData = await getStorageData(unsynced.name, true);
+    if (!syncData[unsynced.name]) {
+      // make it possible to keep local data or keep synchronizing on this machine just in case
+      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
+      if (keepSync === true || keepSync === false) {
+        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
+          showAlert(i18n('error_data_corrupt'));
+        } else if (keepSync === false) {
+          // check currentSpace and update if necessary
+          let currentSpace = await getCurrentSpace();
+          if (!currentSpace) currentSpace = settings.defaultSpace;
+          if (currentSpace.name === syncData.name) {
+            currentSpace.synced = keepSync;
+            await setStorageData({currentSpace: currentSpace});
+          }
+        }
+      } else {
+        showAlert(i18n('error_data_corrupt'));
+      }
+    }
+    // remove backup, each browser instance will have their own
+    removeStorageData('unsynced');
+  }
+};
+
+// Listen for updates on the fly in case of multiple popout windows
+chrome.runtime.onMessage.addListener(async ({type, args}) => {
+  if (type === 'updateSpace') {
+    const {timestamp} = args;
+    if (timestamp > space.data.timestamp) {
+      await space.loadCurrent();
+      loadSnippets();
+    }
+  } else if (type === 'followup') {
+    await checkFollowup();
+  }
+});
+
+// reusable onDOMContentLoaded
+const loadPopup = async () => {
+  // accessibility
+  document.documentElement.lang = uiLocale;
+  document.title = i18n('app_name');
+
+  // load up settings with sanitation check for sideloaded versions
+  if (!await settings.load()) {
+    settings.init();
+    settings.save();
+  }
+  // console.log("Settings loaded...", settings);
+
+  // load parameters
+  const params = Object.fromEntries(new URLSearchParams(location.search));
+  // console.log("Processing parameters...", params);
+
+  // check if opened as popup and set style accordingly
+  if (params.popout) {
+    window.popout = params.popout; // for building header
+    document.body.style.width = "400px"; // column flex collapses width unless set
+    document.body.style.height = "550px";
+  }
+
+  // set up listeners
+  document.addEventListener('mousedown', handleMouseDown, false);
+  document.addEventListener('dragstart', handleDragDrop, false);
+  document.addEventListener('click', handleClick, false);
+  document.addEventListener('mouseup', handleMouseUp, false);
+  document.addEventListener('keydown', handleKeydown, false);
+  document.addEventListener('keyup', handleKeyup, false);
+  document.addEventListener('change', handleChange, false);
+  document.addEventListener('focusout', handleFocusOut, false);
+
+  await checkFollowup();
 
   // load up the current space
   if (!await space.loadCurrent()) {
@@ -1362,6 +1363,7 @@ async function handleAction(target) {
   // add/edit/delete items
   case 'new-snippet': {
     const newSnippet = space.addItem(new Snippet());
+    space.sort(settings.sort);
     space.save();
     buildList();
     handleAction({action: 'focus', seq: newSnippet.seq, field: 'name'});
@@ -1369,7 +1371,7 @@ async function handleAction(target) {
   
   case 'new-folder': {
     const newFolder = space.addItem(new Folder());
-    if (settings.sort.foldersOnTop) space.sort(settings.sort);
+    space.sort(settings.sort);
     space.save();
     buildList();
     buildTree();

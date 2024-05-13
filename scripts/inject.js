@@ -162,7 +162,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
   const space = new Space();
   if (!(actionSpace.name && await space.load(actionSpace)) && !(await space.loadCurrent())) return;
   const newSnip = space.addItem(new Snippet(result));
-  // console.log(space);
+  space.sort(settings.sort);
   await space.save();
   openForEditing(space.path, newSnip.seq);
   return;
