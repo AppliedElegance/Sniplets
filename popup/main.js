@@ -28,8 +28,39 @@ const debounce = function setDelay(f, delay) {
 };
 const resizing = new ResizeObserver(debounce(adjustPath, 0));
 
+const checkUnsync = async () => {
+  // checked for unsynced data
+  const {unsynced} = await getStorageData('unsynced');
+  if (unsynced) {
+    // make sure it hasn't already been restored
+    const syncData = await getStorageData(unsynced.name, true);
+    if (!syncData[unsynced.name]) {
+      // make it possible to keep local data or keep synchronizing on this machine just in case
+      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
+      if (keepSync === true || keepSync === false) {
+        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
+          showAlert(i18n('error_data_corrupt'));
+        } else if (keepSync === false) {
+          // check currentSpace and update if necessary
+          let currentSpace = await getCurrentSpace();
+          if (!currentSpace) currentSpace = settings.defaultSpace;
+          if (currentSpace.name === syncData.name) {
+            currentSpace.synced = keepSync;
+            await setStorageData({currentSpace: currentSpace});
+          }
+        }
+      } else {
+        showAlert(i18n('error_data_corrupt'));
+      }
+    }
+    // remove backup, each browser instance will have their own
+    removeStorageData('unsynced');
+  }
+}
+
 // Listen for updates on the fly in case of multiple popout windows
 chrome.runtime.onMessage.addListener(async ({type, args}) => {
+  await checkUnsync();
   if (type === 'updateSpace') {
     const {timestamp} = args;
     if (timestamp > space.data.timestamp) {
@@ -126,34 +157,7 @@ const loadPopup = async () => {
     } // end switch(type)
   } // end followup
 
-  // checked for unsynced data
-  const {unsynced} = await getStorageData('unsynced');
-  if (unsynced) {
-    // make sure it hasn't already been restored
-    const syncData = await getStorageData(unsynced.name, true);
-    console.log(unsynced, syncData);
-    if (!syncData) {
-      // make it possible to keep local data or keep synchronizing on this machine just in case
-      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
-      if (keepSync === true || keepSync === false) {
-        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
-          showAlert(i18n('error_data_corrupt'));
-        } else if (keepSync === false) {
-          // check currentSpace and update if necessary
-          let currentSpace = await getCurrentSpace();
-          if (!currentSpace) currentSpace = settings.defaultSpace;
-          if (currentSpace.name === syncData.name) {
-            currentSpace.synced = keepSync;
-            await setStorageData({currentSpace: currentSpace});
-          }
-        }
-      } else {
-        showAlert(i18n('error_data_corrupt'));
-      }
-    }
-    // remove backup, each browser instance will have their own
-    removeStorageData('unsynced');
-  }
+  await checkUnsync();
 
   // load up the current space
   if (!await space.loadCurrent()) {
