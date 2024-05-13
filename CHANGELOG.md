@@ -1,3 +1,10 @@
+# 0.10.4 (2024-05-13)
+
+> Fixed sync error when clearing all data
+
+- Moved synced data recovery from back to front-end since store-deployed extensions handle clearing data in parallel, resulting in a race condition not seen in a test environment
+- Changed name from Snippets to Sniplets for easier searching on the Chrome Web Store
+
 # 0.10.3 (2024-05-10)
 
 > Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)

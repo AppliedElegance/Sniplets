@@ -151,6 +151,8 @@ const loadPopup = async () => {
         showAlert(i18n('error_data_corrupt'));
       }
     }
+    // remove backup, each browser instance will have their own
+    removeStorageData('unsynced');
   }
 
   // load up the current space
