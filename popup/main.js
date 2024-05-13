@@ -131,7 +131,7 @@ const loadPopup = async () => {
   if (unsynced) {
     // make sure it hasn't already been restored
     const syncData = await getStorageData(unsynced.name, true);
-    // console.log(unsynced, syncData);
+    console.log(unsynced, syncData);
     if (!syncData) {
       // make it possible to keep local data or keep synchronizing on this machine just in case
       const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
