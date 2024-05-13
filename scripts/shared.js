@@ -5,7 +5,7 @@
  * @param {string} messageName 
  * @param {string|string[]} substitutions
  * @example
- * // returns "Snippet"
+ * // returns "Sniplets"
  * i18n("app_name")
  */
 const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
@@ -84,7 +84,7 @@ function setStorageData(items, synced = false) {
 function getStorageData(keys, synced = false) {
   const bucket = synced ? chrome.storage.sync : chrome.storage.local;
   return bucket.get(keys)
-  .catch((e) => (console.warn(e), false));
+  .catch((e) => (console.warn(e), {}));
 }
 /** Safely removes storage data from chrome.storage.local (default) or .sync.
  * @param {string|string[]} keys - The key name for the stored data.
@@ -96,6 +96,9 @@ function removeStorageData(keys, synced = false) {
   .then(() => true)
   .catch((e) => (console.warn(e), false));
 }
+
+/** Get details of saved current space */
+const getCurrentSpace = () => getStorageData('currentSpace')?.currentSpace;
 
 /** Stores data required for following up on a task and opens a window to action it
  * @param {string} type Action which needs handling in a popup window
@@ -244,7 +247,7 @@ class Settings {
    */
   init({defaultSpace, sort, view, control, data} = {}) {
     // console.log(defaultSpace, sort, view, control, data);
-    const setDefaultSpace = ({name = i18n('app_name'), synced = true} = {}) => ({
+    const setDefaultSpace = ({name = i18n('default_space_name'), synced = true} = {}) => ({
       name: name,
       synced: synced,
     });
@@ -486,7 +489,7 @@ class Space {
    *   path: number[]|string
    * }} details
    */
-  constructor({name = i18n('app_name'), synced = false, data = new DataBucket(), path = []} = {}) {
+  constructor({name = i18n('default_space_name'), synced = false, data = new DataBucket(), path = []} = {}) {
     this.name = name;
     this.synced = synced;
     this.data = data;
@@ -510,7 +513,7 @@ class Space {
 
   /** load last used space or fall back to default */
   async loadCurrent() {
-    const {currentSpace} = await getStorageData('currentSpace');
+    const currentSpace = await getCurrentSpace();
     if (!(await this.load(currentSpace))) {
       const settings = new Settings();
       await settings.load();

@@ -55,6 +55,7 @@ module.exports = {
         "getStorageData": false,
         "setStorageData": false,
         "removeStorageData": false,
+        "getCurrentSpace": false,
         "setFollowup": false,
         "fetchFollowup": false,
         "setClipboard": false,

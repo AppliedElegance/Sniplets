@@ -37,7 +37,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const space = new Space();
 
   // check for current space in case of reinstall
-  const {currentSpace} = await getStorageData('currentSpace');
+  const currentSpace = await getCurrentSpace();
   // console.log(currentSpace);
   if (!await space.load(currentSpace || settings.defaultSpace)) {
     // legacy check for existing snippets
@@ -143,12 +143,10 @@ chrome.commands.onCommand.addListener(async (command, {id, url}) => {
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   // console.log(changes, areaName);
-  const sync = (areaName === 'sync');
-
-  // prepare currentSpace details for checks
-  const {currentSpace} = await getStorageData('currentSpace') || {};
+  const isSyncChange = (areaName === 'sync');
 
   for (const key in changes) {
+    // console.log(key, changes[key], areaName);
     // ignore updates to currentSpace itself
     if (key === 'currentSpace') continue;
 
@@ -159,37 +157,36 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
         type: 'updateSpace',
         args: {
           name: key,
-          synced: sync,
+          synced: isSyncChange,
           timestamp: changes[key].newValue.timestamp,
         },
       }).catch(() => false);
 
       // check if current space was changed
-      const {name, synced} = currentSpace || {};
-      if (!currentSpace || (name === key && synced === sync)) {
+      const currentSpace = await getCurrentSpace();
+      // console.log(name, synced, areaName);
+      if (!currentSpace || (currentSpace.name === key && currentSpace.synced === isSyncChange)) {
         const space = new Space();
         await space.init({
           name: key,
-          synced: sync,
+          synced: isSyncChange,
           data: changes[key].newValue,
         });
+        // console.log(space, areaName);
         buildContextMenus(space);
       }
     }
 
-    // check for removed sync data without local data as long as there's a currentSpace
-    if (sync && currentSpace
-    && changes[key].oldValue?.children
-    && !changes[key].newValue) {
+    // check for removed sync data without local data
+    if (isSyncChange && changes[key].oldValue?.children && !changes[key].newValue) {
+      // double-check we don't have a local space with the same name
       const bucket = await getStorageData(key, false);
       if (!bucket[key]) {
-        setFollowup('unsync', {
-          actionSpace: {
-            name: key,
-            synced: sync,
-            data: changes[key].oldValue,
-          },
-        }, false);
+        // don't lose the data on other synced instances without confirming first
+        setStorageData({unsynced: {
+          name: key,
+          data: changes[key].oldValue,
+        }});
       }
     }
   }

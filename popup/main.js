@@ -120,21 +120,38 @@ const loadPopup = async () => {
     case 'placeholders':
       if (args.action === 'paste') await mergeAndPaste(); // should always be true
       break;
-
-    case 'unsync': {
-      args.actionSpace.synced = (await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))) || false;
-      if (await space.init(args.actionSpace) && await space.save()) {
-        setCurrentSpace();
-      } else {
-        showAlert(i18n('error_data_corrupt'));
-        break;
-      }
-      break; }
     
     default:
       break;
     } // end switch(type)
   } // end followup
+
+  // checked for unsynced data
+  const {unsynced} = await getStorageData('unsynced');
+  if (unsynced) {
+    // make sure it hasn't already been restored
+    const syncData = await getStorageData(unsynced.name, true);
+    // console.log(unsynced, syncData);
+    if (!syncData) {
+      // make it possible to keep local data or keep synchronizing on this machine just in case
+      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
+      if (keepSync === true || keepSync === false) {
+        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
+          showAlert(i18n('error_data_corrupt'));
+        } else if (keepSync === false) {
+          // check currentSpace and update if necessary
+          let currentSpace = await getCurrentSpace();
+          if (!currentSpace) currentSpace = settings.defaultSpace;
+          if (currentSpace.name === syncData.name) {
+            currentSpace.synced = keepSync;
+            await setStorageData({currentSpace: currentSpace});
+          }
+        }
+      } else {
+        showAlert(i18n('error_data_corrupt'));
+      }
+    }
+  }
 
   // load up the current space
   if (!await space.loadCurrent()) {
@@ -968,7 +985,7 @@ async function handleAction(target) {
   // backup/restore/clear data
   case 'initialize':
     if (!await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data'))) break;
-    // clear each in order to ensure service worker knows what's going on
+    // deployed crx may cause service worker to run in parallel, delay doesn't help so recovery logic can't be done in backend
     await chrome.storage.session.clear();
     await chrome.storage.local.clear();
     await chrome.storage.sync.clear();
@@ -976,8 +993,8 @@ async function handleAction(target) {
     settings.init();
     await settings.save();
     await space.init(settings.defaultSpace);
-    await setCurrentSpace();
     await space.save();
+    setCurrentSpace();
     loadPopup();
     break;
 

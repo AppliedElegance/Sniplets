@@ -4,7 +4,7 @@
     "description": "locale name describing this translation (may have fallen back from a more specific locale)"
   },
   "app_name": {
-    "message": "Snippets",
+    "message": "Sniplets",
     "description": "Name of the extension."
   },
   "app_description": {
@@ -12,7 +12,7 @@
     "description": "Plain <132 character description of the extension highlighting the name of Firefox rival."
   },
   "app_command_open": {
-    "message": "Open Snippets",
+    "message": "Open Snippets Manager",
     "description": "Description of shortcut for opening the extension."
   },
   "app_command_copy": {
@@ -485,5 +485,8 @@
   },
   "color_gray": {
     "message": "Grey"
+  },
+  "default_space_name": {
+    "message": "Snippets"
   }
 }
