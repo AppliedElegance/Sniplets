@@ -358,7 +358,7 @@
     "message": "Clear All Data"
   },
   "action_clear_srcs": {
-    "message": "Clear Saved Sources"
+    "message": "Clear Source Data"
   },
   "action_restore": {
     "message": "Restore Backup"
@@ -488,5 +488,11 @@
   },
   "default_space_name": {
     "message": "Snippets"
+  },
+  "option_clear_srcs": {
+    "message": "Would you like to remove any currently saved source links?"
+  },
+  "action_leave_srcs": {
+    "message": "Keep Source Data"
   }
 }

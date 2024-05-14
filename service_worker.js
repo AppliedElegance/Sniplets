@@ -177,7 +177,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     }
 
     // check for removed sync data without local data
-    // console.log(isSyncChange, changes[key].oldValue, changes[key].newValue);
+    // console.log(isSyncChange, await new DataBucket(changes[key].oldValue).parse(), await new DataBucket(changes[key].newValue).parse());
     if (isSyncChange && changes[key].oldValue?.children && !changes[key].newValue) {
       // double-check we don't have a local space with the same name
       const bucket = await getStorageData(key, false);

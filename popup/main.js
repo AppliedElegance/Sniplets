@@ -34,6 +34,7 @@ const checkFollowup = async () => {
   if (followup) {
     /** @type {{type:string,args:{[key:string]:*}}} */
     const {type, args} = followup;
+    // console.log(type, args);
 
     /** Confirm any custom placeholders and merge them */
     const mergeAndPaste = async () => {
@@ -81,8 +82,11 @@ const checkFollowup = async () => {
       break;
 
     case 'unsynced':
-      // make sure it hasn't already been restored
-      if ((await getStorageData(args.name, true))[args.name]) break;
+      // make sure it hasn't already been restored and we're not removing everything
+      if ( 0
+        || ((await getStorageData(args.name, true))[args.name])
+        || (!(await getCurrentSpace())) // resolves race condition
+      ) break;
       
       // make it possible to keep local data or keep synchronizing on this machine just in case
       args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
@@ -1258,16 +1262,7 @@ async function handleAction(target) {
 
   case 'clear-src-urls':
     if (await confirmAction(i18n('warning_clear_src'), i18n('action_clear_srcs'))) {
-      const removeSources = folder => {
-        for (const item of folder) {
-          if (item.children?.length) {
-            removeSources(item.children);
-          } else {
-            delete item.sourceURL;
-          }
-        }
-      };
-      removeSources(space.data.children);
+      space.data.removeSources();
       space.save();
       if (settings.view.sourceURL) buildList();
     }
@@ -1275,8 +1270,15 @@ async function handleAction(target) {
   
   case 'toggle-save-source':
     settings.control.saveSource = !settings.control.saveSource;
-    // TODO: confirm whether to delete existing sources
     settings.save();
+    if ( true
+      && (!settings.control.saveSource)
+      && (await confirmAction(i18n('option_clear_srcs'), i18n('action_clear_srcs'), i18n('action_leave_srcs')))
+    ) {
+      space.data.removeSources();
+      space.save();
+      if (settings.view.sourceURL) buildList();
+    }
     break;
   
   case 'toggle-save-tags':

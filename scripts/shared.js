@@ -486,6 +486,16 @@ class DataBucket {
       userClippingsRoot: mapData(this.children),
     };
   }
+
+  removeSources(folder = this.children) {
+    for (const item of folder) {
+      if (item.children?.length) {
+        this.removeSources(item.children);
+      } else {
+        item.sourceURL = undefined;
+      }
+    }
+  }
 }
 
 /**
