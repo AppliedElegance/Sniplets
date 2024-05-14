@@ -110,11 +110,22 @@ async function setFollowup(type, args, popup = true) {
     type: type,
     args: args || {}, // default value for destructuring
   }}).catch((e) => console.warn(e));
-  if (popup && !chrome.runtime.getContexts({contextTypes:['POPUP']}).length && chrome.action.openPopup) {
-    chrome.action.openPopup();
-  } else {
-    return openPopup();
-  }
+  chrome.runtime.sendMessage({
+    type: 'followup',
+  }).catch((e) => {
+    // likely no open windows
+    console.warn(e);
+    if (popup && chrome.action.openPopup) {
+      // only available in dev/canary when there's an active window
+      chrome.action.openPopup().catch((e) => {
+        console.warn(e);
+        openPopup();
+      });
+    } else {
+      openPopup();
+    }
+  });
+  return;
 }
 /** Fetch requests from session storage set using the `setFollowup()` function
  * @returns {Promise<{type:string,message:*,args:Object}|void>}
@@ -1020,8 +1031,8 @@ class Space {
       data = new DataBucket(data);
       // console.log("Parsing data...", data);
       if (!(await data.parse())) {
-        // throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
-        return;
+        throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
+        // return;
       }
     }
 
@@ -1036,7 +1047,7 @@ class Space {
     this.data = data;
     this.path = path;
 
-    // console.log("Space initialized.", this);
+    // console.log("Space initialized.", structuredClone(this));
     return true;
   }
 }
@@ -1046,6 +1057,7 @@ class Space {
  * @param {Space} space 
  */
 async function buildContextMenus(space) {
+  // console.log(space);
   // Since there's no way to poll current menu's, clear all first
   await new Promise((resolve, reject) =>
     chrome.contextMenus.removeAll(() =>
@@ -1085,7 +1097,7 @@ async function buildContextMenus(space) {
   if (space.data?.children?.length) {
     // set root menu item
     menuData.action = 'paste';
-    chrome.contextMenus.create({
+    addMenu({
       "id": JSON.stringify(menuData),
       "title": i18n('action_paste'),
       "contexts": ["editable"],
@@ -1113,7 +1125,7 @@ async function buildContextMenus(space) {
           // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
           const color = getColor(item.color);
           menuItem.title = `${(item instanceof Folder) ? color.folder : color.snippet}\xA0\xA0${item.name.replaceAll("&", "&&")}`;
-          chrome.contextMenus.create(menuItem);
+          addMenu(menuItem);
           if (item instanceof Folder) buildFolder(item.children, menuData);
         });
       } else {
@@ -1121,7 +1133,7 @@ async function buildContextMenus(space) {
         menuItem.id = JSON.stringify(menuData);
         menuItem.title = i18n('folder_empty');
         menuItem.enabled = false;
-        chrome.contextMenus.create(menuItem);
+        addMenu(menuItem);
       }
     };
     // build paste snippet menu tree

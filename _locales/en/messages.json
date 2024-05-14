@@ -175,7 +175,7 @@
     "message": "Sorry, a folder can’t be moved inside its child folder."
   },
   "warning_clear_data": {
-    "message": "This action will clear all data and reset your settings to their defaults. It can’t be undone so please ensure to backup any important data first. Are you sure you wish to continue?"
+    "message": "WARNING: This action will clear all data from all your synchronized browsers and reset your settings to their defaults (local data on other browsers will be preserved). This can’t be undone so please ensure to backup any important data first. Are you sure you wish to continue?"
   },
   "file_save_type": {
     "message": "Backup File"

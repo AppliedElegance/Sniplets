@@ -28,6 +28,95 @@ const debounce = function setDelay(f, delay) {
 };
 const resizing = new ResizeObserver(debounce(adjustPath, 0));
 
+const checkFollowup = async () => {
+  // check for followups before loading snippets
+  const followup = await fetchFollowup();
+  if (followup) {
+    /** @type {{type:string,args:{[key:string]:*}}} */
+    const {type, args} = followup;
+
+    /** Confirm any custom placeholders and merge them */
+    const mergeAndPaste = async () => {
+      const {snip, target} = args;
+      const customFields = new Map(args.customFields || []);
+      // console.log(target, snip, customFields);
+      if (customFields.size) {
+        const text = await mergeCustomFields(snip.content, customFields);
+        // console.log(text);
+        if (!text) return; // modal cancelled
+        snip.content = text;
+      }
+      // await since window.close will cancel unresolved promises
+      await insertSnip(target, snip);
+      window.close();
+    };
+
+    switch (type) {
+    case 'alert':
+      await showAlert(args.message, args.title);
+      break;
+    
+    case 'permissions': {
+      if (await requestOrigins(args.origins)) {
+        switch (args.action) {
+        case 'snip': 
+          snipSelection(args.target, args.actionSpace);
+          window.close(); // in popup, happens automatically after this function completes
+          return;
+      
+        case 'paste':
+          await mergeAndPaste();
+          window.close(); // in popup, happens automatically after this function completes
+          return;
+          
+        default:
+          window.close(); // in popup, happens automatically after this function completes
+          return;
+        }
+      }
+      break; }
+      
+    case 'placeholders':
+      if (args.action === 'paste') await mergeAndPaste(); // should always be true
+      break;
+
+    case 'unsynced':
+      // make sure it hasn't already been restored
+      if ((await getStorageData(args.name, true))[args.name]) break;
+      
+      // make it possible to keep local data or keep synchronizing on this machine just in case
+      args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
+      // console.log(args);
+      if (args.synced === true || args.synced === false) {
+        // if not currently working on the same data, make do with saving the data
+        const currentSpace = await getCurrentSpace() || settings.defaultSpace;
+        // console.log(currentSpace);
+        if (args.name !== currentSpace.name) {
+          setStorageData({[args.name]: args.data}, args.synced);
+          break;
+        }
+
+        // recover the data
+        await space.init(args);
+        if (!await space.save()) {
+          showAlert(i18n('error_data_corrupt'));
+          break;
+        }
+        // console.log(space);
+        setCurrentSpace();
+        loadSnippets();
+      } else {
+        showAlert(i18n('error_data_corrupt'));
+        break;
+      }
+      break;
+    
+    default:
+      break;
+    } // end switch(type)
+  } // end followup
+};
+
 // Listen for updates on the fly in case of multiple popout windows
 chrome.runtime.onMessage.addListener(async ({type, args}) => {
   if (type === 'updateSpace') {
@@ -36,6 +125,8 @@ chrome.runtime.onMessage.addListener(async ({type, args}) => {
       await space.loadCurrent();
       loadSnippets();
     }
+  } else if (type === 'followup') {
+    checkFollowup();
   }
 });
 
@@ -73,87 +164,7 @@ const loadPopup = async () => {
   document.addEventListener('change', handleChange, false);
   document.addEventListener('focusout', handleFocusOut, false);
 
-  // check for followups before loading snippets
-  const followup = await fetchFollowup();
-  if (followup) {
-    /** @type {{type:string,args:{[key:string]:*}}} */
-    const {type, args} = followup;
-    const mergeAndPaste = async () => {
-      const {snip, target} = args;
-      const customFields = new Map(args.customFields || []);
-      // console.log(target, snip, customFields);
-      if (customFields.size) {
-        const text = await mergeCustomFields(snip.content, customFields);
-        // console.log(text);
-        if (!text) return; // modal cancelled
-        snip.content = text;
-      }
-      // await since window.close will cancel unresolved promises
-      await insertSnip(target, snip);
-      window.close();
-    };
-    switch (type) {
-    case 'alert':
-      await showAlert(args.message, args.title);
-      break;
-    
-    case 'permissions': {
-      if (await requestOrigins(args.origins)) {
-        switch (args.action) {
-        case 'snip': 
-          snipSelection(args.target, args.actionSpace);
-          window.close(); // in popup, happens automatically after this function completes
-          return;
-      
-        case 'paste':
-          await mergeAndPaste();
-          window.close(); // in popup, happens automatically after this function completes
-          return;
-          
-        default:
-          window.close(); // in popup, happens automatically after this function completes
-          return;
-        }
-      }
-      break; }
-      
-    case 'placeholders':
-      if (args.action === 'paste') await mergeAndPaste(); // should always be true
-      break;
-    
-    default:
-      break;
-    } // end switch(type)
-  } // end followup
-
-  // checked for unsynced data
-  const {unsynced} = await getStorageData('unsynced');
-  if (unsynced) {
-    // make sure it hasn't already been restored
-    const syncData = await getStorageData(unsynced.name, true);
-    // console.log(unsynced, syncData);
-    if (!syncData) {
-      // make it possible to keep local data or keep synchronizing on this machine just in case
-      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
-      if (keepSync === true || keepSync === false) {
-        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
-          showAlert(i18n('error_data_corrupt'));
-        } else if (keepSync === false) {
-          // check currentSpace and update if necessary
-          let currentSpace = await getCurrentSpace();
-          if (!currentSpace) currentSpace = settings.defaultSpace;
-          if (currentSpace.name === syncData.name) {
-            currentSpace.synced = keepSync;
-            await setStorageData({currentSpace: currentSpace});
-          }
-        }
-      } else {
-        showAlert(i18n('error_data_corrupt'));
-      }
-    }
-    // remove backup, each browser instance will have their own
-    removeStorageData('unsynced');
-  }
+  await checkFollowup();
 
   // load up the current space
   if (!await space.loadCurrent()) {
@@ -1358,6 +1369,7 @@ async function handleAction(target) {
   // add/edit/delete items
   case 'new-snippet': {
     const newSnippet = space.addItem(new Snippet());
+    space.sort(settings.sort);
     space.save();
     buildList();
     handleAction({action: 'focus', seq: newSnippet.seq, field: 'name'});
@@ -1365,7 +1377,7 @@ async function handleAction(target) {
   
   case 'new-folder': {
     const newFolder = space.addItem(new Folder());
-    if (settings.sort.foldersOnTop) space.sort(settings.sort);
+    space.sort(settings.sort);
     space.save();
     buildList();
     buildTree();

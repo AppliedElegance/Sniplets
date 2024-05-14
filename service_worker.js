@@ -80,8 +80,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.runtime.onStartup.addListener(async () => {
   // rebuild context menus in case of crash or CCleaner deletion
   const space = new Space();
-  await space.loadCurrent();
-  buildContextMenus(space);
+  if (await space.loadCurrent()) buildContextMenus(space);
 });
 
 // chrome.runtime.onMessage.addListener((message, sender) => {
@@ -172,21 +171,23 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
           synced: isSyncChange,
           data: changes[key].newValue,
         });
-        // console.log(space, areaName);
+        // console.log(changes[key], space, areaName);
         buildContextMenus(space);
       }
     }
 
     // check for removed sync data without local data
+    // console.log(isSyncChange, changes[key].oldValue, changes[key].newValue);
     if (isSyncChange && changes[key].oldValue?.children && !changes[key].newValue) {
       // double-check we don't have a local space with the same name
       const bucket = await getStorageData(key, false);
+      // console.log(bucket);
       if (!bucket[key]) {
         // don't lose the data on other synced instances without confirming first
-        setStorageData({unsynced: {
+        setFollowup('unsynced', {
           name: key,
           data: changes[key].oldValue,
-        }});
+        });
       }
     }
   }
