@@ -112,13 +112,20 @@ async function setFollowup(type, args, popup = true) {
   }}).catch((e) => console.warn(e));
   chrome.runtime.sendMessage({
     type: 'followup',
-  }).catch(() => {
+  }).catch((e) => {
+    // likely no open windows
+    console.warn(e);
     if (popup && chrome.action.openPopup) {
-      chrome.action.openPopup();
+      // only available in dev/canary when there's an active window
+      chrome.action.openPopup().catch((e) => {
+        console.warn(e);
+        openPopup();
+      });
     } else {
-      return openPopup();
+      openPopup();
     }
   });
+  return;
 }
 /** Fetch requests from session storage set using the `setFollowup()` function
  * @returns {Promise<{type:string,message:*,args:Object}|void>}
@@ -1024,8 +1031,8 @@ class Space {
       data = new DataBucket(data);
       // console.log("Parsing data...", data);
       if (!(await data.parse())) {
-        // throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
-        return;
+        throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
+        // return;
       }
     }
 
@@ -1040,7 +1047,7 @@ class Space {
     this.data = data;
     this.path = path;
 
-    // console.log("Space initialized.", this);
+    // console.log("Space initialized.", structuredClone(this));
     return true;
   }
 }
@@ -1050,7 +1057,7 @@ class Space {
  * @param {Space} space 
  */
 async function buildContextMenus(space) {
-  console.log(space);
+  // console.log(space);
   // Since there's no way to poll current menu's, clear all first
   await new Promise((resolve, reject) =>
     chrome.contextMenus.removeAll(() =>

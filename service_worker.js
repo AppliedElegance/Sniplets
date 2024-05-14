@@ -72,7 +72,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       await space.save();
     }
   } else {
-    console.log('currentSpace is available');
     buildContextMenus(space);
   }
   await space.setAsCurrent(settings.control.saveSource);
@@ -172,23 +171,23 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
           synced: isSyncChange,
           data: changes[key].newValue,
         });
-        console.log(changes[key], space, areaName);
+        // console.log(changes[key], space, areaName);
         buildContextMenus(space);
       }
     }
 
     // check for removed sync data without local data
-    console.log(isSyncChange, changes[key].oldValue, changes[key].newValue);
+    // console.log(isSyncChange, changes[key].oldValue, changes[key].newValue);
     if (isSyncChange && changes[key].oldValue?.children && !changes[key].newValue) {
       // double-check we don't have a local space with the same name
       const bucket = await getStorageData(key, false);
-      console.log(bucket);
+      // console.log(bucket);
       if (!bucket[key]) {
         // don't lose the data on other synced instances without confirming first
-        setStorageData({unsynced: {
+        setFollowup('unsynced', {
           name: key,
           data: changes[key].oldValue,
-        }});
+        });
       }
     }
   }

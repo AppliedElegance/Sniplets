@@ -34,6 +34,8 @@ const checkFollowup = async () => {
   if (followup) {
     /** @type {{type:string,args:{[key:string]:*}}} */
     const {type, args} = followup;
+
+    /** Confirm any custom placeholders and merge them */
     const mergeAndPaste = async () => {
       const {snip, target} = args;
       const customFields = new Map(args.customFields || []);
@@ -48,6 +50,7 @@ const checkFollowup = async () => {
       await insertSnip(target, snip);
       window.close();
     };
+
     switch (type) {
     case 'alert':
       await showAlert(args.message, args.title);
@@ -76,39 +79,42 @@ const checkFollowup = async () => {
     case 'placeholders':
       if (args.action === 'paste') await mergeAndPaste(); // should always be true
       break;
+
+    case 'unsynced':
+      // make sure it hasn't already been restored
+      if ((await getStorageData(args.name, true))[args.name]) break;
+      
+      // make it possible to keep local data or keep synchronizing on this machine just in case
+      args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
+      // console.log(args);
+      if (args.synced === true || args.synced === false) {
+        // if not currently working on the same data, make do with saving the data
+        const currentSpace = await getCurrentSpace() || settings.defaultSpace;
+        // console.log(currentSpace);
+        if (args.name !== currentSpace.name) {
+          setStorageData({[args.name]: args.data}, args.synced);
+          break;
+        }
+
+        // recover the data
+        await space.init(args);
+        if (!await space.save()) {
+          showAlert(i18n('error_data_corrupt'));
+          break;
+        }
+        // console.log(space);
+        setCurrentSpace();
+        loadSnippets();
+      } else {
+        showAlert(i18n('error_data_corrupt'));
+        break;
+      }
+      break;
     
     default:
       break;
     } // end switch(type)
   } // end followup
-
-  // checked for unsynced data
-  const {unsynced} = await getStorageData('unsynced');
-  if (unsynced) {
-    // make sure it hasn't already been restored
-    const syncData = await getStorageData(unsynced.name, true);
-    if (!syncData[unsynced.name]) {
-      // make it possible to keep local data or keep synchronizing on this machine just in case
-      const keepSync = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
-      if (keepSync === true || keepSync === false) {
-        if (!await setStorageData({[unsynced.name]: unsynced.data}, keepSync)) {
-          showAlert(i18n('error_data_corrupt'));
-        } else if (keepSync === false) {
-          // check currentSpace and update if necessary
-          let currentSpace = await getCurrentSpace();
-          if (!currentSpace) currentSpace = settings.defaultSpace;
-          if (currentSpace.name === syncData.name) {
-            currentSpace.synced = keepSync;
-            await setStorageData({currentSpace: currentSpace});
-          }
-        }
-      } else {
-        showAlert(i18n('error_data_corrupt'));
-      }
-    }
-    // remove backup, each browser instance will have their own
-    removeStorageData('unsynced');
-  }
 };
 
 // Listen for updates on the fly in case of multiple popout windows
@@ -120,7 +126,7 @@ chrome.runtime.onMessage.addListener(async ({type, args}) => {
       loadSnippets();
     }
   } else if (type === 'followup') {
-    await checkFollowup();
+    checkFollowup();
   }
 });
 
