@@ -232,7 +232,7 @@ function showAbout() {
       buildNode('hr'),
       buildNode('a', {href: `https://github.com/AppliedElegance/Sniplets/issues/`, textContent: i18n('app_report_issue')}),
       document.createTextNode(` | `),
-      buildNode('a', {href: `https://gitlocalize.com/repo/9627`, textContent: i18n('app_translate')}),
+      buildNode('a', {href: `https://gitlocalize.com/repo/9628`, textContent: i18n('app_translate')}),
       document.createTextNode(` | `),
       buildNode('a', {href: `https://github.com/sponsors/jpc-ae`, textContent: i18n('app_donate')}),
     ],

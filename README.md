@@ -14,7 +14,7 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 - Work locally, synchronize across logged in browsers or do both depending on your needs
 
 > [!TIP]
-> Translations can now be requested and worked on by the community on [GitLocalize](https://gitlocalize.com/repo/9393).
+> Translations can now be requested and worked on by the community on [GitLocalize](https://gitlocalize.com/repo/9628).
 
 ## Latest Version Highlights
 

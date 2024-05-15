@@ -5,6 +5,8 @@
 - `$[DATETIME(ddd, MMM DD, YYYY hh:mm:ss A ZZ)]`: A special custom field that shows a date, time or datetime picker depending on the format, and replaces the value using the format specified
 - `$[List(list){Option 1|Option 2}]`: A custom text input with multiple default values that will be updated each time a new entry is added
 - `#[Counter]` is now locale-aware
+- `$[Time(date:yyyy-MM-dd)]` custom formatting of dates/times
+- `$[Color(color:rgb)] custom color picker (hex/rgb/hsl/cmyk/oklch)
 
 # 0.10.4 (2024-05-13)
 
