@@ -83,7 +83,6 @@ const checkFollowup = async () => {
 
     case 'unsynced':
       // make sure it hasn't already been restored and we're not removing everything
-      console.log(await getStorageData(args.name, true), !!((await getStorageData(args.name, true))[args.name]), await getCurrentSpace(), !(await getCurrentSpace()));
       if ( false
         || ((await getStorageData(args.name, true))[args.name])
         || (!(await getCurrentSpace())) // resolves race condition
@@ -135,7 +134,7 @@ chrome.runtime.onMessage.addListener(async ({type, args}) => {
   }
 });
 
-// reusable onDOMContentLoaded
+// onDOMContentLoaded
 const loadPopup = async () => {
   // accessibility
   document.documentElement.lang = uiLocale;

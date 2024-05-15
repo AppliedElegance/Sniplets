@@ -98,7 +98,7 @@ function removeStorageData(keys, synced = false) {
 }
 
 /** Get details of saved current space */
-const getCurrentSpace = () => getStorageData('currentSpace')?.currentSpace;
+const getCurrentSpace = async () => (await getStorageData('currentSpace'))?.currentSpace;
 
 /** Stores data required for following up on a task and opens a window to action it
  * @param {string} type Action which needs handling in a popup window
@@ -262,12 +262,14 @@ class Settings {
       name: name,
       synced: synced,
     });
+    /** @type {{name:string,synced:boolean}} */
     this.defaultSpace = setDefaultSpace(defaultSpace);
     const setSort = ({by = 'seq', groupBy = '', foldersOnTop = true} = {}) => ({
       by: by,
       groupBy: groupBy,
       foldersOnTop: foldersOnTop,
     });
+    /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
     this.sort = setSort(sort);
     const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false, sidePanel = false} = {}) => ({
       adjustTextArea: adjustTextArea,
@@ -275,6 +277,7 @@ class Settings {
       rememberPath: rememberPath,
       sidePanel: sidePanel,
     });
+    /** @type {{adjustTextArea:boolean,sourceURL:boolean,rememberPath:boolean,sidePanel:boolean}} */
     this.view = setView(view);
     const setControl = ({saveSource = false, preserveTags = false, rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true} = {}) => ({
       saveSource: saveSource,
@@ -283,10 +286,12 @@ class Settings {
       rtLinkEmails: rtLinkEmails,
       rtLinkURLs: rtLinkURLs,
     });
+    /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
     this.control = setControl(control);
     const setData = ({compress = true} = {}) => ({
       compress: compress,
     });
+    /** @type {{compress:boolean}} */
     this.data = setData(data);
   }
 
@@ -540,7 +545,7 @@ class Space {
       const settings = new Settings();
       await settings.load();
       if (await this.load(settings.defaultSpace)) {
-        this.setAsCurrent();
+        this.setAsCurrent(settings.view.rememberPath);
         return true;
       } else {
         // should never happen unless memory is corrupt
