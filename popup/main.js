@@ -600,8 +600,8 @@ function loadSnippets() {
  */
 function adjustTextArea(target, maxHeight) {
   const padding = 2 * 5; // 5px top & bottom padding
-  const minHeight = 4 * 19; // 19px line height
-  const overflowHeight = 7 * 19 + 5; // Add bottom padding to max 7 lines
+  const minHeight = 1 * 19; // 19px line height
+  const overflowHeight = 7 * 19 + 5; // Add bottom padding for scroll to max 7 lines
   // console.log(target, maxHeight, overflowHeight);
 
   /** @type {HTMLTextAreaElement} set target for events */

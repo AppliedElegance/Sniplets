@@ -83,13 +83,9 @@ chrome.runtime.onStartup.addListener(async () => {
   if (await space.loadCurrent()) buildContextMenus(space);
 });
 
-// chrome.runtime.onMessage.addListener((message, sender) => {
-//   console.log(message, sender);
-// });
-
 // TODO: add setting to load popout instead of popup
 // (the below code only triggers when no popup url set)
-chrome.action.onClicked.addListener(() => openPopup());
+// chrome.action.onClicked.addListener(() => openPopup());
 
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (data, tab) => {

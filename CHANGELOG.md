@@ -1,9 +1,13 @@
+# 0.10.5
+
+> Added side panel and dark mode features
+
 # 0.10.4 (2024-05-13)
 
 > Fixed sync error when clearing all data
 
 - Moved synced data recovery from back to front-end since store-deployed extensions handle clearing data in parallel, resulting in a race condition not seen in a test environment
-- Changed name from Snippets to Sniplets for easier searching on the Chrome Web Store
+- Changed name from Snippets to Sniplets for easier searching on the Chrome Web Store and to avoid confusion with the [Chrome DevTools Snippets feature](https://developer.chrome.com/docs/devtools/javascript/snippets/)
 
 # 0.10.3 (2024-05-10)
 

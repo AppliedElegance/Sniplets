@@ -20,7 +20,8 @@
     "scripting",
     "activeTab",
     "contextMenus",
-    "commands"
+    "commands",
+    "sidePanel"
   ],
   "optional_host_permissions": [
     "<all_urls>"

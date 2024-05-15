@@ -269,10 +269,11 @@ class Settings {
       foldersOnTop: foldersOnTop,
     });
     this.sort = setSort(sort);
-    const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false} = {}) => ({
+    const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false, sidePanel = false} = {}) => ({
       adjustTextArea: adjustTextArea,
       sourceURL: sourceURL,
       rememberPath: rememberPath,
+      sidePanel: sidePanel,
     });
     this.view = setView(view);
     const setControl = ({saveSource = false, preserveTags = false, rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true} = {}) => ({
