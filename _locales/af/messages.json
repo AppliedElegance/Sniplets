@@ -1,0 +1,507 @@
+{
+  "locale": {
+    "message": "en",
+    "description": "locale name describing this translation (may have fallen back from a more specific locale)"
+  },
+  "app_name": {
+    "message": "Sniplets",
+    "description": "Name of the extension."
+  },
+  "app_description": {
+    "message": "Quickly snip, organize and insert text. Backup-compatible with Clippings.",
+    "description": "Plain <132 character description of the extension highlighting the name of Firefox rival."
+  },
+  "app_command_open": {
+    "message": "Open Snippets Manager",
+    "description": "Description of shortcut for opening the extension."
+  },
+  "app_command_copy": {
+    "message": "Snip selected text",
+    "description": "Description of shortcut for initiating a snip action."
+  },
+  "app_command_paste": {
+    "message": "Paste a snippet",
+    "description": "Description of shortcut for initiating a paste action."
+  },
+  "warning_site_permissions": {
+    "message": "This selection requires additional permissions for context menus to work. Please press the appropriate button and accept the request to continue.",
+    "description": "Warning displayed to the user when additional site permissions are needed for context menus."
+  },
+  "request_site_permissions": {
+    "message": "Permit access only on the selected site",
+    "description": "Button text for requesting full permissions on a specific domain."
+  },
+  "request_all_site_permissions": {
+    "message": "Permit access on all sites",
+    "description": "Button text for requesting full permissions on all allowed domains."
+  },
+  "error_paste_failed": {
+    "message": "Sorry, something went wrong. Possibly the page is no longer available or pasting into this field has been blocked specifically by your browser or another extension. Please check and try again, or copy the selected snippet using the clipboard feature and paste it in manually.",
+    "description": "Error message displayed to the user when unable to fulfil a paste request."
+  },
+  "error_paste_blocked": {
+    "message": "Sorry, pasting directly into this page is blocked by your browser. If you used a keyboard shortcut, please try again using the context menu. Otherwise, please copy the selected snippet to the clipboard and paste it in manually.",
+    "description": "Error message displayed to the user when trying to paste from the context menu on a page where scripts are not allowed."
+  },
+  "error_snip_failed": {
+    "message": "Sorry, something went wrong and the selection could not be snipped. Please make sure the page is still active and try again.",
+    "description": "Error message displayed to the user when unable to fulfil a snip request."
+  },
+  "error_snip_permission_denied": {
+    "message": "Permission has not been granted. Please copy and add the snippet manually.",
+    "description": "Error message displayed to the user when trying to snip and requested browser permissions were denied by the user."
+  },
+  "title_custom_placeholders": {
+    "message": "Custom Placeholders",
+    "description": "Title shown at top of modal when requesting user input for custom placeholders."
+  },
+  "confirm": {
+    "message": "Confirm",
+    "description": "Button text for confirming modal selections."
+  },
+  "menu_view": {
+    "message": "View",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_remember_path": {
+    "message": "Remember last open folder",
+    "description": "Menu text for toggling the remember path option."
+  },
+  "menu_folders_first": {
+    "message": "Group folders at top",
+    "description": "Menu text for toggling the folders first option."
+  },
+  "menu_src": {
+    "message": "Source URLs",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_show_src": {
+    "message": "Show sources field",
+    "description": "Menu text for toggling the option to show the source field underneath the snippets editor."
+  },
+  "menu_save_src": {
+    "message": "Save page URL as source",
+    "description": "Menu text for toggling the option to automatically associate the page url with snips when using the context menu."
+  },
+  "menu_clear_src": {
+    "message": "Clear saved sources",
+    "description": "Menu text for clearing all source urls associated with snippets."
+  },
+  "menu_counters": {
+    "message": "Counters",
+    "description": "Menu text for showing the Counters menu."
+  },
+  "menu_count_x": {
+    "message": "Custom",
+    "description": "Menu text for setting the initial value of counters to a custom value."
+  },
+  "menu_count_manage": {
+    "message": "Manage",
+    "description": "Menu text for opening a modal with all current counters so they can be edited manually."
+  },
+  "menu_count_clear": {
+    "message": "Clear counters",
+    "description": "Menu text for deleting all counters currently being tracked."
+  },
+  "menu_rt": {
+    "message": "Rich Text",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_rt_br": {
+    "message": "Auto-tag line breaks",
+    "description": "Menu text for toggling the option to normalize line breaks when pasting into rich text fields."
+  },
+  "menu_rt_url": {
+    "message": "Auto-link URLs",
+    "description": "Menu text for toggling the option to automatically link plain URLs when pasting into rich text fields."
+  },
+  "menu_rt_email": {
+    "message": "Auto-link emails",
+    "description": "Menu text for toggling the option to automatically link emails when pasting into rich text fields."
+  },
+  "menu_backups": {
+    "message": "Backups",
+    "description": "Menu text for showing the xxx menu."
+  },
+  "menu_bak_data": {
+    "message": "Back up data",
+    "description": "Menu text for initiating a xxx backup of xxx."
+  },
+  "menu_bak_full": {
+    "message": "Back up data & settings",
+    "description": "Menu text for initiating a xxx backup of xxx."
+  },
+  "menu_bak_clip": {
+    "message": "Back up for Clippings",
+    "description": "Menu text for initiating a xxx backup of xxx."
+  },
+  "menu_restore": {
+    "message": "Restore data",
+    "description": "Menu text for initiating restoration of a backup."
+  },
+  "menu_reinit": {
+    "message": "Clear all data & settings",
+    "description": "Menu text for clearing all data and reverting back to a clean install state."
+  },
+  "menu_about": {
+    "message": "About",
+    "description": "Menu text for showing the about page."
+  },
+  "cancel": {
+    "message": "Cancel"
+  },
+  "action_stop_sync": {
+    "message": "Stop Syncing"
+  },
+  "action_start_sync": {
+    "message": "Start Syncing"
+  },
+  "action_add_folder": {
+    "message": "New Folder"
+  },
+  "action_add_snippet": {
+    "message": "New Snippet"
+  },
+  "action_pop_out": {
+    "message": "Pop Out"
+  },
+  "label_folder_name": {
+    "message": "Folder Name"
+  },
+  "label_snippet_name": {
+    "message": "Snippet Name"
+  },
+  "error_folder_to_child": {
+    "message": "Sorry, a folder can’t be moved inside its child folder."
+  },
+  "warning_clear_data": {
+    "message": "WARNING: This action will clear all data from all your synchronized browsers and reset your settings to their defaults (local data on other browsers will be preserved). This can’t be undone so please ensure to backup any important data first. Are you sure you wish to continue?"
+  },
+  "file_save_type": {
+    "message": "Backup File"
+  },
+  "warning_restore_bak": {
+    "message": "Careful, this may overwrite your current data and cannot be undone. Continue?"
+  },
+  "error_restore_failed": {
+    "message": "The data could not be restored, please check the file and try again."
+  },
+  "alert_copied": {
+    "message": "The snippet has been copied to the clipboard."
+  },
+  "warning_clear_src": {
+    "message": "Are you sure you would like to remove all source data? This cannot be undone."
+  },
+  "title_counter_init": {
+    "message": "Counter Defaults"
+  },
+  "label_counter_init_val": {
+    "message": "Starting Value"
+  },
+  "title_counter_manage": {
+    "message": "Counters"
+  },
+  "title_snip_blocked": {
+    "message": "Snip Blocked"
+  },
+  "title_paste_blocked": {
+    "message": "Paste Blocked"
+  },
+  "submit": {
+    "message": "Submit"
+  },
+  "warning_delete_snippet": {
+    "message": "Would you would like to delete this snippet? This action cannot be undone."
+  },
+  "app_report_issue": {
+    "message": "Report an issue"
+  },
+  "app_donate": {
+    "message": "Donate"
+  },
+  "ok": {
+    "message": "OK"
+  },
+  "color": {
+    "message": "Colour"
+  },
+  "action_move": {
+    "message": "Move"
+  },
+  "direction_up": {
+    "message": "Up"
+  },
+  "direction_down": {
+    "message": "Down"
+  },
+  "direction_top": {
+    "message": "To Top"
+  },
+  "direction_bottom": {
+    "message": "To Bottom"
+  },
+  "action_rename": {
+    "message": "Rename"
+  },
+  "action_copy": {
+    "message": "Copy to Clipboard"
+  },
+  "action_delete": {
+    "message": "Delete"
+  },
+  "label_snippet_content": {
+    "message": "Snippet Contents"
+  },
+  "label_src": {
+    "message": "Source:"
+  },
+  "label_folder": {
+    "message": "Folder"
+  },
+  "title_new_generic": {
+    "message": "New Tree Item"
+  },
+  "title_new_folder": {
+    "message": "New Folder"
+  },
+  "title_new_snippet": {
+    "message": "New Snippet"
+  },
+  "warning_sync_full": {
+    "message": "The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back."
+  },
+  "ordinal_zero": {
+    "message": "$number$th",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "0"
+      }
+    }
+  },
+  "ordinal_one": {
+    "message": "$number$st",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "1"
+      }
+    }
+  },
+  "ordinal_two": {
+    "message": "$number$nd",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "2"
+      }
+    }
+  },
+  "ordinal_few": {
+    "message": "$number$rd",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "ordinal_many": {
+    "message": "$number$th",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+  "ordinal_other": {
+    "message": "$number$th",
+    "placeholders": {
+      "number": {
+        "content": "$1",
+        "example": "100"
+      }
+    }
+  },
+  "warning_data_overwrite": {
+    "message": "Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed."
+  },
+  "error_sync_full": {
+    "message": "Sorry, the current snippets data is too large to sync."
+  },
+  "action_snip_selection": {
+    "message": "Snip selection…"
+  },
+  "action_paste": {
+    "message": "Paste Snippet"
+  },
+  "folder_empty": {
+    "message": "Empty…"
+  },
+  "warning_no_frameid": {
+    "message": "Due to browser limitations, keyboard shortcuts cannot be used reliably inside embedded windows. Please use the context menu here or copy and paste manually."
+  },
+  "request": {
+    "message": "Request"
+  },
+  "ignore_missing_frameids": {
+    "message": "Don’t show this warning again."
+  },
+  "deny_site_permissions": {
+    "message": "Deny Access"
+  },
+  "action_clear": {
+    "message": "Clear"
+  },
+  "action_clear_all_data": {
+    "message": "Clear All Data"
+  },
+  "action_clear_srcs": {
+    "message": "Clear Source Data"
+  },
+  "action_restore": {
+    "message": "Restore Backup"
+  },
+  "remember_choice": {
+    "message": "Remember my choice"
+  },
+  "request_origins": {
+    "message": "Additional site permissions are required to use menus and shortcuts within the embedded page you’ve selected. Please select how you would like to proceed:"
+  },
+  "action_request": {
+    "message": "Request"
+  },
+  "action_cancel": {
+    "message": "Cancel"
+  },
+  "action_permit": {
+    "message": "Permit"
+  },
+  "action_reinitialize": {
+    "message": "Clear Corrupt Data"
+  },
+  "warning_space_corrupt": {
+    "message": "The current extension storage seems to be corrupt. Would you like to clear it?"
+  },
+  "error_snip_blocked": {
+    "message": "Sorry, something went wrong. Likely, your browser has completely blocked the extension from accessing your selection. If you used a keyboard shortcut, please try again with the right-click context menu. Otherwise, please copy and paste the selection manually into a new snippet."
+  },
+  "error_scripting_blocked": {
+    "message": "For security reasons, the browser does not allow extensions to affect this page ($url$). Please copy and paste manually using the popup window..",
+    "placeholders": {
+      "url": {
+        "content": "$1",
+        "example": "https://github.com/jpc-ae/Snippets"
+      }
+    }
+  },
+  "title_scripting_blocked": {
+    "message": "Action Blocked"
+  },
+  "error_ck_blocked": {
+    "message": "Unfortunately, the CKEditor used by this site reverts any changes made by extensions. Please use the copy feature and paste manually instead."
+  },
+  "title_snip_not_found": {
+    "message": "Snippet Not Found"
+  },
+  "warning_snip_not_found": {
+    "message": "Sorry, the requested snippet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current snippets to prevent data loss."
+  },
+  "menu_clear_sync": {
+    "message": "Clear cloud data"
+  },
+  "menu_data": {
+    "message": "Stored Data"
+  },
+  "menu_save_tags": {
+    "message": "Include tags (experimental)"
+  },
+  "menu_snip": {
+    "message": "Snipping"
+  },
+  "menu_paste": {
+    "message": "Pasting"
+  },
+  "menu_count_init": {
+    "message": "Initial Value"
+  },
+  "menu_data_compression": {
+    "message": "Use data compression"
+  },
+  "action_overwrite": {
+    "message": "Overwrite"
+  },
+  "error_shift_failed": {
+    "message": "Sorry, something went wrong with moving the data. The change was reverted to avoid data loss."
+  },
+  "warning_sync_stopped": {
+    "message": "Another browser you’re signed in on has stopped synchronizing it's data. Would you like to keep synchronizing on this browser, or use local storage instead?"
+  },
+  "action_keep_syncing": {
+    "message": "Keep Synchronizing"
+  },
+  "action_use_local": {
+    "message": "Use Local Storage"
+  },
+  "error_data_corrupt": {
+    "message": "Sorry, the data could not be recovered. Please make a backup on the other browser and restore it here to keep it manually."
+  },
+  "warning_new_sync_data": {
+    "message": "Another browser has started synchronizing their data. Would you like to accept the sync and overwrite your current data, or keep working locally?"
+  },
+  "warning_sync_overwrite": {
+    "message": "It looks like another browser is already trying to synchronize data. Please confirm which data you would like to keep."
+  },
+  "action_keep_local": {
+    "message": "Keep Local Data"
+  },
+  "action_keep_sync": {
+    "message": "Keep Incoming Data"
+  },
+  "menu_adjust_textarea": {
+    "message": "Resize editors automatically"
+  },
+  "color_default": {
+    "message": "Default"
+  },
+  "color_red": {
+    "message": "Red"
+  },
+  "color_orange": {
+    "message": "Orange"
+  },
+  "color_yellow": {
+    "message": "Yellow"
+  },
+  "color_green": {
+    "message": "Green"
+  },
+  "color_blue": {
+    "message": "Blue"
+  },
+  "color_purple": {
+    "message": "Purple"
+  },
+  "color_gray": {
+    "message": "Grey"
+  },
+  "default_space_name": {
+    "message": "Snippets"
+  },
+  "option_clear_srcs": {
+    "message": "Would you like to remove any currently saved source links?"
+  },
+  "action_leave_srcs": {
+    "message": "Keep Source Data"
+  },
+  "action_insert": {
+    "message": "Insert at Selection"
+  },
+  "path_separator": {
+    "message": "Slash"
+  },
+  "app_translate": {
+    "message": "Help translate"
+  }
+}
