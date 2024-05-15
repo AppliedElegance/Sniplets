@@ -24,7 +24,7 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 - Alt+Shift+C keyboard shortcut for clipping selections
 - All text moved to translation file
 - Enhanced options and behaviour when syncing between browsers
-- [Full release notes…](https://github.com/jpc-ae/Snippets/blob/dev/CHANGELOG.md)
+- [Full release notes…](https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md)
 
 ## Roadmap
 

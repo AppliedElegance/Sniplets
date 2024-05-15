@@ -37,7 +37,7 @@
           {
             "name": "RichText",
             "seq": 6,
-            "content": "<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won’t turn into spaces. URLs without anchor tags like https://github.com/jpc-ae/Snippets/issues will be hotlinked automatically along with email addresses like noreply@example.com. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this snippet will add both plain and rich text versions of this processed snippet ($[PATH]/$[NAME]) to the clipboard, just like if you’d copied it from a webpage."
+            "content": "<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won’t turn into spaces. URLs without anchor tags like https://github.com/AppliedElegance/Sniplets/issues will be hotlinked automatically along with email addresses like noreply@example.com. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this snippet will add both plain and rich text versions of this processed snippet ($[PATH]/$[NAME]) to the clipboard, just like if you’d copied it from a webpage."
           },
           {
             "name": "[NOSUBST] Disabled",
