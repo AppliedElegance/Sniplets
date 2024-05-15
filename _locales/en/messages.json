@@ -500,5 +500,8 @@
   },
   "path_separator": {
     "message": "Slash"
+  },
+  "app_translate": {
+    "message": "Help translate"
   }
 }
