@@ -285,7 +285,7 @@ async function mergeCustomFields(content, fields) {
   return content.replaceAll(
     /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
     (match, placeholder) => {
-      const value = confirmedFields.get(placeholder)?.value
+      const value = confirmedFields.get(placeholder)?.value;
       return (typeof value === 'string') ? value : match;
     },
   );

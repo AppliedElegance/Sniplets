@@ -1,3 +1,5 @@
+# Sniplets
+
 - Want to speed up your work with saved text templates?
 - Want to throw some info over from one of your computers to another?
 - Moving from Firefox to Edge and miss your Clippings extension?

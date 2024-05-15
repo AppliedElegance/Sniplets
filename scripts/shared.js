@@ -982,6 +982,7 @@ class Space {
     return {
       snip: snip,
       ...customFields.size ? {customFields: customFields} : {},
+      ...counters ? {counters: counters}: {},
     };
   }
 
