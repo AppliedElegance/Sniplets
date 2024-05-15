@@ -53,7 +53,7 @@ function showModal({title, message, content, fields, buttons}, onChange) {
             },
           )),
         }));
-      } else if (field.type === 'checked') {
+      } else if (field.type === 'checkbox') {
         formFields.append(buildNode('fieldset', {
           children: [buildMenuControl(
             field.type,
@@ -182,7 +182,6 @@ function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel
   });
 }
 
-// FIXME: update control icon
 /** Modal confirmation, returns `true` for the action, `false` if cancelled, or undefined if escaped
  * @param {string} message - confirmation message
  * @param {{title:string,value:string}[]} selections - list of available selections

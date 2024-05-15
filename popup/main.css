@@ -188,6 +188,10 @@ svg {
   transition-duration: 300ms;
 }
 
+svg.chevron {
+  margin: 1px -4px -1px -2px;
+}
+
 header,
 main,
 .snip-content,
@@ -242,6 +246,16 @@ input, select {
   background: none;
   text-align: left;
   min-width: 0;
+}
+
+input + label .icon.checked {
+  display: none;
+}
+input:checked + label .icon {
+  display: none;
+}
+input:checked + label .icon.checked {
+  display: unset;
 }
 
 .menu {

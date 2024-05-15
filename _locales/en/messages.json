@@ -244,7 +244,7 @@
     "message": "Rename"
   },
   "action_copy": {
-    "message": "Copy"
+    "message": "Copy to Clipboard"
   },
   "action_delete": {
     "message": "Delete"
@@ -494,5 +494,11 @@
   },
   "action_leave_srcs": {
     "message": "Keep Source Data"
+  },
+  "action_insert": {
+    "message": "Insert at Selection"
+  },
+  "path_separator": {
+    "message": "Slash"
   }
 }

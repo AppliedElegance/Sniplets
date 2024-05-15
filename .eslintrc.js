@@ -79,7 +79,6 @@ module.exports = {
         "buildSvg": false,
         "setSvgSprite": false,
         "setSvgFill": false,
-        "toggleChecked": false,
         "buildPopoverMenu": false,
         "buildMenuItem": false,
         "buildMenuControl": false,

@@ -17,7 +17,7 @@ function buildNode(tagName, attributes) {
       if (children.length) element.append(...children);
       break; }
     
-    case 'dataset': // append `data-*` attributes
+    case 'dataset': // append 'data-*' attributes
       for (const key in attributes.dataset) {
         element.dataset[key] = attributes.dataset[key];
       }
@@ -60,7 +60,7 @@ function buildNode(tagName, attributes) {
       break;
   
     default: // assume remaining attributes can be set directly
-      element.setAttribute(a, (attributes[a] === true) ? `` : attributes[a]);
+      element.setAttribute(a, (attributes[a] === true) ? '' : attributes[a]);
     }
   }
   return element;
@@ -76,14 +76,14 @@ function buildNode(tagName, attributes) {
 function buildSvg(title, sprite, fill) {
   // Create inline SVG element with the correct namespace
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('role', `img`);
+  svg.setAttribute('role', 'img');
   svg.setAttribute('focusable', false);
   // Add an accessible title field for screen readers
   const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title');
   svgTitle.textContent = title;
   // Add a use element referencing the spritesheet
   const svgUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-  svgUse.setAttribute('href', `sprites.svg#${ sprite }`);
+  svgUse.setAttribute('href', `sprites.svg#${sprite}`);
   // Set the sprite colour if requested
   if (fill) svgUse.setAttribute('fill', fill);
   // Append the title and sprite to the SVG element
@@ -98,7 +98,7 @@ function buildSvg(title, sprite, fill) {
  * @param {string} sprite - Name of the sprite
  */
 function setSvgSprite(target, sprite) {
-  target.querySelector('use').setAttribute('href', `sprites.svg#${ sprite }`);
+  target.querySelector('use').setAttribute('href', `sprites.svg#${sprite}`);
 }
 
 /**
@@ -111,18 +111,6 @@ function setSvgFill(target, fill) {
 }
 
 /**
- * Toggle checked state of a control's SVG icon
- * @param {SVGUseElement} useNode - the `use` element of the SVG icon
- * @param {boolean} [check] - optional force option
- */
-function toggleChecked(useNode, check) {
-  const sprite = useNode.href.baseVal;
-  const isChecked = sprite.slice(-7) === `checked`;
-  if (isChecked === check) return;
-  useNode.setAttribute('href', (isChecked) ? sprite.slice(0, -8) : `${ sprite }-checked`);
-}
-
-/**
  * builder for icon buttons
  * @param {string} name 
  * @param {string} sprite 
@@ -132,8 +120,8 @@ function toggleChecked(useNode, check) {
  */
 function buildActionIcon(name, sprite, color, dataset) {
   return buildNode('button', {
-    type: `button`,
-    classList: [`icon`],
+    type: 'button',
+    classList: ['icon'],
     dataset: dataset,
     children: [buildSvg(
       name,
@@ -152,15 +140,15 @@ function buildActionIcon(name, sprite, color, dataset) {
  */
 function buildPopoverMenu(id, sprite, color, list) {
   return buildNode('div', {
-    classList: [`menu`],
+    classList: ['menu'],
     children: [
-      buildActionIcon(`Open ${ id } Menu`, sprite, color, {
-        action: `open-popover`,
+      buildActionIcon(`Open ${id} Menu`, sprite, color, {
+        action: 'open-popover',
         target: id,
       }),
       buildNode('div', {
         id: id,
-        classList: [`card`, `menu-list`, `popover`, `hidden`],
+        classList: ['card', 'menu-list', 'popover', 'hidden'],
         children: list,
       }),
     ],
@@ -176,12 +164,12 @@ function buildPopoverMenu(id, sprite, color, list) {
  */
 function buildMenuItem(title, name, value, data) {
   return buildNode('p', {
-    classList: [`menu-item`],
+    classList: ['menu-item'],
     children: [buildNode('button', {
-      type: `button`,
+      type: 'button',
       name: name,
       value: value,
-      dataset: data || { action: name },
+      dataset: data || {action: name},
       textContent: title,
     })],
   });
@@ -190,7 +178,7 @@ function buildMenuItem(title, name, value, data) {
 /** Add a hard rule P element spacer to menu lists */
 function buildMenuSeparator() {
   return buildNode('p', {
-    classList: [`menu-item`],
+    classList: ['menu-item'],
     children: [buildNode('hr')],
   });
 }
@@ -205,21 +193,21 @@ function buildSubMenu(label, id, items) {
   // don't build empty menus
   if (!items?.length) return;
   return buildNode('fieldset', {
-    classList: [`menu-item`],
+    classList: ['menu-item'],
     children: [
       buildNode('legend', {
         children: [buildNode('button', {
-          type: `button`,
-          textContent: `${ label }…`,
+          type: 'button',
+          textContent: `${label}…`,
           dataset: {
-            action: `open-submenu`,
+            action: 'open-submenu',
             target: id,
           },
         })],
       }),
       buildNode('div', {
         id: id,
-        classList: [`card`, `menu-list`, `hidden`],
+        classList: ['card', 'menu-list', 'hidden'],
         children: items,
       }),
     ],
@@ -235,14 +223,14 @@ function buildSubMenu(label, id, items) {
  * @param {{id: string, title: string, dataset: Object}} attributes - id is required for radio options,
  * the value will be used for the label if no title is provided
  */
-function buildMenuControl(type, name, value, checked, { id, title, dataset } = {}) {
-  if (![`checkbox`, `radio`].includes(type)) return;
+function buildMenuControl(type, name, value, checked, {id, title, dataset} = {}) {
+  if (!['checkbox', 'radio'].includes(type)) return;
   id ||= name;
   title ||= value;
   return buildNode('p', {
-    classList: [`menu-item`, `control`],
+    classList: ['menu-item', 'control'],
     children: [
-      buildNode(`input`, {
+      buildNode('input', {
         type: type,
         name: name,
         value: value,
@@ -253,16 +241,23 @@ function buildMenuControl(type, name, value, checked, { id, title, dataset } = {
       buildNode('label', {
         for: id,
         title: title,
-        tabindex: `0`,
+        tabindex: '0',
         children: [
           buildNode('div', {
-            classList: [`icon`],
+            classList: ['icon'],
             children: [buildSvg(
               title,
-              `control-${ type }${ (checked) ? `-checked` : `` }`,
+              `control-${type}`,
             )],
           }),
-          buildNode('h3', { textContent: title }),
+          buildNode('div', {
+            classList: ['icon', 'checked'],
+            children: [buildSvg(
+              title,
+              `control-${type}-checked`,
+            )],
+          }),
+          buildNode('h3', {textContent: title}),
         ],
       }),
     ],
@@ -286,22 +281,22 @@ function buildItemWidget(item, list, path, settings) {
 
   // widget menu
   const widgetMenu = buildPopoverMenu(
-    `item-menu-${ item.seq }`,
-    `icon-${ item.constructor.name.toLowerCase() }`,
+    `item-menu-${item.seq}`,
+    `icon-${item.constructor.name.toLowerCase()}`,
     getColor(item.color).value,
     [
-      buildSubMenu(i18n('color'), `item-${ item.seq }-color-menu`, Array.from(colors).map(([color, {label}], i) =>
-        buildMenuControl('radio', `item-${ item.seq }-color`,
+      buildSubMenu(i18n('color'), `item-${item.seq}-color-menu`, Array.from(colors).map(([color, {label}], i) =>
+        buildMenuControl('radio', `item-${item.seq}-color`,
         color, ((color === item.color) || (!item.color && color === 'default')), {
-          id: `item-${ item.seq }-color-${ i }`,
+          id: `item-${item.seq}-color-${i}`,
           title: label,
-          dataset: { action: 'edit', field: 'color', seq: item.seq },
+          dataset: {action: 'edit', field: 'color', seq: item.seq},
         }),
       )),
-      buildSubMenu(i18n('action_move'), `item-${ item.seq }-move-menu`, list.reduce((a, o, i) => {
+      buildSubMenu(i18n('action_move'), `item-${item.seq}-move-menu`, list.reduce((a, o, i) => {
         const l = list.length - 1;
         const b = (title, direction) => buildMenuItem(title, `move-${direction}`,
-          o.seq, { action: 'move', seq: item.seq });
+          o.seq, {action: 'move', seq: item.seq});
         if (i === (index - 1)) {
           a.push(b(i18n('direction_up'), 'up'));
         } else if (i === (index + 1)) {
@@ -318,40 +313,48 @@ function buildItemWidget(item, list, path, settings) {
 
   // only folders can be 'opened'
   const widgetTitle = buildNode('input', {
-    type: (isFolder) ? `button` : `text`,
-    name: `name`,
+    type: (isFolder) ? 'button' : 'text',
+    name: 'name',
     value: item.name,
     dataset: {
-      action: (isFolder) ? `open-folder` : `edit`,
+      action: (isFolder) ? 'open-folder' : 'edit',
       seq: item.seq,
-      field: `name`,
+      field: 'name',
     },
-    draggable: `true`, // fires drag event so it can be prevented
-    autocomplete: `off`,
+    draggable: 'true', // fires drag event so it can be prevented
+    autocomplete: 'off',
     'aria-label': (isFolder) ? i18n('label_folder_name') : i18n('label_snippet_name'),
   });
   if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-');
 
   const widgetActions = buildNode('div', {
-    classList: [`quick-actions`],
+    classList: ['quick-actions'],
     children: [
-      (isFolder) ? buildActionIcon(i18n('action_rename'), `icon-rename`, `inherit`, {
-        action: `rename`,
-        seq: item.seq,
-      }) : buildActionIcon(i18n('action_copy'), `icon-copy`, `inherit`, {
-        action: `copy`,
-        field: `copy`, // so it can be focused
-        seq: item.seq,
-      }),
-      buildActionIcon(i18n('action_delete'), `icon-delete`, getColor('red').value, {
-        action: `delete`,
+      ...isFolder ? [
+        buildActionIcon(i18n('action_rename'), 'icon-rename', 'inherit', {
+          action: 'rename',
+          seq: item.seq,
+        }),
+      ] : [
+        buildActionIcon(i18n('action_copy'), 'icon-copy', 'inherit', {
+          action: 'copy',
+          field: 'copy', // so it can be focused
+          seq: item.seq,
+        }),
+        buildActionIcon(i18n('action_insert'), 'icon-insert', 'inherit', {
+          action: 'insert-contents',
+          seq: item.seq,
+        }),
+      ],
+      buildActionIcon(i18n('action_delete'), 'icon-delete', getColor('red').value, {
+        action: 'delete',
         seq: item.seq,
       }),
     ],
   });
 
   const widgetHead = buildNode('div', {
-    classList: [`title`],
+    classList: ['title'],
     children: [
       widgetMenu,
       widgetTitle,
@@ -368,39 +371,39 @@ function buildItemWidget(item, list, path, settings) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
       children: [buildNode('textarea', {
-        name: `content`,
+        name: 'content',
         dataset: {
-          action: `edit`,
+          action: 'edit',
           seq: item.seq,
-          field: `content`,
+          field: 'content',
         },
         textContent: item.content,
         rows: 1,
-        draggable: `true`, // fires drag event so it can be prevented
-        autocomplete: `off`,
+        draggable: 'true', // fires drag event so it can be prevented
+        autocomplete: 'off',
         'aria-label': i18n('label_snippet_content'),
       })],
     });
     widget.push(widgetBody);
     if (settings.view.sourceURL) {
       const widgetSource = buildNode('div', {
-        classList: [`fields`, `source-url`],
+        classList: ['fields', 'source-url'],
         children: [buildNode('div', {
-          classList: [`field`],
+          classList: ['field'],
           children: [
             buildNode('label', {
-              for: `source-${ item.seq }`,
+              for: `source-${item.seq}`,
               textContent: i18n('label_src'),
             }),
             buildNode('input', {
-              type: `url`,
-              id: `source-${ item.seq }`,
-              placeholder: `…`,
+              type: 'url',
+              id: `source-${item.seq}`,
+              placeholder: '…',
               value: item.sourceURL,
               dataset: {
-                action: `edit`,
+                action: 'edit',
                 seq: item.seq,
-                field: `sourceURL`,
+                field: 'sourceURL',
               },
             }),
           ],
@@ -421,25 +424,25 @@ function buildItemWidget(item, list, path, settings) {
  */
 function buildTreeWidget(collapsible, color, target, text) {
   return buildNode('div', {
-    classList: [`title`],
-    draggable: `true`,
+    classList: ['title'],
+    draggable: 'true',
     children: [
       // expand/collapse button only available if subfolders were found
       buildNode('button', {
-        type: `button`,
+        type: 'button',
         disabled: !collapsible,
-        dataset: collapsible && { action: `collapse` },
-        classList: [`icon`],
+        dataset: collapsible && {action: 'collapse'},
+        classList: ['icon'],
         children: [
-          buildSvg(i18n('label_folder'), collapsible ? `icon-folder-collapse` : `icon-folder`, color),
+          buildSvg(i18n('label_folder'), collapsible ? 'icon-folder-collapse' : 'icon-folder', color),
         ],
       }),
       // folder name
       buildNode('button', {
-        type: `button`,
-        classList: [`name`],
+        type: 'button',
+        classList: ['name'],
         dataset: {
-          action: `open-folder`,
+          action: 'open-folder',
           target: target,
         },
         children: [

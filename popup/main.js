@@ -83,7 +83,8 @@ const checkFollowup = async () => {
 
     case 'unsynced':
       // make sure it hasn't already been restored and we're not removing everything
-      if ( 0
+      console.log(await getStorageData(args.name, true), !!((await getStorageData(args.name, true))[args.name]), await getCurrentSpace(), !(await getCurrentSpace()));
+      if ( false
         || ((await getStorageData(args.name, true))[args.name])
         || (!(await getCurrentSpace())) // resolves race condition
       ) break;
@@ -244,7 +245,7 @@ function setHeaderPath() {
       classList: [`folder`],
       style: {display: `none`}, // only display when out of room
       dataset: {path: ``},
-      children: [buildActionIcon(`Back`, `icon-back`, `inherit`, {
+      children: [buildActionIcon(`Back`, `path-back`, `inherit`, {
         action: 'open-folder',
         target: ``,
       })],
@@ -265,6 +266,8 @@ function setHeaderPath() {
     }),
   );
   // console.log(`Adding additional path names`, pathNames);
+  const separator = buildSvg(i18n('path_separator'), 'path-separator');
+  separator.setAttribute('class', 'chevron');
   pathNames.forEach((name, i) => pathNode.append(buildNode('li', {
     classList: [`folder`],
     dataset: {
@@ -272,7 +275,8 @@ function setHeaderPath() {
       path: space.path.slice(0,i).join('-'),
     },
     children: [
-      buildNode('h1', {textContent: `/`}),
+      separator,
+      // buildNode('h1', {textContent: `/`}),
       buildNode('button', {
         type: `button`,
         dataset: {
@@ -601,7 +605,7 @@ function loadSnippets() {
 function adjustTextArea(target, maxHeight) {
   const padding = 2 * 5; // 5px top & bottom padding
   const minHeight = 1 * 19; // 19px line height
-  const overflowHeight = 7 * 19 + 5; // Add bottom padding for scroll to max 7 lines
+  const overflowHeight = (6 * 19) + 5; // Add bottom padding for scroll to max 7 lines
   // console.log(target, maxHeight, overflowHeight);
 
   /** @type {HTMLTextAreaElement} set target for events */
@@ -685,9 +689,11 @@ async function handleClick(event) {
 
   // close menus & modals as needed
   for (const popover of document.querySelectorAll('.popover')) {
-    if (!target
-    || !popover.parentElement.contains(target)
-    || ![`open-popover`, `open-submenu`].includes(target.dataset.action)) {
+    if ( false
+      ||!target
+      || !popover.parentElement.contains(target)
+      || ![`open-popover`, `open-submenu`].includes(target.dataset.action)
+    ) {
       // hide if no button, a different menu or a menu action was clicked
       popover.classList.add(`hidden`);
     }
@@ -737,17 +743,6 @@ function handleChange(event) {
   handleAction(target);
   
   // update menu if needed
-  // console.log("Checking type", target.type);
-  if (target.type === 'checkbox') {
-    // console.log("Toggling checkbox");
-    toggleChecked(target.parentElement.querySelector('use'));
-  } else if (target.type === 'radio') {
-    // console.log("Toggling radio");
-    const controls = target.closest('fieldset').querySelectorAll('.control');
-    for (const control of controls) {
-      toggleChecked(control.querySelector('use'), control.querySelector('input').checked);
-    }
-  }
   if (dataset.field === 'color') {
     setSvgFill(
       target.closest('.menu'),
@@ -772,8 +767,10 @@ function handleFocusOut(event) {
  */
 function handleDragDrop(event) {
   // ignore text drags
-  if (['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
-  && event.target.dataset?.action !== 'open-folder') {
+  if ( true
+    && ['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
+    && event.target.dataset?.action !== 'open-folder'
+  ) {
     // console.log('stopping');
     event.stopPropagation();
     event.preventDefault();
@@ -877,8 +874,10 @@ function handleDragDrop(event) {
           moveTo.seq = undefined;
         }
         //make sure we're not trying to put a folder inside its child
-        if (moveTo.path.length > moveFrom.path.length
-        && moveTo.path.slice(0, moveFrom.path.length + 1).join('-') === moveFrom.path.concat([moveFrom.seq]).join('-')) {
+        if ( true
+          && moveTo.path.length > moveFrom.path.length
+          && moveTo.path.slice(0, moveFrom.path.length + 1).join('-') === moveFrom.path.concat([moveFrom.seq]).join('-')
+        ) {
           showAlert(i18n('error_folder_to_child'));
           return dragEnd();
         }
