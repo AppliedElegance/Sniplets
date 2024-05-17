@@ -16,8 +16,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // prepare defaults
   const settings = new Settings();
 
-  // settings init in case of first install or missing settings
-  if (!await settings.load()) {
+  // settings init in case of corrupt data
+  if (!(await settings.load())) {
     settings.init();
     // bug check
     const {name, synced} = settings.defaultSpace;
@@ -39,7 +39,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // check for current space in case of reinstall
   const currentSpace = await getCurrentSpace();
   // console.log(currentSpace);
-  if (!await space.load(currentSpace || settings.defaultSpace)) {
+  if (!(await space.load(currentSpace || settings.defaultSpace))) {
     // legacy check for existing snippets
     // console.log("Checking for legacy data...");
     const legacySpace = {name: "snippets", synced: true};
@@ -57,16 +57,22 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       }
     } else {
       // no space data found, create new space and, if initial install add tutorial
-      // console.log("Creating new space...");
-      await space.init(currentSpace || settings.defaultSpace);
-      // console.log(space);
+      try {
+        await space.init(currentSpace || settings.defaultSpace);
+      } catch (e) {
+        console.error('It looks like some corrupt data is left over. initializing from scratch', e);
+        settings.init();
+        await settings.save();
+        await space.init(); // if it still throws the extension is borked
+      }
       if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
-        const starterData = await fetch(`/_locales/${i18n('locale')}/starter.json`)
-        .then(r => r.json())
-        .catch(() => void 0);
-        if (starterData) {
-          const data = new DataBucket(starterData.data);
-          space.data = await data.parse();
+        const starterPath = `/_locales/${i18n('locale')}/starter.json`;
+        try {
+          const starterFile = await fetch(starterPath);
+          const starterData = new DataBucket(await starterFile.json());
+          space.data = await starterData.parse();
+        } catch (e) {
+          console.error(`Starter data could not be found at ${starterPath}`, e);
         }
       }
       await space.save();
@@ -88,7 +94,7 @@ chrome.runtime.onStartup.addListener(async () => {
 // chrome.action.onClicked.addListener(() => openPopup());
 
 // set up context menu listener
-chrome.contextMenus.onClicked.addListener(async (data, tab) => {
+chrome.contextMenus.onClicked.addListener((data, tab) => {
   // get details from menu item and ignore "empty" ones (sanity check)
   /** @type {{action:string},{menuSpace:{name:string,synced:boolean,path:number[]}}} */
   const {action, seq, menuSpace} = JSON.parse(data.menuItemId);
@@ -117,7 +123,7 @@ chrome.contextMenus.onClicked.addListener(async (data, tab) => {
   } // end switch(action)
 });
 
-chrome.commands.onCommand.addListener(async (command, {id, url}) => {
+chrome.commands.onCommand.addListener((command, {id, url}) => {
   // console.log(command, id, url);
   
   switch (command) {
@@ -126,7 +132,10 @@ chrome.commands.onCommand.addListener(async (command, {id, url}) => {
     break;
     
   case "paste":
-    //TODO: open Snippets with selection dialogue
+    setFollowup('paste', {
+      target: {tabId: id},
+      pageUrl: url,
+    });
     break;
 
   default:
@@ -162,13 +171,16 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       // console.log(name, synced, areaName);
       if (!currentSpace || (currentSpace.name === key && currentSpace.synced === isSyncChange)) {
         const space = new Space();
-        await space.init({
-          name: key,
-          synced: isSyncChange,
-          data: changes[key].newValue,
-        });
-        // console.log(changes[key], space, areaName);
-        buildContextMenus(space);
+        try {
+          await space.init({
+            name: key,
+            synced: isSyncChange,
+            data: changes[key].newValue,
+          });
+          buildContextMenus(space);
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
 

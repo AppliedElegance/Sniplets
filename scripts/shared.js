@@ -1,7 +1,6 @@
 /* eslint-disable no-unused-vars */
 
-/**
- * chrome.i18n helper to pull strings from _locales/[locale]/messages.json
+/** chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} messageName 
  * @param {string|string[]} substitutions
  * @example
@@ -16,6 +15,9 @@ const i18nNum = (i, options = {useGrouping: false}) =>
 const i18nOrd = (i) =>
   i18n(`ordinal_${new Intl.PluralRules(uiLocale).select(i)}`, i);
 
+/** Map of default colours
+ * @type {Map<string,{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,snippet:string}>}
+ */
 const colors = new Map()
 .set('default', {value: "inherit", label: i18n('color_default'), square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       snippet: "📝"})
 .set('red',     {value: "#D0312D", label: i18n('color_red'),     square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get snippet() {return this.circle;}})
@@ -25,19 +27,26 @@ const colors = new Map()
 .set('blue',    {value: "#3457D5", label: i18n('color_blue'),    square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get snippet() {return this.circle;}})
 .set('purple',  {value: "#A32CC4", label: i18n('color_purple'),  square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get snippet() {return this.circle;}})
 .set('gray',    {value: "#808080", label: i18n('color_gray'),    square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get snippet() {return this.circle;}});
+
 /** Safe getter for the colors that will return a default value if not available
  * @param {string} [color] 
- * @returns {{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,snippet:string}}
  */
 const getColor = color => colors.get(colors.has(color) ? color : 'default');
-// legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files)
-const legacyColors = new Map().set('Red','red').set('Orange','orange').set('Yellow','yellow')
-.set('Green','green').set('Blue','blue').set('Purple','purple').set('Grey','gray');
+
+/** legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files) */
+const legacyColors = new Map()
+.set('Red','red')
+.set('Orange','orange')
+.set('Yellow','yellow')
+.set('Green','green')
+.set('Blue','blue')
+.set('Purple','purple')
+.set('Grey','gray');
 
 /** Open a new popup window
  * @param {{[name:string]:string}} params
  */
-function openPopup(params = {}) {
+const openPopup = (params = {}) => {
   const src = new URL(chrome.runtime.getURL("popup/main.html"));
   // console.log(src.href, params);
   for (const [name, value] of Object.entries(params)) {
@@ -50,8 +59,8 @@ function openPopup(params = {}) {
     width: 700, // 867 for screenshots
     height: 460, // 540 for screenshots
   }).then(() => true)
-  .catch((e) => (console.warn(e), false));
-}
+  .catch((e) => (console.error(e), false));
+};
 
 /** Open a new window for editing a snippet
  * @param {number[]} path
@@ -64,40 +73,41 @@ const openForEditing = (path, seq) => openPopup({
   field: 'name',
 });
 
-// Storage helpers. Sync must be explicitly enabled.
-/**
- * Safely stores data to chrome.storage.local (default) or .sync.
+/** Safely stores data to chrome.storage.local (default) or .sync.
  * @param {{[key:string]:*}} items - a {key: value} object to store
- * @param {boolean} [synced=false] - Whether to store the data in local (false, default) or sync (true).
+ * @param {boolean} [sync=false] - Whether to store the data in local (false, default) or sync (true).
  */
-function setStorageData(items, synced = false) {
-  const bucket = synced ? chrome.storage.sync : chrome.storage.local;
+const setStorageData = (items, sync = false) => {
+  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
   return bucket.set(items)
   .then(() => true)
-  .catch((e) => (console.warn(e), false));
-}
-/**
- * Safely retrieves storage data from chrome.storage.local (default) or .sync.
+  .catch((e) => (console.error(e), false));
+};
+
+/** Safely retrieves storage data from chrome.storage.local (default) or .sync.
  * @param {null|string|string[]|{[key:string]:*}} keys - The key name for the stored data.
- * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
+ * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
  */
-function getStorageData(keys, synced = false) {
-  const bucket = synced ? chrome.storage.sync : chrome.storage.local;
+const getStorageData = (keys, sync = false) => {
+  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
   return bucket.get(keys)
-  .catch((e) => (console.warn(e), {}));
-}
+  .catch((e) => (console.error(e), {}));
+};
+
 /** Safely removes storage data from chrome.storage.local (default) or .sync.
  * @param {string|string[]} keys - The key name for the stored data.
- * @param {boolean} [synced=false] - Whether to look in local (false, default) or sync (true).
+ * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
  */
-function removeStorageData(keys, synced = false) {
-  const bucket = synced ? chrome.storage.sync : chrome.storage.local;
+const removeStorageData = (keys, sync = false) => {
+  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
   return bucket.remove(keys)
   .then(() => true)
-  .catch((e) => (console.warn(e), false));
-}
+  .catch((e) => (console.error(e), false));
+};
 
-/** Get details of saved current space */
+/** Get details of saved current space
+ * @returns {Promise<{name:string,synced:boolean,path?:number[]}>}
+*/
 const getCurrentSpace = async () => (await getStorageData('currentSpace'))?.currentSpace;
 
 /** Stores data required for following up on a task and opens a window to action it
@@ -105,20 +115,20 @@ const getCurrentSpace = async () => (await getStorageData('currentSpace'))?.curr
  * @param {{[key:string]:*}} args Properties needed by the followup function
  * @param {boolean} [popup=true] Open in the popup rather than a new window
  */
-async function setFollowup(type, args, popup = true) {
+const setFollowup = async (type, args, popup = true) => {
   await chrome.storage.session.set({ followup: {
     type: type,
     args: args || {}, // default value for destructuring
-  }}).catch((e) => console.warn(e));
+  }}).catch((e) => console.error(e));
   chrome.runtime.sendMessage({
     type: 'followup',
   }).catch((e) => {
     // likely no open windows
-    console.warn(e);
+    console.error(e);
     if (popup && chrome.action.openPopup) {
       // only available in dev/canary when there's an active window
       chrome.action.openPopup().catch((e) => {
-        console.warn(e);
+        console.error(e);
         openPopup();
       });
     } else {
@@ -126,24 +136,24 @@ async function setFollowup(type, args, popup = true) {
     }
   });
   return;
-}
+};
+
 /** Fetch requests from session storage set using the `setFollowup()` function
  * @returns {Promise<{type:string,message:*,args:Object}|void>}
  */
-async function fetchFollowup() {
+const fetchFollowup = async () => {
   const {followup} = await chrome.storage.session.get('followup')
-  .catch(e => console.warn(e));
+  .catch(e => console.error(e));
   if (followup) chrome.storage.session.remove('followup')
-  .catch(e => console.warn(e));
+  .catch(e => console.error(e));
   // console.log(followup);
   return followup;
-}
+};
 
-/**
- * Send text to clipboard
+/** Send text to clipboard
  * @param {{content:string,nosubst:boolean}} snip 
  */
-async function setClipboard(snip) {
+const setClipboard = async (snip) => {
   if(!snip.content) return;
   const items = {
     "text/plain":  new Blob([snip.content], {type: "text/plain"}),
@@ -152,59 +162,27 @@ async function setClipboard(snip) {
   // console.log(`Copying to clipboard...`);
   return navigator.clipboard.write([new ClipboardItem(items)])
   .then(() => true)
-  .catch((e) => console.warn(e));
-}
+  .catch((e) => console.error(e));
+};
 
-// RichText processors
-/**
- * Remove newlines and add HTML line break tags where appropriate
- * 
- * * (?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?) - don't match if non-inline ending tags are found just before a newline
- * * (?:\r\n|\n) - match newlines on Windows/non-Windows
- * 
+/** Add HTML line break tags where appropriate and remove newlines to avoid unwanted spaces
  * @param {string} text
  */
 const tagNewlines = text => text.replaceAll(
-  /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\n)/g,
+  /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\r|\n)/g,
   (match) => `<br>`,
 ).replaceAll(
-  /(?:\r\n|\r|\n)/g,
+  /\r\n|\r|\n/g,
   ``,
 );
-/**
- * Place anchor tags around emails if not already linked
- * 
- * * (?<!<[^>]*) - ignore emails inside tag defs
- * * (?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable starting characters
- * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]* - allowable characters
- * * [a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~] - allowable ending characters
- * * |[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]) - allowable single character
- * * @ - defining email character
- * * (?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+) - domain
- * * (?!(?!<a).*?<\/a>) - ignore emails that are inside an anchor tag
- * 
+/** Place anchor tags around emails if not already linked
  * @param {string} text
  */
 const linkEmails = text => text.replaceAll(
   /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
   (match) => `<a href="mailto:${match}">${match}</a>`,
 );
-/**
- * Place anchor tags around urls if not already linked
- * 
- * * <a.+?\/a>| - ignore anchor tags
- * * <[^>]*?>| - ignore anything within tags
- * * ( - start url capture
- * * (?<![.+@a-zA-Z0-9]) - ignore emails and random text
- * * (?:(https?|ftp|chrome|edge|about|file):\/+)? - capture protocols if available
- * * (?: - start domain lookup
- * * (?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+| - find url sequences
- * * (?:[0-9]+\.){3}[0-9]+ - find ipv4 addresses (ipv6 is too complicated for a single line regex)
- * * ) - end domain lookup
- * * (?::[0-9]+)? - include port numbers
- * * (?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)? - include all allowed url characters after domain
- * * ) - end url capture
- * 
+/** Place anchor tags around urls if not already linked
  * @param {string} text
  */
 const linkURLs = text => text.replaceAll(
@@ -241,20 +219,15 @@ const getRichText = async (snip) => {
   return text;
 };
 
-/**
- * Settings object for persisting as window global
- */
+/** Settings object for persisting as window global */
 class Settings {
-  /**
-   * @param {Settings} settings 
-   */
+  /** @param {Settings} settings */
   constructor(settings) {
     if (settings) this.init(settings);
   }
 
-  /**
-   * Take provided settings and initialize the remaining settings
-   * @param {Settings} settings 
+  /** Optionally take provided settings and initialize the remaining settings
+   * @param {Settings} [settings] 
    */
   init({defaultSpace, sort, view, control, data} = {}) {
     // console.log(defaultSpace, sort, view, control, data);
@@ -295,9 +268,10 @@ class Settings {
     this.data = setData(data);
   }
 
+  /** Load settings from sync storage */
   async load() {
     const {settings} = await getStorageData('settings', true);
-    if (!settings) return settings; // return errors as-is
+    if (!settings) return;
 
     // legacy check
     if (settings.foldersOnTop) {
@@ -310,8 +284,9 @@ class Settings {
     return this;
   }
 
+  /** Save settings to sync storage */
   async save() {
-    setStorageData({settings: this}, true);
+    return await setStorageData({settings: this}, true);
   }
 }
 
@@ -326,6 +301,7 @@ class TreeItem {
     this.color = legacyColors.get(color) || color; // legacy color mapping check
   }
 }
+
 /** Folders contain tree items and can be nested. */
 class Folder extends TreeItem {
   constructor({name = i18n('title_new_folder'), seq, children, color, label} = {}) {
@@ -338,6 +314,7 @@ class Folder extends TreeItem {
     this.children = children || [];
   }
 }
+
 /** Snippets are basic text blocks that can be pasted */
 class Snippet extends TreeItem {
   constructor({name, seq, color, label, shortcut, sourceURL, content = "", nosubst = false} = {}) {
@@ -371,9 +348,6 @@ class Snippet extends TreeItem {
 }
 /** Basic snippets data bucket */
 class DataBucket {
-  /**
-   * @param {{version:string,children:(TreeItem|Folder|Snippet)[]|string,counters:number}} values 
-   */
   constructor({version = "1.0", children = [], counters = {}} = {}) {
     /** @type {string} */
     this.version = version;
@@ -381,9 +355,9 @@ class DataBucket {
     this.timestamp = Date.now();
     /** @type {(TreeItem|Folder|Snippet)[]|string} */
     this.children = children;
-    const {startVal, ...cs} = counters;
+    const {startVal, ...encounters} = counters;
     /** @type {{[name:string]:number}} */
-    this.counters = cs || {};
+    this.counters = encounters || {};
     this.counters.startVal = +startVal || 0;
   }
 
@@ -391,9 +365,10 @@ class DataBucket {
   async compress() {
     // check if already compressed
     if (typeof this.children === 'string') {
-      // TODO: confirm the compressed string is valid
-      // console.warn("Data is already in compressed form");
-      return false;
+      // confirm the compressed string is valid
+      const testBucket = new DataBucket(this);
+      if (!(await testBucket.parse())) return false;
+      return true;
     }
 
     // create a compression stream
@@ -406,35 +381,34 @@ class DataBucket {
     return true;
   }
 
-  #cast(item) {
-    if (Object.hasOwn(item, "children")) {
-      return new Folder(item);
-    } else if (Object.hasOwn(item, "content")) {
-      return new Snippet(item);
-    }
-    return item;
+  /** Cast an tree item to its appropriate class
+   * @param {(TreeItem | Folder | Snippet)} item 
+   */
+  cast(item) {
+    if (!item) return;
+    if (Object.hasOwn(item, "children")) return new Folder(item);
+    if (Object.hasOwn(item, "content")) return new Snippet(item);
+    return new TreeItem(item);
   }
 
+  /** Cast an array of tree items to their appropriate class
+   * @param {(TreeItem | Folder | Snippet)[]} [folder=this.children] 
+   */
   restructure(folder = this.children) {
-    // console.log(folder);
     const items = [];
     folder.forEach((item) => {
-      // console.log(item);
-      if (Object.hasOwn(item, "children")) {
+      if (Array.isArray(item.children) && item.children.length) {
         item.children = this.restructure(item.children);
       }
-      items.push(this.#cast(item));
+      items.push(this.cast(item));
     });
-    // console.log(items);
     return items;
   }
 
-  /**
-   * Decompress root folder (children) and cast objects as their appropriate TreeItem
-   */
+  /** Decompress root folder (children) and cast objects as their appropriate TreeItem */
   async parse() {
-    // check if already compressed and otherwise just cast contents appropriately
-    if (typeof this.children !== 'string') {
+    // check if compressed and otherwise just cast contents appropriately
+    if (Array.isArray(this.children)) {
       this.children = this.restructure();
       return this;
     }
@@ -447,19 +421,23 @@ class DataBucket {
       gzipData[i] = binData.charCodeAt(i);
     }
 
-    // create stream for decompression
-    const stream = new Blob([gzipData], {type: "application/json"})
-      .stream().pipeThrough(new DecompressionStream("gzip"));
-    // read the decompressed stream
-    const dataBlob = await new Response(stream).blob();
-    // return decompressed and deserialized text
-    // console.log(dataBlob);
-    this.children = this.restructure(JSON.parse(await dataBlob.text()));
-    return this;
+    try {
+      // create stream for decompression
+      const stream = new Blob([gzipData], {type: "application/json"})
+        .stream().pipeThrough(new DecompressionStream("gzip"));
+      // read the decompressed stream
+      const dataBlob = await new Response(stream).blob();
+      // return decompressed and deserialized text
+      // console.log(dataBlob);
+      this.children = this.restructure(JSON.parse(await dataBlob.text()));
+      return this;
+    } catch (e) {
+      console.error(e);
+      return;
+    }
   }
 
-  /**
-   * Check if the data is small enough to fit in a sync storage bucket with the given key name.
+  /** Check if the data is small enough to fit in a sync storage bucket with the given key name.
    * @param {string} name Key that will be used for retrieving the data (factored into the browser's storage limits)
    * @returns 
    */
@@ -493,6 +471,9 @@ class DataBucket {
     };
   }
 
+  /** Removes all saved sourceURLs recursively
+   * @param {(TreeItem|Folder|Snippet)} folder 
+   */
   removeSources(folder = this.children) {
     for (const item of folder) {
       if (item.children?.length) {
@@ -504,11 +485,9 @@ class DataBucket {
   }
 }
 
-/**
- * Space object stores snippet groupings in buckets.
- */
+/** Space object stores snippet groupings in buckets. */
 class Space {
-  /**
+  /** Construct a Space object
    * @param {{
    *   name: string
    *   synced: boolean
@@ -534,8 +513,7 @@ class Space {
     };
     // save path as well if requested
     if (rememberPath) currentSpace.path = this.path;
-    setStorageData({currentSpace: currentSpace});
-    return currentSpace;
+    return await setStorageData({currentSpace: currentSpace}) && currentSpace;
   }
 
   /** load last used space or fall back to default */
@@ -555,6 +533,7 @@ class Space {
     return true;
   }
 
+  /** Save the space's DataBucket into the appropriate storage */
   async save() {
     // make sure the space has been initialized
     if (!this.name?.length) return;
@@ -597,21 +576,16 @@ class Space {
     return true;
   }
 
-  /**
-   * Return the fully named path represented by the seq array provided
+  /** Get an array of all the path names up to and including a specific folder seq
    * @param {number[]} path 
    */
   getPathNames(path = this.path) {
-    // console.log(this, this.name);
-    /** @type {string[]} */
     const pathNames = [this.name];
     let item = this.data;
-    // console.log(path[0], pathNames[0], path.length);
     for (const seq of path) {
-      // console.log(seq);
       item = item.children.find((i) => i.seq == seq);
-      if (!item) {
-        // throw new Error("That path doesn't exist");
+      if (!item?.children) {
+        console.error(`The requested path sequence ${path} doesn't exist. Reached: ${pathNames.join('/')}`);
         return;
       }
       pathNames.push(item.name);
@@ -619,24 +593,20 @@ class Space {
     return pathNames;
   }
 
-  /**
-   * 
+  /** Get the item found at a specific path sequence
    * @param {number[]} path - Full path to the tree item
    * @returns {TreeItem|Folder|Snippet|void}
    */
-  getItem(path) {
-    // console.log(path);
-    try {
-      let item = this.data;
-      for (const seq of path) {
-        // console.log(seq, +seq);
-        item = item.children.find((o) => (o.seq === +seq));
+  getItem(path = this.path) {
+    let item = this.data;
+    for (const seq of path) {
+      item = item.children?.find((o) => (o.seq === +seq));
+      if (!item) {
+        console.error(`The requested item path sequence ${path} doesn't exist. The last item reached: ${item}`);
+        return;
       }
-      return item;
-    } catch (e) {
-      // console.error("The path requested does not exist.", path, e);
-      return;
     }
+    return item;
   }
 
   /** Add tree item to data bucket
@@ -689,7 +659,7 @@ class Space {
       if (JSON.stringify(from.path) !== JSON.stringify(to.path))
         this.sequence(fromFolder);
     } catch (e) {
-      console.warn(e);
+      console.error(e);
     }
     return fromItem;
   }
@@ -706,11 +676,10 @@ class Space {
     return removedItem;
   }
 
-  /**
-   * Process placeholders and rich text options of a snippet and return the result
+  /** Process placeholders and rich text options of a snippet and return the result
    * @param {number} seq 
    * @param {number[]} path 
-   * @returns {Promise<{snip:Snippet,customFields?:Map}
+   * @returns {Promise<{snip:Snippet,customFields?:Map<string,string>,counters?:Map<string,number>}
    */
   async getProcessedSnippet(seq, path = this.path) {
     // console.log("Getting item...");
@@ -733,19 +702,21 @@ class Space {
     }
 
     // process counters, kept track internally to allow use across multiple snippets
-    let counters = false;
+    const counters = new Map();
     snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
-      counters = true;
-      // add new counters to tracking list
+      // add new counters to DataBucket
       if (!(p1 in this.data.counters)) {
         this.data.counters[p1] = this.data.counters.startVal;
       }
+      // allow for rollback in case paste fails
       const val = this.data.counters[p1];
+      if (!counters.has(p1)) counters.set(p1, val);
+      // replace and increment
       this.data.counters[p1] += isNaN(p2) ? 1 : +p2;
       return val;
     });
     // save space if counters were used and thus incremented
-    if (counters) await this.save();
+    if (counters.size) await this.save();
   
     // placeholders
     // console.log("Processing placeholders...");
@@ -754,8 +725,7 @@ class Space {
       if (defaultValue?.includes('|')) defaultValue = defaultValue.split('|');
       const now = new Date();
   
-      /**
-       * Full custom date/time format string replacement (compatible with Clippings)
+      /** Full custom date/time format string replacement (compatible with Clippings)
        * @param {string} dateString 
        * @param {*} date 
        */
@@ -982,10 +952,21 @@ class Space {
     return {
       snip: snip,
       ...customFields.size ? {customFields: customFields} : {},
-      ...counters ? {counters: counters}: {},
+      ...counters.size ? {counters: counters}: {},
     };
   }
 
+  /** Update the value of several counters at once
+   * @param {Map<string,number>} counters
+   */
+  setCounters(counters) {
+    if (!counters?.size) return;
+    for (const [counter, value] of counters) {
+      this.data.counters[counter] = value;
+    }
+  }
+
+  /** Sort tree items according to sort rules */
   sort({by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all']} = {}) {
     // recursive function in case everything needs to be sorted
     const sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
@@ -1017,6 +998,9 @@ class Space {
     return this;
   }
 
+  /** Update the seq of items in a folder after it's been sorted
+   * @param {Folder} folder 
+   */
   sequence(folder) {
     if (folder.children) {
       let i = folder.children.length;
@@ -1027,8 +1011,7 @@ class Space {
     return this;
   }
 
-  /**
-   * Reuse the space object
+  /** Reuse the space object
    * @param {{
    *   name: string
    *   synced: boolean
@@ -1043,13 +1026,10 @@ class Space {
     if (!name || !synced) await settings.load();
     
     // make sure data is parsed correctly
-    // console.log("Checking data integrity...", name, synced, data, path);
     if (!(data instanceof DataBucket)) {
       data = new DataBucket(data);
-      // console.log("Parsing data...", data);
       if (!(await data.parse())) {
         throw new Error(`Unable to parse data, cancelling initialization...\n${data}`);
-        // return;
       }
     }
 
@@ -1058,39 +1038,33 @@ class Space {
     if (!Array.isArray(path)) path = [];
 
     // update properties
-    // console.log("Updating details...", name, synced, data, path);
     this.name = name || settings.defaultSpace.name;
     this.synced = (typeof synced === 'boolean') ? synced : settings.defaultSpace.synced;
     this.data = data;
     this.path = path;
 
-    // console.log("Space initialized.", structuredClone(this));
-    return true;
+    return this;
   }
 }
 
-/**
- * (Re)build context menu for snipping and pasting
+/** (Re)build context menu for snipping and pasting
  * @param {Space} space 
  */
 async function buildContextMenus(space) {
-  // console.log(space);
   // Since there's no way to poll current menu's, clear all first
-  await new Promise((resolve, reject) =>
+  await new Promise((resolve, reject) => {
     chrome.contextMenus.removeAll(() =>
       (chrome.runtime.lastError)
       ? reject(chrome.runtime.lastError)
-      : resolve()))
-  .catch((e) => console.warn(e));
+      : resolve(true),
+    );
+  }).catch((e) => console.error(e));
+
   if (!space?.name) return;
 
-  const addMenu = (properties) =>
-    new Promise((resolve, reject) =>
-      chrome.contextMenus.create(properties, () =>
-        (chrome.runtime.lastError)
-        ? reject(chrome.runtime.lastError)
-        : resolve()))
-    .catch((e) => console.warn(e));
+  const addMenu = (properties) => chrome.contextMenus.create(properties, () =>
+    chrome.runtime.lastError && console.error(chrome.runtime.lastError),
+  );
   
   /** @type {{action:string,path:number[],seq:number,menuSpace:{name:string,synced:boolean}}} */
   const menuData = {
@@ -1125,7 +1099,7 @@ async function buildContextMenus(space) {
      * @param {(TreeItem|Folder|Snippet)[]} folder 
      * @param {*} parentData 
      */
-    const buildFolder = async (folder, parentData) => {
+    const buildFolder = (folder, parentData) => {
       const menuItem = {
         "contexts": ["editable"],
         "parentId": JSON.stringify(parentData),

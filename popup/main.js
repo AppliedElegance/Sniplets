@@ -36,6 +36,14 @@ const checkFollowup = async () => {
     const {type, args} = followup;
     // console.log(type, args);
 
+    // counter rollback
+    const rollBackCounters = async () => {
+      const counters = new Map(args?.counters || []);
+      if (counters.size && await space.load(args.actionSpace)) {
+        space.setCounters(counters);
+      }
+    };
+
     /** Confirm any custom placeholders and merge them */
     const mergeAndPaste = async () => {
       const {snip, target} = args;
@@ -44,12 +52,16 @@ const checkFollowup = async () => {
       if (customFields.size) {
         const text = await mergeCustomFields(snip.content, customFields);
         // console.log(text);
-        if (!text) return; // modal cancelled
+        if (!text) {
+          // modal cancelled, rollback if necessary
+          await rollBackCounters();
+          return;
+        }
         snip.content = text;
       }
-      // await since window.close will cancel unresolved promises
-      await insertSnip(target, snip);
-      window.close();
+      if ((await insertSnip(target, snip)).error) {
+        await rollBackCounters();
+      }
     };
 
     switch (type) {
@@ -101,14 +113,19 @@ const checkFollowup = async () => {
         }
 
         // recover the data
-        await space.init(args);
-        if (!await space.save()) {
+        try {
+          await space.init(args);
+          if (!(await space.save())) {
+            showAlert(i18n('error_data_corrupt'));
+            break;
+          }
+          // console.log(space);
+          setCurrentSpace();
+          loadSnippets();
+        } catch (e) {
+          console.error(e);
           showAlert(i18n('error_data_corrupt'));
-          break;
         }
-        // console.log(space);
-        setCurrentSpace();
-        loadSnippets();
       } else {
         showAlert(i18n('error_data_corrupt'));
         break;
@@ -141,7 +158,7 @@ const loadPopup = async () => {
   document.title = i18n('app_name');
 
   // load up settings with sanitation check for sideloaded versions
-  if (!await settings.load()) {
+  if (!(await settings.load())) {
     settings.init();
     settings.save();
   }
@@ -171,11 +188,16 @@ const loadPopup = async () => {
   await checkFollowup();
 
   // load up the current space
-  if (!await space.loadCurrent()) {
+  if (!(await space.loadCurrent())) {
     // should hopefully never happen
     if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
-      await space.init(settings.defaultSpace);
-      space.save();
+      try {
+        await space.init(settings.defaultSpace);
+        space.save();
+      } catch (e) {
+        // well and truly borked
+        console.error(e);
+      }
     } else {
       window.close();
       return;
@@ -428,7 +450,7 @@ function adjustPath() {
       const isRoot = (hiddenFolders.length === i++ && folder.textContent === space.name);
       if (isRoot) upIcon.style.display = 'none';
       if (container.offsetHeight > maxHeight) {
-        // revert last and stop unhinding folders when there's no more space
+        // revert last and stop unhiding folders when there's no more space
         folder.style.display = 'none';
         if (isRoot) upIcon.style.removeProperty('display');
         break;
@@ -676,29 +698,27 @@ function handleMouseUp() {
   }
 }
 
-/**
- * Click handler
+/** Click handler
  * @param {MouseEvent} event 
  */
-async function handleClick(event) {
-  // console.log(event);
+function handleClick(event) {
   // Only handle buttons as other inputs will be handled with change event
   /** @type {HTMLButtonElement|HTMLInputElement} */
-  const target = event.target.closest('[type="button"]');
+  const button = event.target.closest('[type="button"]');
 
   // close menus & modals as needed
   for (const popover of document.querySelectorAll('.popover')) {
     if ( false
-      ||!target
-      || !popover.parentElement.contains(target)
-      || ![`open-popover`, `open-submenu`].includes(target.dataset.action)
+      || !button
+      || !popover.parentElement.contains(button)
+      || ![`open-popover`, `open-submenu`].includes(button.dataset.action)
     ) {
       // hide if no button, a different menu or a menu action was clicked
       popover.classList.add(`hidden`);
     }
   }
   
-  if (target) handleAction(target);
+  if (button) handleAction(button);
 }
 
 /**
@@ -893,7 +913,7 @@ function handleDragDrop(event) {
       }
       const movedItem = space.moveItem(moveFrom, moveTo);
       space.sort(settings.sort);
-      space.save();
+      await space.save();
       // console.log(event);
       event.preventDefault();
       dragEnd();
@@ -999,18 +1019,23 @@ async function handleAction(target) {
   
   // backup/restore/clear data
   case 'initialize':
-    if (!await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data'))) break;
+    if (!(await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data')))) break;
     // deployed crx may cause service worker to run in parallel, delay doesn't help so recovery logic can't be done in backend
     await chrome.storage.session.clear();
     await chrome.storage.local.clear();
     await chrome.storage.sync.clear();
     // reinitialize
-    settings.init();
-    await settings.save();
-    await space.init(settings.defaultSpace);
-    await space.save();
-    setCurrentSpace();
-    loadPopup();
+    try {
+      settings.init();
+      await settings.save();
+      await space.init(settings.defaultSpace);
+      await space.save();
+      setCurrentSpace();
+      loadPopup();
+    } catch (e) {
+      // well and truly borked
+      console.error(e);
+    }
     break;
 
   case 'backup': {
@@ -1068,7 +1093,7 @@ async function handleAction(target) {
   
   case 'restore': {
     // console.log("Checking current data", space.data);
-    if (space.data.children.length && !await confirmAction(i18n('warning_restore_bak', i18n('action_restore'))))
+    if (space.data.children.length && !(await confirmAction(i18n('warning_restore_bak', i18n('action_restore')))))
       break;
     try {
       // console.log("Getting file...");
@@ -1117,23 +1142,27 @@ async function handleAction(target) {
       } else if (backup.data) {
         const data = new DataBucket(backup.data);
         space.data = await data.parse();
-        // console.log("Saving space info", space);
         space.save();
       } else if (backup.space) {
-        // console.log("Resetting current space info", data.space);
-        await space.init(backup.space);
-        space.sort();
-        // console.log("Saving space info", space);
-        space.save();
-        setCurrentSpace();
+        try {
+          await space.init(backup.space);
+          space.sort();
+          await space.save();
+          await setCurrentSpace();
+        } catch (e) {
+          console.error(e);
+          failAlert();
+          break;
+        }
       } else if (backup.spaces) {
-        // console.log("Resetting current space info", data.spaces);
-        for (const s of backup.spaces) {
-          // console.log("loading space", s);
-          const sp = new Space();
-          await sp.init(s);
-          // console.log("saving space", sp);
-          await sp.save();
+        for (const backupSpace of backup.spaces) {
+          try {
+            const saveSpace = new Space();
+            await saveSpace.init(backupSpace);
+            await saveSpace.save();
+          } catch (e) {
+            console.error(e);
+          }
         }
         await space.load(backup.currentSpace || settings.defaultSpace);
       } else {
@@ -1142,8 +1171,7 @@ async function handleAction(target) {
       }
       // console.log("Loading snippets...");
       loadSnippets();
-    } catch (e) {
-      // console.warn(e);
+    } catch {
       /* assume cancelled */
     }
     break; }
@@ -1159,12 +1187,19 @@ async function handleAction(target) {
     // get custom fields if necessary
     if (customFields) {
       const content = await mergeCustomFields(snip.content, customFields);
-      if (!content) break; // modal cancelled
+      if (!content) {
+        // modal cancelled, initiate rollback if needed
+        if (counters) space.setCounters(counters);
+        break;
+      }
       snip.content = content;
     }
     // copy result text to clipboard
     if (await setClipboard(snip)) {
       showAlert(i18n('alert_copied'));
+    } else if (counters) {
+      // rollback in case of failure
+      space.setCounters(counters);
     }
     break; }
 
@@ -1229,7 +1264,10 @@ async function handleAction(target) {
       switch (response) {
       case 'sync':
         // update local data before moving, set to false since it'll be reset after
-        if (!await space.init({name: space.name, synced: false, data: targetBucket[space.name]})) {
+        try {
+          await space.init({name: space.name, synced: false, data: targetBucket[space.name]});
+        } catch (e) {
+          console.error(e);
           alert(i18n('error_shift_failed'));
           return false;
         }

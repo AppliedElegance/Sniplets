@@ -293,14 +293,14 @@ async function mergeCustomFields(content, fields) {
 
 async function requestOrigins(origins) {
   const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || []);
-  // console.log(origins?.length);
   const request = await confirmSelection(i18n('request_origins'), [
     {title: i18n('request_all_site_permissions'), value: allUrls},
     {title: i18n('request_site_permissions'), value: JSON.stringify(origins)},
   ], i18n('action_permit'));
   if (request) {
-    return chrome.permissions.request({origins: JSON.parse(request)})
-    .catch((e) => console.warn(e));
+    return chrome.permissions.request({
+      origins: JSON.parse(request),
+    }).catch((e) => console.error(e));
   }
   return false;
 }

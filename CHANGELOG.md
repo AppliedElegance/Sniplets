@@ -39,7 +39,7 @@
 
 > Custom placeholder support & major bugfix for context menus
 
-- Implemented support for custom placeholders, `$[name]`, `$[name{default}]` and `$[name{select1|selectn...}]` all work as expected with the additional ability to add the input type in brackets a la `$[name(date)]` for a date picker; default values can be added after  la `$[name(time){12:00}]`
+- Implemented support for custom placeholders, `$[name]`, `$[name{default}]` and `$[name{select1|selectN...}]` all work as expected with the additional ability to add the input type in brackets a la `$[name(date)]` for a date picker; default values can be added after  la `$[name(time){12:00}]`
 - Fixed a bug where editing snippets would cause the context menu to disappear until the browser is reloaded
 - Fixed the back button to only go back to the last folder rather than root
 

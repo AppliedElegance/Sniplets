@@ -1,0 +1,22 @@
+- Want to speed up your work with saved text templates?
+- Want to throw some info over from one of your computers to another?
+- Moving from Firefox to {Chrome|Edge} and miss your Clippings extension?
+
+This extension 'snips' text from pages you visit (or you can create them manually) and saves them in your browser, allowing you to quickly insert them into forms and editors. Fully backup compatible with the Clippings extension for Firefox.
+
+MAIN FEATURES
+- Snip/clip text from a webpage using the context menu or Alt+Shift+C where available.
+- Insert saved text automatically using the context menu
+- Use standard and custom placeholders for each time a sniplet is pasted or sent to the clipboard
+- Easily organize sniplets with folder management, drag & drop and colour highlighting
+- Backup and restore from Clippings
+- Work locally, synchronize across logged in browsers or do both depending on your needs
+
+KNOWN LIMITATIONS
+- Keyboard shortcuts will not work on selections inside cross-origin iframes (embedded pages on a different domain)
+- Context menus and keyboard shortcuts will not work on browser pages or the extension store
+
+TRANSLATIONS
+Community translations can be submitted on GitLocalize (https://gitlocalize.com/repo/9393)
+
+NOTE: As of v0.10.4, this extension has been renamed Sniplets for ease of finding in the store. You may still see the old name Snippets during this transition period.

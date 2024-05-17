@@ -42,6 +42,9 @@ module.exports = {
         //"no-param-reassign": "error",
         "prefer-arrow-callback": "error",
         "arrow-body-style": "error",
+        "require-await": "error",
+        "prefer-promise-reject-errors": "error",
+        "no-promise-executor-return": "error",
     },
     "globals": {
         "colors": false,

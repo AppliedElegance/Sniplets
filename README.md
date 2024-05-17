@@ -16,7 +16,7 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 - Work locally, synchronize across logged in browsers or do both depending on your needs
 
 > [!TIP]
-> Translations can now be requested and worked on by the community on [GitLocalize](https://gitlocalize.com/repo/9628).
+> Translations can now be requested and worked on by the community on [GitLocalize](https://gitlocalize.com/repo/9628) or [Crowdin](https://crowdin.com/project/sniplets).
 
 ## Latest Version Highlights
 

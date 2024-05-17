@@ -32,7 +32,7 @@ const reportBlockedURL = (url) => {
  * @returns {Promise<chrome.scripting.InjectionResult<*>[]>|void}
  */
 const injectScript = (injection) => chrome.scripting.executeScript(injection)
-.catch((e) => (console.warn(e), [])); // pass empty array on error for consistency
+.catch((e) => (console.error(e), [])); // pass empty array on error for consistency
 
 /** Injection script to grab selection text
  * @param {{preserveTags:boolean,saveSource:boolean}} options
@@ -190,7 +190,7 @@ const paste = (snip, richText) => {
       // console.log(frame?.location.href);
       if (frame) return insertText(frame);
     } catch (e) {
-      console.warn(e);
+      console.error(e);
       // cross-origin throws a "SecurityError", normally checked using copy command
       return {
         error: e.name,
@@ -325,7 +325,7 @@ async function pasteSnippet(target, seq, actionSpace, {pageUrl, frameUrl} = {}) 
     });
     return;
   }
-  const {snip, customFields} = await space.getProcessedSnippet(seq) || {};
+  const {snip, customFields, counters} = await space.getProcessedSnippet(seq) || {};
   if (!snip) {
     setFollowup('alert', {
       title: i18n('title_snip_not_found'),
@@ -373,19 +373,23 @@ async function pasteSnippet(target, seq, actionSpace, {pageUrl, frameUrl} = {}) 
       action: 'paste',
       target: target,
       snip: snip,
-      ...customFields?.size ? {customFields: Array.from(customFields.entries())} : {},
+      actionSpace: actionSpace,
+      ...customFields ? {customFields: Array.from(customFields.entries())} : {},
+      ...counters ? {counters: Array.from(counters.entries())} : {},
     });
     return;
   }
   
   // check for custom placeholders that need to be confirmed by the user before pasting
   // console.log(customFields);
-  if (customFields?.size) {
+  if (customFields) {
     setFollowup('placeholders', {
       action: 'paste',
       target: target,
       snip: snip,
+      actionSpace: actionSpace,
       customFields: Array.from(customFields.entries()),
+      ...counters ? {counters: Array.from(counters.entries())} : {},
     });
     return;
   }
