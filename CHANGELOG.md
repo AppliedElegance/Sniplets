@@ -1,15 +1,19 @@
 # Sniplets Changelog
 
-> This extension was known as Snippets up to and including v0.10.3
+> NOTE: This extension was known as Snippets up to v0.10.3
 
-## 0.10.4 (2024-05-13)
+## v0.10.4
+
+- Cleaned up icons
+
+## v0.10.4 (2024-05-13)
 
 > Fixed sync error when clearing all data
 
 - Moved synced data recovery from back to front-end since store-deployed extensions handle clearing data in parallel, resulting in a race condition not seen in a test environment
 - Changed name from Snippets to Sniplets for easier searching on the Chrome Web Store and to avoid confusion with the [Chrome DevTools Snippets feature](https://developer.chrome.com/docs/devtools/javascript/snippets/)
 
-## 0.10.3 (2024-05-10)
+## v0.10.3 (2024-05-10)
 
 > Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)
 > Special thanks to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
@@ -31,7 +35,7 @@
 - Fixed an issue where clearing all data needed to be done twice before it was visible
 - Fixed an issue moving deeply nested items around
 
-## 0.10.1 (2023-12-12)
+## v0.10.1 (2023-12-12)
 
 > Custom placeholder support & major bugfix for context menus
 
@@ -39,7 +43,7 @@
 - Fixed a bug where editing snippets would cause the context menu to disappear until the browser is reloaded
 - Fixed the back button to only go back to the last folder rather than root
 
-## 0.10.0 (2023-12-06)
+## v0.10.0 (2023-12-06)
 
 > Basic placeholder support along with many display updates and bugfixes
 
@@ -51,11 +55,11 @@
 - Fixed backup and restore code on Edge (a big bug in v0.9.3)
 - Many more QOL changes under the hood
 
-## 0.9.3 (2023-09-04)
+## v0.9.3 (2023-09-04)
 
 > Display fix due to a chrome update that changes how flex containers are expanded
 
-## 0.9.2 (2023-08-23)
+## v0.9.2 (2023-08-23)
 
 > Many under the hood updates to improve efficiency and fix issues with iframes
 
@@ -67,13 +71,13 @@
 - Fixed an issue where ampersands would not appear in the paste menu
 - Fixed an issue where the extension would forget whether to sync or not
 
-## 0.9.1 (2023-07-28)
+## v0.9.1 (2023-07-28)
 
 > Removed unnecessary permissions from updated manifest
 
 - all site permissions were required for iframes, but not necessary for most sites and adds a scary warning
 
-## 0.9
+## v0.9
 
 > Manifest v3 rewrite
 
@@ -92,7 +96,7 @@
   - Colour selection (may be updated in future)
   - Sort buttons as alternative to dragging
 
-## 0.8.3
+## v0.8.3
 
 > Initial public release
 
