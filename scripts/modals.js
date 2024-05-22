@@ -230,11 +230,23 @@ function showAbout() {
         textContent: i18n('app_description'),
       }),
       buildNode('hr'),
-      buildNode('a', {href: `https://github.com/AppliedElegance/Sniplets/issues/`, textContent: i18n('app_report_issue')}),
+      buildNode('a', {
+        href: `https://github.com/AppliedElegance/Sniplets/issues/`,
+        target: '_blank',
+        textContent: i18n('app_report_issue'),
+      }),
       document.createTextNode(` | `),
-      buildNode('a', {href: `https://gitlocalize.com/repo/9628`, textContent: i18n('app_translate')}),
+      buildNode('a', {
+        href: `https://crowdin.com/project/sniplets`,
+        target: '_blank',
+        textContent: i18n('app_translate'),
+      }),
       document.createTextNode(` | `),
-      buildNode('a', {href: `https://github.com/sponsors/jpc-ae`, textContent: i18n('app_donate')}),
+      buildNode('a', {
+        href: `https://github.com/sponsors/jpc-ae`,
+        target: '_blank',
+        textContent: i18n('app_donate'),
+      }),
     ],
     buttons: [{title: i18n('ok'), value: `esc`}],
   });

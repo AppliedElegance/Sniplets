@@ -1478,12 +1478,7 @@ async function handleAction(target) {
   case 'pop-out': {
     const url = new URL(location.href);
     url.searchParams.delete('popout');
-    chrome.windows.create({
-      url: url.href,
-      type: "popup",
-      width: 867,
-      height: 540,
-    });
+    await openPopup();
     window.close();
     break; }
   
