@@ -319,14 +319,21 @@ function buildMenu() {
   // console.log(startVal, counters);
   return [
     buildSubMenu(i18n("menu_view"), `settings-view`, [
+      buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'popup',
+        {id: 'set-view-action-popup', title: i18n('menu_set_view_action_popup')}),
+      buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'panel',
+        {id: 'set-view-action-panel', title: i18n('menu_set_view_action_panel')}),
+      buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'window',
+        {id: 'set-view-action-window', title: i18n('menu_set_view_action_window')}),
+      buildMenuSeparator(),
       buildMenuControl('checkbox', `toggle-folders-first`,
         i18n("menu_folders_first"), settings.sort.foldersOnTop),
-        buildMenuControl('checkbox', `toggle-adjust-editors`,
-          i18n("menu_adjust_textarea"), settings.view.adjustTextArea),
+      buildMenuControl('checkbox', `toggle-adjust-editors`,
+        i18n("menu_adjust_textarea"), settings.view.adjustTextArea),
       buildMenuControl('checkbox', `toggle-show-source`,
         i18n("menu_show_src"), settings.view.sourceURL),
-        buildMenuControl('checkbox', `toggle-remember-path`,
-          i18n("menu_remember_path"), settings.view.rememberPath),
+      buildMenuControl('checkbox', `toggle-remember-path`,
+        i18n("menu_remember_path"), settings.view.rememberPath),
     ]),
     buildSubMenu(i18n("menu_snip"), `settings-snip`, [
       buildMenuControl('checkbox', `toggle-save-source`,
@@ -353,8 +360,8 @@ function buildMenu() {
             title: i18n("menu_count_x") + (customStartVal ? ` (${i18nNum(startVal)})…` : `…`),
           }),
       ]),
-      Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
-      Object.keys(counters).length && buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
+      ...Object.keys(counters).length ? buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`) : [],
+      ...Object.keys(counters).length ? buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`) : [],
     ]),
     buildSubMenu(i18n("menu_data"), `settings-data`, [
       buildMenuControl('checkbox', `toggle-data-compression`,
@@ -983,7 +990,8 @@ async function handleAction(target) {
   switch (dataset.action) {
   // window open action
   case 'focus':
-    target = q$(`#snippets [data-field=${dataset.field || `"content"`}][data-seq="${dataset.seq}"]`);
+    dataset.field ||= 'content';
+    target = q$(`#snippets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`);
     // console.log("Focusing field", target, `#snippets [data-field="${dataset.field || `content`}"][data-seq="${dataset.seq}"]`);
     if (!target) break;
     // scroll entire card into view
@@ -993,8 +1001,15 @@ async function handleAction(target) {
       target.parentElement.querySelector('[action="rename"]').click();
     } else {
       target.focus();
-      // set cursor at the end
-      if (window.getSelection) target.selectionStart = target.selectionEnd = target.value.length;
+      // if editing content, set cursor at the end, otherwise select all
+      if ( true
+        && dataset.field === 'content'
+        && window.getSelection
+      ) {
+        target.selectionStart = target.selectionEnd = target.value.length;
+      } else {
+        target.select();
+      }
     }
     break;
 

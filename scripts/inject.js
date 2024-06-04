@@ -47,7 +47,7 @@ const returnSnip = ({preserveTags, saveSource}) => {
       const frame = window.document.activeElement.contentWindow;
       if (frame) return getText(frame);
     } catch (e) {
-      // console.log('Error', e);
+      // console.error('Error', e);
       // cross-origin throws a "SecurityError"
       return {
         error: e.name,

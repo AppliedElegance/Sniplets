@@ -242,15 +242,15 @@ class Settings {
       groupBy: groupBy,
       foldersOnTop: foldersOnTop,
     });
-    /** @type {{by:string,groupBy:string,foldersOnTop:boolean}} */
+    /** @type {{by:('seq'|'name'),groupBy:(''|'color'|'src'),foldersOnTop:boolean}} */
     this.sort = setSort(sort);
-    const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false, sidePanel = false} = {}) => ({
+    const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false, action = 'popup'} = {}) => ({
       adjustTextArea: adjustTextArea,
       sourceURL: sourceURL,
       rememberPath: rememberPath,
-      sidePanel: sidePanel,
+      action: action,
     });
-    /** @type {{adjustTextArea:boolean,sourceURL:boolean,rememberPath:boolean,sidePanel:boolean}} */
+    /** @type {{adjustTextArea:boolean,sourceURL:boolean,rememberPath:boolean,action:('popup'|'panel'|'window')}} */
     this.view = setView(view);
     const setControl = ({saveSource = false, preserveTags = false, rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true} = {}) => ({
       saveSource: saveSource,
@@ -321,9 +321,9 @@ class Snippet extends TreeItem {
     // generate name from content if provided
     if (!name && content) {
       // create snippet title from first line of text
-      name = content.match(/^.+/)[0];
+      name = content.match(/^.*/)[0];
       const maxLength = 27;
-      if (content.length > maxLength) {
+      if (name.length > maxLength) {
         // cut down to size, then chuck trailing text if possible so no words are cut off
         name = name.slice(0, maxLength + 1);
         name = `${name.includes(' ')
@@ -428,7 +428,6 @@ class DataBucket {
       // read the decompressed stream
       const dataBlob = await new Response(stream).blob();
       // return decompressed and deserialized text
-      // console.log(dataBlob);
       this.children = this.restructure(JSON.parse(await dataBlob.text()));
       return this;
     } catch (e) {

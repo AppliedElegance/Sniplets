@@ -336,13 +336,13 @@ function buildItemWidget(item, list, path, settings) {
           seq: item.seq,
         }),
       ] : [
+        buildActionIcon(i18n('action_insert'), 'icon-insert', 'inherit', {
+          action: 'insert-contents',
+          seq: item.seq,
+        }),
         buildActionIcon(i18n('action_copy'), 'icon-copy', 'inherit', {
           action: 'copy',
           field: 'copy', // so it can be focused
-          seq: item.seq,
-        }),
-        buildActionIcon(i18n('action_insert'), 'icon-insert', 'inherit', {
-          action: 'insert-contents',
           seq: item.seq,
         }),
       ],
