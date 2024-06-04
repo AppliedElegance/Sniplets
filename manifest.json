@@ -33,6 +33,9 @@
     "default_title": "__MSG_app_command_open__",
     "default_popup": "popup/main.html?popout=true"
   },
+  "side_panel": {
+    "default_path": "popup/main.html"
+  },
   "commands": {
     "_execute_action": {
       "suggested_key": {

@@ -46,7 +46,7 @@ const legacyColors = new Map()
 /** Open a new popup window
  * @param {{[name:string]:string}} params
  */
-const openPopup = (params = {}) => {
+const openWindow = (params = {}) => {
   const src = new URL(chrome.runtime.getURL("popup/main.html"));
   // console.log(src.href, params);
   for (const [name, value] of Object.entries(params)) {
@@ -66,7 +66,7 @@ const openPopup = (params = {}) => {
  * @param {number[]} path
  * @param {number} seq
  */
-const openForEditing = (path, seq) => openPopup({
+const openForEditing = (path, seq) => openWindow({
   action: 'focus',
   path: path.join('-'),
   seq: seq,
@@ -110,12 +110,32 @@ const removeStorageData = (keys, sync = false) => {
 */
 const getCurrentSpace = async () => (await getStorageData('currentSpace'))?.currentSpace;
 
+/** Open correct type of popup depending on setting */
+const openPopup = async () => {
+  const settings = new Settings();
+  await settings.load();
+  if (settings.view.action === 'popup' && chrome.action.openPopup) {
+    // only available in dev/canary when there's an active window, soon moving to stable
+    chrome.action.openPopup().catch((e) => {
+      console.error(e);
+      openWindow();
+    });
+  } else if (settings.view.action === 'panel' && chrome.sidePanel.open) {
+    chrome.sidePanel.open().catch((e) => {
+      console.error(e);
+      openWindow();
+    });
+  } else {
+    openWindow();
+  }
+};
+
 /** Stores data required for following up on a task and opens a window to action it
  * @param {string} type Action which needs handling in a popup window
  * @param {{[key:string]:*}} args Properties needed by the followup function
  * @param {boolean} [popup=true] Open in the popup rather than a new window
  */
-const setFollowup = async (type, args, popup = true) => {
+const setFollowup = async (type, args) => {
   await chrome.storage.session.set({ followup: {
     type: type,
     args: args || {}, // default value for destructuring
@@ -125,15 +145,7 @@ const setFollowup = async (type, args, popup = true) => {
   }).catch((e) => {
     // likely no open windows
     console.error(e);
-    if (popup && chrome.action.openPopup) {
-      // only available in dev/canary when there's an active window
-      chrome.action.openPopup().catch((e) => {
-        console.error(e);
-        openPopup();
-      });
-    } else {
-      openPopup();
-    }
+    openPopup();
   });
   return;
 };

@@ -53,7 +53,7 @@ module.exports = {
         "uiLocale": false,
         "i18nNum": false,
         "i18nOrd": false,
-        "openPopup": false,
+        "openWindow": false,
         "openForEditing": false,
         "getStorageData": false,
         "setStorageData": false,

@@ -144,7 +144,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
       setFollowup('alert', {
         title: i18n('title_snip_blocked'),
         message: i18n('error_snip_blocked'),
-      }, false);
+      });
       return;
     }
     // pass off to permissions window through service worker

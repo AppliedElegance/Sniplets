@@ -505,12 +505,12 @@
     "message": "Help translate"
   },
   "menu_set_view_action_popup": {
-    "message": "Open in popup"
+    "message": "Always open popup"
   },
   "menu_set_view_action_panel": {
-    "message": "Open in side panel"
+    "message": "Always open side panel"
   },
   "menu_set_view_action_window": {
-    "message": "Open in window"
+    "message": "Always open new window"
   }
 }

@@ -5,6 +5,24 @@ if(typeof importScripts === 'function') {
   importScripts("./scripts/inject.js");
 }
 
+const setDefaultAction = (action) => {
+  // set popup action
+  if (action === 'popup') {
+    chrome.action.setPopup({popup: 'popup/main.html?popout=true'});
+  } else {
+    chrome.action.setPopup({popup: ''});
+  }
+
+  // set side panel action
+  if (action === 'panel') {
+    chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: true})
+      .catch((error) => console.error(error));
+  } else {
+    chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: false})
+      .catch((error) => console.error(error));
+  }
+};
+
 // init on installation
 chrome.runtime.onInstalled.addListener(async (details) => {
   // force refresh
@@ -32,6 +50,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
     settings.save();
   }
+
+  // set default action as needed
+  setDefaultAction(settings.view.action);
 
   // prepare space for init
   const space = new Space();
@@ -89,9 +110,14 @@ chrome.runtime.onStartup.addListener(async () => {
   if (await space.loadCurrent()) buildContextMenus(space);
 });
 
-// TODO: add setting to load popout instead of popup
 // (the below code only triggers when no popup url set)
-// chrome.action.onClicked.addListener(() => openPopup());
+chrome.action.onClicked.addListener(async () => {
+  const settings = new Settings();
+  await settings.load();
+  if (settings.view.action === 'window') {
+    openWindow();
+  }
+});
 
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener((data, tab) => {
@@ -153,6 +179,12 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     // console.log(key, changes[key], areaName);
     // ignore updates to currentSpace itself
     if (key === 'currentSpace') continue;
+
+    // check for settings updates and update the action as necessary
+    if ( true
+      && key === 'settings'
+      && changes[key].newValue.view.action !== changes[key].oldValue.view.action
+    ) setDefaultAction(changes[key].newValue.view.action);
 
     // check for data updates
     if (changes[key].newValue?.children) {

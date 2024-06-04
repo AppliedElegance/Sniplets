@@ -321,9 +321,9 @@ function buildMenu() {
     buildSubMenu(i18n("menu_view"), `settings-view`, [
       buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'popup',
         {id: 'set-view-action-popup', title: i18n('menu_set_view_action_popup')}),
-      buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'panel',
+      buildMenuControl('radio', `set-view-action`, 'panel', settings.view.action === 'panel',
         {id: 'set-view-action-panel', title: i18n('menu_set_view_action_panel')}),
-      buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'window',
+      buildMenuControl('radio', `set-view-action`, 'window', settings.view.action === 'window',
         {id: 'set-view-action-window', title: i18n('menu_set_view_action_window')}),
       buildMenuSeparator(),
       buildMenuControl('checkbox', `toggle-folders-first`,
@@ -1219,6 +1219,15 @@ async function handleAction(target) {
     break; }
 
   // settings
+  case 'set-view-action':
+    console.log(settings.view.action, target.value);
+    if (settings.view.action === target.value) break;
+    if (['popup','panel','window'].includes(target.value)) {
+      settings.view.action = target.value;
+      await settings.save();
+    }
+    break;
+
   case 'toggle-remember-path':
     settings.view.rememberPath = !settings.view.rememberPath;
     settings.save();
@@ -1493,7 +1502,7 @@ async function handleAction(target) {
   case 'pop-out': {
     const url = new URL(location.href);
     url.searchParams.delete('popout');
-    await openPopup();
+    await openWindow();
     window.close();
     break; }
   
