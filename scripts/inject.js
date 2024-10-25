@@ -161,7 +161,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
   // console.log(actionSpace, result);
   const space = new Space();
   if (!(actionSpace.name && await space.load(actionSpace)) && !(await space.loadCurrent())) return;
-  const newSnip = space.addItem(new Snippet(result));
+  const newSnip = space.addItem(new Sniplet(result));
   space.sort(settings.sort);
   await space.save();
   openForEditing(space.path, newSnip.seq);
@@ -169,7 +169,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
 }
 
 /** Injection script for pasting.
- * @param {Snippet} snip
+ * @param {Sniplet} snip
  * @param {string} richText
  */
 const paste = (snip, richText) => {
@@ -300,14 +300,14 @@ const insertSnip = async (target, snip) => (await injectScript({
 }))[0]?.result;
 
 /**
- * Retrieve and paste a snippet into the selection found at the target
+ * Retrieve and paste a sniplet into the selection found at the target
  * @param {{allFrames:boolean,frameIds:number[],tabId:number}} target 
  * @param {number} seq 
  * @param {{name:string,synced:boolean,path:number[]}} actionSpace 
  * @param {{pageUrl:string,frameUrl:string}} urls 
  * @returns {Promise<void>}
  */
-async function pasteSnippet(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
+async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
   const url = frameUrl || pageUrl;
 
   // make sure we have a seq of something to paste
@@ -316,7 +316,7 @@ async function pasteSnippet(target, seq, actionSpace, {pageUrl, frameUrl} = {}) 
   // check if we're on a known blocked page
   if (isBlockedURL(url)) return reportBlockedURL(url);
   
-  // retrieve snippet from space
+  // retrieve sniplet from space
   const space = new Space();
   if (!(actionSpace.name && await space.load(actionSpace))) {
     setFollowup('alert', {
@@ -325,7 +325,7 @@ async function pasteSnippet(target, seq, actionSpace, {pageUrl, frameUrl} = {}) 
     });
     return;
   }
-  const {snip, customFields, counters} = await space.getProcessedSnippet(seq) || {};
+  const {snip, customFields, counters} = await space.getProcessedSniplet(seq) || {};
   if (!snip) {
     setFollowup('alert', {
       title: i18n('title_snip_not_found'),

@@ -8,11 +8,11 @@
     "description": "Name of the extension."
   },
   "app_description": {
-    "message": "Quickly snip, organize and insert text. Backup-compatible with Clippings.",
+    "message": "Snip/file/paste: Clippings-compatible post-it binder.",
     "description": "Plain <132 character description of the extension highlighting the name of Firefox rival."
   },
   "app_command_open": {
-    "message": "Open Snippets Manager",
+    "message": "Open Sniplets Manager",
     "description": "Description of shortcut for opening the extension."
   },
   "app_command_copy": {
@@ -20,7 +20,7 @@
     "description": "Description of shortcut for initiating a snip action."
   },
   "app_command_paste": {
-    "message": "Paste a snippet",
+    "message": "Paste a sniplet",
     "description": "Description of shortcut for initiating a paste action."
   },
   "warning_site_permissions": {
@@ -36,11 +36,11 @@
     "description": "Button text for requesting full permissions on all allowed domains."
   },
   "error_paste_failed": {
-    "message": "Sorry, something went wrong. Possibly the page is no longer available or pasting into this field has been blocked specifically by your browser or another extension. Please check and try again, or copy the selected snippet using the clipboard feature and paste it in manually.",
+    "message": "Sorry, something went wrong. Possibly the page is no longer available or pasting into this field has been blocked specifically by your browser or another extension. Please check and try again, or copy the selected sniplet using the clipboard feature and paste it in manually.",
     "description": "Error message displayed to the user when unable to fulfil a paste request."
   },
   "error_paste_blocked": {
-    "message": "Sorry, pasting directly into this page is blocked by your browser. If you used a keyboard shortcut, please try again using the context menu. Otherwise, please copy the selected snippet to the clipboard and paste it in manually.",
+    "message": "Sorry, pasting directly into this page is blocked by your browser. If you used a keyboard shortcut, please try again using the context menu. Otherwise, please copy the selected sniplet to the clipboard and paste it in manually.",
     "description": "Error message displayed to the user when trying to paste from the context menu on a page where scripts are not allowed."
   },
   "error_snip_failed": {
@@ -48,7 +48,7 @@
     "description": "Error message displayed to the user when unable to fulfil a snip request."
   },
   "error_snip_permission_denied": {
-    "message": "Permission has not been granted. Please copy and add the snippet manually.",
+    "message": "Permission has not been granted. Please copy and add the sniplet manually.",
     "description": "Error message displayed to the user when trying to snip and requested browser permissions were denied by the user."
   },
   "title_custom_placeholders": {
@@ -58,6 +58,10 @@
   "confirm": {
     "message": "Confirm",
     "description": "Button text for confirming modal selections."
+  },
+  "menu_settings": {
+    "message": "Settings",
+    "description": "Menu text for showing the xxx menu."
   },
   "menu_view": {
     "message": "View",
@@ -76,8 +80,8 @@
     "description": "Menu text for showing the xxx menu."
   },
   "menu_show_src": {
-    "message": "Show sources field",
-    "description": "Menu text for toggling the option to show the source field underneath the snippets editor."
+    "message": "Show source field",
+    "description": "Menu text for toggling the option to show the source field underneath the sniplets editor."
   },
   "menu_save_src": {
     "message": "Save page URL as source",
@@ -85,7 +89,7 @@
   },
   "menu_clear_src": {
     "message": "Clear saved sources",
-    "description": "Menu text for clearing all source urls associated with snippets."
+    "description": "Menu text for clearing all source urls associated with sniplets."
   },
   "menu_counters": {
     "message": "Counters",
@@ -156,11 +160,14 @@
   "action_start_sync": {
     "message": "Start Syncing"
   },
+  "menu_add_item": {
+    "message": "Add Item"
+  },
   "action_add_folder": {
     "message": "New Folder"
   },
-  "action_add_snippet": {
-    "message": "New Snippet"
+  "action_add_sniplet": {
+    "message": "New Sniplet"
   },
   "action_pop_out": {
     "message": "Pop Out"
@@ -168,8 +175,8 @@
   "label_folder_name": {
     "message": "Folder Name"
   },
-  "label_snippet_name": {
-    "message": "Snippet Name"
+  "label_sniplet_name": {
+    "message": "Sniplet Name"
   },
   "error_folder_to_child": {
     "message": "Sorry, a folder can’t be moved inside its child folder."
@@ -187,7 +194,7 @@
     "message": "The data could not be restored, please check the file and try again."
   },
   "alert_copied": {
-    "message": "The snippet has been copied to the clipboard."
+    "message": "The sniplet has been copied to the clipboard."
   },
   "warning_clear_src": {
     "message": "Are you sure you would like to remove all source data? This cannot be undone."
@@ -210,8 +217,8 @@
   "submit": {
     "message": "Submit"
   },
-  "warning_delete_snippet": {
-    "message": "Would you would like to delete this snippet? This action cannot be undone."
+  "warning_delete_sniplet": {
+    "message": "Would you would like to delete this sniplet? This action cannot be undone."
   },
   "app_report_issue": {
     "message": "Report an issue"
@@ -249,8 +256,8 @@
   "action_delete": {
     "message": "Delete"
   },
-  "label_snippet_content": {
-    "message": "Snippet Contents"
+  "label_sniplet_content": {
+    "message": "Sniplet Contents"
   },
   "label_src": {
     "message": "Source:"
@@ -264,11 +271,11 @@
   "title_new_folder": {
     "message": "New Folder"
   },
-  "title_new_snippet": {
-    "message": "New Snippet"
+  "title_new_sniplet": {
+    "message": "New Sniplet"
   },
   "warning_sync_full": {
-    "message": "The current snippets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back."
+    "message": "The current sniplets data is too large to sync. Would you like to switch this space to local storage? If not, the last change will be rolled back."
   },
   "ordinal_zero": {
     "message": "$number$th",
@@ -328,13 +335,13 @@
     "message": "Data was found. Do you want to overwrite it? This cannot be undone, so please ensure you have a backup if needed."
   },
   "error_sync_full": {
-    "message": "Sorry, the current snippets data is too large to sync."
+    "message": "Sorry, the current sniplets data is too large to sync."
   },
   "action_snip_selection": {
     "message": "Snip selection…"
   },
   "action_paste": {
-    "message": "Paste Snippet"
+    "message": "Paste Sniplet"
   },
   "folder_empty": {
     "message": "Empty…"
@@ -385,7 +392,7 @@
     "message": "The current extension storage seems to be corrupt. Would you like to clear it?"
   },
   "error_snip_blocked": {
-    "message": "Sorry, something went wrong. Likely, your browser has completely blocked the extension from accessing your selection. If you used a keyboard shortcut, please try again with the right-click context menu. Otherwise, please copy and paste the selection manually into a new snippet."
+    "message": "Sorry, something went wrong. Likely, your browser has completely blocked the extension from accessing your selection. If you used a keyboard shortcut, please try again with the right-click context menu. Otherwise, please copy and paste the selection manually into a new sniplet."
   },
   "error_scripting_blocked": {
     "message": "For security reasons, the browser does not allow extensions to affect this page ($url$). Please copy and paste manually using the popup window..",
@@ -403,10 +410,10 @@
     "message": "Unfortunately, the CKEditor used by this site reverts any changes made by extensions. Please use the copy feature and paste manually instead."
   },
   "title_snip_not_found": {
-    "message": "Snippet Not Found"
+    "message": "Sniplet Not Found"
   },
   "warning_snip_not_found": {
-    "message": "Sorry, the requested snippet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current snippets to prevent data loss."
+    "message": "Sorry, the requested sniplet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current sniplets to prevent data loss."
   },
   "menu_clear_sync": {
     "message": "Clear cloud data"
@@ -462,6 +469,9 @@
   "menu_adjust_textarea": {
     "message": "Resize editors automatically"
   },
+  "menu_item": {
+    "message": "Item"
+  },
   "color_default": {
     "message": "Default"
   },
@@ -487,7 +497,7 @@
     "message": "Grey"
   },
   "default_space_name": {
-    "message": "Snippets"
+    "message": "Sniplets"
   },
   "option_clear_srcs": {
     "message": "Would you like to remove any currently saved source links?"
@@ -512,5 +522,14 @@
   },
   "menu_set_view_action_window": {
     "message": "Always open new window"
+  },
+  "warning_panel_permissions": {
+    "message": "The side panel requires additional site permissions for the insert feature to work correctly. To grant these, click Permit and accept the browser request. Alternatively, the side panel can be opened on a specific site by right-clicking the toolbar icon and selecting the side panel option."
+  },
+  "open_side_panel": {
+    "message": "Open Side Panel"
+  },
+  "open_new_window": {
+    "message": "Open Window"
   }
 }

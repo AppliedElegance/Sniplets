@@ -8,18 +8,20 @@ if(typeof importScripts === 'function') {
 const setDefaultAction = (action) => {
   // set popup action
   if (action === 'popup') {
-    chrome.action.setPopup({popup: 'popup/main.html?popout=true'});
+    chrome.action.setPopup({popup: 'popup/main.html?view=popup'})
+    .catch((error) => console.error(error));
   } else {
-    chrome.action.setPopup({popup: ''});
+    chrome.action.setPopup({popup: ''})
+    .catch((error) => console.error(error));
   }
 
   // set side panel action
   if (action === 'panel') {
     chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: true})
-      .catch((error) => console.error(error));
+    .catch((error) => console.error(error));
   } else {
     chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: false})
-      .catch((error) => console.error(error));
+    .catch((error) => console.error(error));
   }
 };
 
@@ -51,6 +53,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     settings.save();
   }
 
+  // make the side panel open on a per tab basis
+  chrome.sidePanel.setOptions({
+    enabled: false,
+  });
+
   // set default action as needed
   setDefaultAction(settings.view.action);
 
@@ -61,7 +68,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const currentSpace = await getCurrentSpace();
   // console.log(currentSpace);
   if (!(await space.load(currentSpace || settings.defaultSpace))) {
-    // legacy check for existing snippets
+    // legacy check for existing sniplets
     // console.log("Checking for legacy data...");
     const legacySpace = {name: "snippets", synced: true};
     if (await space.load(legacySpace)) {
@@ -86,14 +93,16 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         await settings.save();
         await space.init(); // if it still throws the extension is borked
       }
+      
       if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
         const starterPath = `/_locales/${i18n('locale')}/starter.json`;
         try {
           const starterFile = await fetch(starterPath);
-          const starterData = new DataBucket(await starterFile.json());
+          const starterContent = await starterFile.json();
+          const starterData = new DataBucket(starterContent.data);
           space.data = await starterData.parse();
         } catch (e) {
-          console.error(`Starter data could not be found at ${starterPath}`, e);
+          console.error(`Starter data could not be loaded at ${starterPath}`, e);
         }
       }
       await space.save();
@@ -110,13 +119,19 @@ chrome.runtime.onStartup.addListener(async () => {
   if (await space.loadCurrent()) buildContextMenus(space);
 });
 
-// (the below code only triggers when no popup url set)
-chrome.action.onClicked.addListener(async () => {
-  const settings = new Settings();
-  await settings.load();
-  if (settings.view.action === 'window') {
-    openWindow();
-  }
+// Open the side panel when popup is not set
+chrome.action.onClicked.addListener((tab) => {
+  // openPanel(tab);
+  const src = new URL(chrome.runtime.getURL("popup/main.html?view=panel"));
+  chrome.sidePanel.setOptions({
+    tabId: tab.id,
+    enabled: true,
+    path: src.href,
+  }, () => {
+    chrome.sidePanel.open({
+      tabId: tab.id,
+    });
+  });
 });
 
 // set up context menu listener
@@ -140,7 +155,7 @@ chrome.contextMenus.onClicked.addListener((data, tab) => {
     break;
 
   case 'paste': {
-    pasteSnippet(target, seq, menuSpace, data);
+    pasteSnip(target, seq, menuSpace, data);
     break;
   }
 
@@ -183,10 +198,11 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     // check for settings updates and update the action as necessary
     if ( true
       && key === 'settings'
-      && changes[key].newValue.view.action !== changes[key].oldValue.view.action
+      && changes[key].newValue
+      && changes[key].newValue.view.action !== changes[key].oldValue?.view.action
     ) setDefaultAction(changes[key].newValue.view.action);
 
-    // check for data updates
+    // check for data updates, key can be anything
     if (changes[key].newValue?.children) {
       // send a message to update any open windows
       chrome.runtime.sendMessage({

@@ -28,114 +28,112 @@ const debounce = function setDelay(f, delay) {
 };
 const resizing = new ResizeObserver(debounce(adjustPath, 0));
 
-const checkFollowup = async () => {
-  // check for followups before loading snippets
-  const followup = await fetchFollowup();
-  if (followup) {
-    /** @type {{type:string,args:{[key:string]:*}}} */
-    const {type, args} = followup;
-    // console.log(type, args);
+const handleFollowup = async ({type, args}) => {
+  // counter rollback
+  const rollBackCounters = async () => {
+    const counters = new Map(args?.counters || []);
+    if (counters.size && await space.load(args.actionSpace)) {
+      space.setCounters(counters);
+    }
+  };
 
-    // counter rollback
-    const rollBackCounters = async () => {
-      const counters = new Map(args?.counters || []);
-      if (counters.size && await space.load(args.actionSpace)) {
-        space.setCounters(counters);
-      }
-    };
-
-    /** Confirm any custom placeholders and merge them */
-    const mergeAndPaste = async () => {
-      const {snip, target} = args;
-      const customFields = new Map(args.customFields || []);
-      // console.log(target, snip, customFields);
-      if (customFields.size) {
-        const text = await mergeCustomFields(snip.content, customFields);
-        // console.log(text);
-        if (!text) {
-          // modal cancelled, rollback if necessary
-          await rollBackCounters();
-          return;
-        }
-        snip.content = text;
-      }
-      if ((await insertSnip(target, snip)).error) {
+  /** Confirm any custom placeholders and merge them */
+  const mergeAndPaste = async () => {
+    const {snip, target} = args;
+    const customFields = new Map(args.customFields || []);
+    // console.log(target, snip, customFields);
+    if (customFields.size) {
+      const text = await mergeCustomFields(snip.content, customFields);
+      // console.log(text);
+      if (!text) {
+        // modal cancelled, rollback if necessary
         await rollBackCounters();
+        return;
       }
-    };
+      snip.content = text;
+    }
+    if ((await insertSnip(target, snip)).error) {
+      await rollBackCounters();
+    }
+  };
 
-    switch (type) {
-    case 'alert':
-      await showAlert(args.message, args.title);
-      break;
+  switch (type) {
+  case 'alert':
+    await showAlert(args.message, args.title);
+    break;
+  
+  case 'permissions': {
+    if (await requestOrigins(args.origins)) {
+      switch (args.action) {
+      case 'snip': 
+        snipSelection(args.target, args.actionSpace);
+        window.close(); // in popup, happens automatically after this function completes
+        return;
     
-    case 'permissions': {
-      if (await requestOrigins(args.origins)) {
-        switch (args.action) {
-        case 'snip': 
-          snipSelection(args.target, args.actionSpace);
-          window.close(); // in popup, happens automatically after this function completes
-          return;
-      
-        case 'paste':
-          await mergeAndPaste();
-          window.close(); // in popup, happens automatically after this function completes
-          return;
-          
-        default:
-          window.close(); // in popup, happens automatically after this function completes
-          return;
-        }
+      case 'paste':
+        await mergeAndPaste();
+        window.close(); // in popup, happens automatically after this function completes
+        return;
+        
+      default:
+        window.close(); // in popup, happens automatically after this function completes
+        return;
       }
-      break; }
-      
-    case 'placeholders':
-      if (args.action === 'paste') await mergeAndPaste(); // should always be true
-      break;
+    }
+    break; }
+    
+  case 'placeholders':
+    if (args.action === 'paste') await mergeAndPaste(); // should always be true
+    break;
 
-    case 'unsynced':
-      // make sure it hasn't already been restored and we're not removing everything
-      if ( false
-        || ((await getStorageData(args.name, true))[args.name])
-        || (!(await getCurrentSpace())) // resolves race condition
-      ) break;
-      
-      // make it possible to keep local data or keep synchronizing on this machine just in case
-      args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
-      // console.log(args);
-      if (args.synced === true || args.synced === false) {
-        // if not currently working on the same data, make do with saving the data
-        const currentSpace = await getCurrentSpace() || settings.defaultSpace;
-        // console.log(currentSpace);
-        if (args.name !== currentSpace.name) {
-          setStorageData({[args.name]: args.data}, args.synced);
-          break;
-        }
-
-        // recover the data
-        try {
-          await space.init(args);
-          if (!(await space.save())) {
-            showAlert(i18n('error_data_corrupt'));
-            break;
-          }
-          // console.log(space);
-          setCurrentSpace();
-          loadSnippets();
-        } catch (e) {
-          console.error(e);
-          showAlert(i18n('error_data_corrupt'));
-        }
-      } else {
-        showAlert(i18n('error_data_corrupt'));
+  case 'unsynced':
+    // make sure it hasn't already been restored and we're not removing everything
+    if ( false
+      || ((await getStorageData(args.name, true))[args.name])
+      || (!(await getCurrentSpace())) // resolves race condition
+    ) break;
+    
+    // make it possible to keep local data or keep synchronizing on this machine just in case
+    args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
+    // console.log(args);
+    if (args.synced === true || args.synced === false) {
+      // if not currently working on the same data, make do with saving the data
+      const currentSpace = await getCurrentSpace() || settings.defaultSpace;
+      // console.log(currentSpace);
+      if (args.name !== currentSpace.name) {
+        setStorageData({[args.name]: args.data}, args.synced);
         break;
       }
+
+      // recover the data
+      try {
+        await space.init(args);
+        if (!(await space.save())) {
+          showAlert(i18n('error_data_corrupt'));
+          break;
+        }
+        // console.log(space);
+        setCurrentSpace();
+        loadSniplets();
+      } catch (e) {
+        console.error(e);
+        showAlert(i18n('error_data_corrupt'));
+      }
+    } else {
+      showAlert(i18n('error_data_corrupt'));
       break;
-    
-    default:
-      break;
-    } // end switch(type)
-  } // end followup
+    }
+    break;
+  
+  default:
+    break;
+  } // end switch(type)
+};
+
+const checkFollowup = async () => {
+  // check for followups before loading sniplets
+  const followup = await fetchFollowup();
+  if (followup) handleFollowup(followup);
 };
 
 // Listen for updates on the fly in case of multiple popout windows
@@ -144,7 +142,7 @@ chrome.runtime.onMessage.addListener(async ({type, args}) => {
     const {timestamp} = args;
     if (timestamp > space.data.timestamp) {
       await space.loadCurrent();
-      loadSnippets();
+      loadSniplets();
     }
   } else if (type === 'followup') {
     checkFollowup();
@@ -166,13 +164,12 @@ const loadPopup = async () => {
 
   // load parameters
   const params = Object.fromEntries(new URLSearchParams(location.search));
-  // console.log("Processing parameters...", params);
 
   // check if opened as popup and set style accordingly
-  if (params.popout) {
-    window.popout = params.popout; // for building header
-    document.body.style.width = "400px"; // column flex collapses width unless set
-    document.body.style.height = "550px";
+  window.view = params.view;
+  if (window.view === 'popup') {
+    document.body.style.width = "360px"; // column flex collapses width unless set
+    document.body.style.height = "540px";
   }
 
   // set up listeners
@@ -210,7 +207,7 @@ const loadPopup = async () => {
     if (settings.view.rememberPath) setCurrentSpace();
   }
 
-  loadSnippets();
+  loadSniplets();
 
   // textarea adjustments
   document.addEventListener('focusin', adjustTextArea, false);
@@ -227,7 +224,7 @@ document.addEventListener('DOMContentLoaded', loadPopup, false);
 
 /**
  * Helper for grouping tree items by type
- * @param {(Folder|Snippet)[]} list 
+ * @param {(Folder|Snip)[]} list 
  * @param {string} type - accepts 'all' or the specific type of TreeItem
  * @returns {Object}
  * @example
@@ -319,12 +316,10 @@ function buildMenu() {
   // console.log(startVal, counters);
   return [
     buildSubMenu(i18n("menu_view"), `settings-view`, [
-      buildMenuControl('radio', `set-view-action`, 'popup', settings.view.action === 'popup',
-        {id: 'set-view-action-popup', title: i18n('menu_set_view_action_popup')}),
-      buildMenuControl('radio', `set-view-action`, 'panel', settings.view.action === 'panel',
-        {id: 'set-view-action-panel', title: i18n('menu_set_view_action_panel')}),
-      buildMenuControl('radio', `set-view-action`, 'window', settings.view.action === 'window',
-        {id: 'set-view-action-window', title: i18n('menu_set_view_action_window')}),
+      buildMenuControl('checkbox', `toggle-panel-action`,
+        i18n('menu_set_view_action_panel'), settings.view.action === 'panel'),
+      buildMenuControl('checkbox', `toggle-remember-path`,
+        i18n("menu_remember_path"), settings.view.rememberPath),
       buildMenuSeparator(),
       buildMenuControl('checkbox', `toggle-folders-first`,
         i18n("menu_folders_first"), settings.sort.foldersOnTop),
@@ -332,8 +327,6 @@ function buildMenu() {
         i18n("menu_adjust_textarea"), settings.view.adjustTextArea),
       buildMenuControl('checkbox', `toggle-show-source`,
         i18n("menu_show_src"), settings.view.sourceURL),
-      buildMenuControl('checkbox', `toggle-remember-path`,
-        i18n("menu_remember_path"), settings.view.rememberPath),
     ]),
     buildSubMenu(i18n("menu_snip"), `settings-snip`, [
       buildMenuControl('checkbox', `toggle-save-source`,
@@ -360,8 +353,12 @@ function buildMenu() {
             title: i18n("menu_count_x") + (customStartVal ? ` (${i18nNum(startVal)})…` : `…`),
           }),
       ]),
-      ...Object.keys(counters).length ? buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`) : [],
-      ...Object.keys(counters).length ? buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`) : [],
+      ...Object.keys(counters).length ? [
+        buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
+      ] : [],
+      ...Object.keys(counters).length ? [
+        buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
+      ] : [],
     ]),
     buildSubMenu(i18n("menu_data"), `settings-data`, [
       buildMenuControl('checkbox', `toggle-data-compression`,
@@ -384,32 +381,32 @@ function buildMenu() {
 
 function buildHeader() {
   // popover settings menu
-  const settingsMenu = buildPopoverMenu(`settings`, `icon-settings`, `inherit`, buildMenu());
+  const settingsMenu = buildPopoverMenu('settings', i18n('menu_settings'), 'menu-settings', 'inherit', buildMenu());
 
   // add path navigation element
   const path = buildNode('nav', {
-    children: [buildNode('ul', {id: `path`})],
+    children: [buildNode('ul', {id: 'path'})],
   });
 
   // quick actions
   const quickActionMenu = buildNode('div', {
-    id: `quick-actions`,
+    classList: ['quick-actions'],
     children: [
       buildActionIcon(
         space.synced ? i18n('action_stop_sync') : i18n('action_start_sync'),
-        `icon-${space.synced ? `sync` : `local`}`,
-        `inherit`, {
-        action: `toggle-sync`,
+        `icon-${space.synced ? 'sync' : 'local'}`,
+        'inherit', {
+        action: 'toggle-sync',
       }),
-      buildActionIcon(i18n('action_add_folder'), `icon-add-folder`, `inherit`, {
-        action: `new-folder`,
-      }),
-      buildActionIcon(i18n('action_add_snippet'), `icon-add-snippet`, `inherit`, {
-        action: `new-snippet`,
-      }),
-      window.popout && buildActionIcon(i18n('action_pop_out'), `icon-pop-out`, `inherit`, {
-        action: `pop-out`,
-      }),
+      buildPopoverMenu('add-new', i18n('menu_add_item'), 'menu-add-new', 'inherit', [
+        buildMenuItem(i18n('action_add_folder'), 'new-folder'),
+        buildMenuItem(i18n('action_add_sniplet'), 'new-sniplet'),
+      ]),
+      ...(window.view !== 'window') ? [
+        buildActionIcon(i18n('open_new_window'), 'menu-pop-out', 'inherit', {
+          action: 'open-window',
+        }),
+      ] : [],
     ],
   });
 
@@ -481,8 +478,8 @@ function buildTree() {
       id: `folder-${path}`,
       ...isRoot ? {} : {children: [
         buildNode('li', {
-          dataset: {path: path, seq: `.5`},
-          classList: [`delimiter`],
+          dataset: {path: path, seq: '.5'},
+          classList: ['delimiter'],
         }),
       ]},
     });
@@ -516,7 +513,7 @@ function buildTree() {
       if (!isRoot) {
         folderList.append(buildNode('li', {
           dataset: {path: path, seq: String(folder.seq + .5)},
-          classList: [`delimiter`],
+          classList: ['delimiter'],
         }));
       }
     }
@@ -528,32 +525,32 @@ function buildTree() {
 
 function buildList() {
   // shorthands
-  const container = $('snippets');
+  const container = $('sniplets');
   const scroll = container.scrollTop;
   const {path} = space;
   const fot = settings.sort.foldersOnTop;
   
   // clear current list and get info
-  container.replaceChildren(buildNode('div', {classList: [`sizer`]}));
+  container.replaceChildren(buildNode('div', {classList: ['sizer']}));
   const folder = space.getItem(path).children || [];
   const groupedItems = fot && groupItems(folder, 'type');
 
   if (fot && groupedItems.folder) { // group folders at top if set
     container.append(buildNode('div', {
-      classList: [`card`],
+      classList: ['card'],
       children: [buildNode('ul', {
-        classList: [`folder-list`],
+        classList: ['folder-list'],
         children: [
           buildNode('li', { // leading dropzone
-            classList: [`delimiter`],
+            classList: ['delimiter'],
             dataset: {
-              seq: `.5`,
+              seq: '.5',
               path: path.join('-'),
             },
           }),
         ].concat(groupedItems.folder.flatMap((folder, i, a) => [
             buildNode('li', { // folder item
-              classList: [`folder`],
+              classList: ['folder'],
               dataset: {
                 seq: folder.seq,
                 path: path.join('-'),
@@ -561,7 +558,7 @@ function buildList() {
               children: buildItemWidget(folder, groupedItems.folder, path, settings),
             }),
             buildNode('li', { // trailing dropzone
-              classList: [(i < a.length - 1) ? `separator` : `delimiter`],
+              classList: [(i < a.length - 1) ? 'separator' : 'delimiter'],
               dataset: {
                 seq: String(folder.seq + .5),
                 path: path.join('-'),
@@ -574,14 +571,14 @@ function buildList() {
     container.append(buildNode('hr'));
   }
 
-  // list snippets, including folders if not grouped at top
-  const items = fot ? groupedItems.snippet : folder;
+  // list sniplets, including folders if not grouped at top
+  const items = fot ? groupedItems.sniplet : folder;
   if (items) {
     container.append(buildNode('ul', {
-      id: `snippet-list`,
+      id: 'sniplet-list',
       children: [
         buildNode('li', {
-          classList: [`delimiter`],
+          classList: ['delimiter'],
           dataset: {
             seq: .5,
             path: path.join('-'),
@@ -595,13 +592,13 @@ function buildList() {
             path: path.join('-'),
           },
           children: [buildNode('div', {
-            classList: [`card`, `drag`],
-            draggable: `true`,
+            classList: ['card', 'drag'],
+            draggable: 'true',
             children: buildItemWidget(item, items, path, settings),
           })],
         }),
         buildNode('li', {
-          classList: [`delimiter`],
+          classList: ['delimiter'],
           dataset: {
             seq: item.seq + .5,
             path: path.join('-'),
@@ -620,7 +617,7 @@ function buildList() {
   container.scrollTop = scroll;
 }
 
-function loadSnippets() {
+function loadSniplets() {
   buildHeader();
   buildTree();
   buildList();
@@ -644,17 +641,17 @@ function adjustTextArea(target, maxHeight) {
   if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight;
 
   // save current scroll position
-  const {scrollTop} = $('snippets');
+  const {scrollTop} = $('sniplets');
 
   // disable animation while inputting
-  if (target.type === 'input') textarea.style.transition = `none`;
+  if (target.type === 'input') textarea.style.transition = 'none';
 
   // calculate current content height
   let scrollHeight = textarea.scrollHeight - padding;
   // console.log(scrollHeight, textarea.scrollHeight, textarea.offsetHeight, textarea.style.height.replaceAll(/\D/g, ''));
   if (focusout || textarea.style.height.replaceAll(/\D/g, '') === scrollHeight) {
     // check and update actual scroll height to allow shrinking
-    textarea.style.height = `auto`;
+    textarea.style.height = 'auto';
     scrollHeight = textarea.scrollHeight - padding;
   }
   if (scrollHeight < minHeight) scrollHeight = minHeight;
@@ -672,7 +669,7 @@ function adjustTextArea(target, maxHeight) {
       textarea.style.removeProperty('transition'); // reenable animations
       
       // preserve scroll position
-      $('snippets').scrollTop = scrollTop + targetHeight - scrollHeight;
+      $('sniplets').scrollTop = scrollTop + targetHeight - scrollHeight;
     }
   }
 }
@@ -788,7 +785,7 @@ function handleFocusOut(event) {
 }
 
 /**
- * drag and drop reordering of snippets so they can be put in folders
+ * drag and drop reordering of sniplets so they can be put in folders
  * @param {DragEvent} event 
  */
 function handleDragDrop(event) {
@@ -820,7 +817,7 @@ function handleDragDrop(event) {
     }
     item.classList.add(`placeholder`);
 
-    // remove textarea elements and hrs to facilitate reordering snippets
+    // remove textarea elements and hrs to facilitate reordering sniplets
     for (const element of list.getElementsByClassName('snip-content'))
       element.style.display = `none`;
     for (const element of list.getElementsByTagName('HR'))
@@ -991,8 +988,8 @@ async function handleAction(target) {
   // window open action
   case 'focus':
     dataset.field ||= 'content';
-    target = q$(`#snippets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`);
-    // console.log("Focusing field", target, `#snippets [data-field="${dataset.field || `content`}"][data-seq="${dataset.seq}"]`);
+    target = q$(`#sniplets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`);
+    // console.log("Focusing field", target, `#sniplets [data-field="${dataset.field || `content`}"][data-seq="${dataset.seq}"]`);
     if (!target) break;
     // scroll entire card into view
     target.closest('li')?.scrollIntoView();
@@ -1184,17 +1181,17 @@ async function handleAction(target) {
         failAlert();
         break;
       }
-      // console.log("Loading snippets...");
-      loadSnippets();
+      // console.log("Loading sniplets...");
+      loadSniplets();
     } catch {
       /* assume cancelled */
     }
     break; }
 
-  // copy processed snippet
+  // copy processed sniplet
   case 'copy': {
     // get requested item
-    const {snip, customFields, counters} = await space.getProcessedSnippet(dataset.seq) || {};
+    const {snip, customFields, counters} = await space.getProcessedSniplet(dataset.seq) || {};
     // console.log(snip, customFields);
     if (!snip) break;
     // rebuild settings menu in case there was an update to counters
@@ -1218,14 +1215,21 @@ async function handleAction(target) {
     }
     break; }
 
+  // paste processed sniplet
+  case 'paste': {
+    // attempt to paste into a selected field
+    const activeTab = await getCurrentTab();
+    pasteSnip({tabId: activeTab.id}, dataset.seq, space, {pageUrl: activeTab.url});
+    break; }
+
   // settings
-  case 'set-view-action':
-    console.log(settings.view.action, target.value);
-    if (settings.view.action === target.value) break;
-    if (['popup','panel','window'].includes(target.value)) {
-      settings.view.action = target.value;
-      await settings.save();
+  case 'toggle-panel-action':
+    if (settings.view.action === 'panel') {
+      settings.view.action = 'popup';
+    } else {
+      settings.view.action = 'panel';
     }
+    await settings.save();
     break;
 
   case 'toggle-remember-path':
@@ -1312,7 +1316,7 @@ async function handleAction(target) {
       setCurrentSpace();
       removeStorageData(space.name, !space.synced);
       buildHeader();
-      loadSnippets();
+      loadSniplets();
     } else {
       space.synced = !space.synced;
       alert(i18n('error_shift_failed'));
@@ -1429,12 +1433,12 @@ async function handleAction(target) {
     break; }
   
   // add/edit/delete items
-  case 'new-snippet': {
-    const newSnippet = space.addItem(new Snippet());
+  case 'new-sniplet': {
+    const newSniplet = space.addItem(new Sniplet());
     space.sort(settings.sort);
     space.save();
     buildList();
-    handleAction({action: 'focus', seq: newSnippet.seq, field: 'name'});
+    handleAction({action: 'focus', seq: newSniplet.seq, field: 'name'});
     break; }
   
   case 'new-folder': {
@@ -1448,7 +1452,7 @@ async function handleAction(target) {
     break; }
   
   case 'delete':
-    if(await confirmAction(i18n('warning_delete_snippet'), i18n('action_delete'))) {
+    if(await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
       const deletedItem = space.deleteItem(dataset.seq);
       // console.log(deletedItem, deletedItem instanceof Folder);
       space.save();
@@ -1499,11 +1503,14 @@ async function handleAction(target) {
     break;
   
   // interface controls
-  case 'pop-out': {
+  case 'open-window': {
     const url = new URL(location.href);
-    url.searchParams.delete('popout');
-    await openWindow();
-    window.close();
+    await openWindow(url.searchParams);
+    break; }
+  
+  case 'open-panel': {
+    const url = new URL(location.href);
+    await openPanel(null, url.searchParams);
     break; }
   
   case 'open-folder': {

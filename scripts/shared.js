@@ -16,17 +16,17 @@ const i18nOrd = (i) =>
   i18n(`ordinal_${new Intl.PluralRules(uiLocale).select(i)}`, i);
 
 /** Map of default colours
- * @type {Map<string,{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,snippet:string}>}
+ * @type {Map<string,{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,sniplet:string}>}
  */
 const colors = new Map()
-.set('default', {value: "inherit", label: i18n('color_default'), square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       snippet: "📝"})
-.set('red',     {value: "#D0312D", label: i18n('color_red'),     square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('orange',  {value: "#FFA500", label: i18n('color_orange'),  square: "🟧",           circle: "🟠",           heart: "🧡",           book: "📙", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('yellow',  {value: "#FFD700", label: i18n('color_yellow'),  square: "🟨",           circle: "🟡",           heart: "💛",           book: "📒", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('green',   {value: "#3CB043", label: i18n('color_green'),   square: "🟩",           circle: "🟢",           heart: "💚",           book: "📗", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('blue',    {value: "#3457D5", label: i18n('color_blue'),    square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get snippet() {return this.circle;}})
-.set('purple',  {value: "#A32CC4", label: i18n('color_purple'),  square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get snippet() {return this.circle;}})
-.set('gray',    {value: "#808080", label: i18n('color_gray'),    square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get snippet() {return this.circle;}});
+.set('default', {value: "inherit", label: i18n('color_default'), square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       sniplet: "📝"})
+.set('red',     {value: "#D0312D", label: i18n('color_red'),     square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get sniplet() {return this.circle;}})
+.set('orange',  {value: "#FFA500", label: i18n('color_orange'),  square: "🟧",           circle: "🟠",           heart: "🧡",           book: "📙", get folder() {return this.book;},   get sniplet() {return this.circle;}})
+.set('yellow',  {value: "#FFD700", label: i18n('color_yellow'),  square: "🟨",           circle: "🟡",           heart: "💛",           book: "📒", get folder() {return this.book;},   get sniplet() {return this.circle;}})
+.set('green',   {value: "#3CB043", label: i18n('color_green'),   square: "🟩",           circle: "🟢",           heart: "💚",           book: "📗", get folder() {return this.book;},   get sniplet() {return this.circle;}})
+.set('blue',    {value: "#3457D5", label: i18n('color_blue'),    square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get sniplet() {return this.circle;}})
+.set('purple',  {value: "#A32CC4", label: i18n('color_purple'),  square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get sniplet() {return this.circle;}})
+.set('gray',    {value: "#808080", label: i18n('color_gray'),    square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get sniplet() {return this.circle;}});
 
 /** Safe getter for the colors that will return a default value if not available
  * @param {string} [color] 
@@ -43,26 +43,58 @@ const legacyColors = new Map()
 .set('Purple','purple')
 .set('Grey','gray');
 
+// Get the current tab (adapted from https://developer.chrome.com/docs/extensions/reference/api/tabs#get_the_current_tab)
+async function getCurrentTab() {
+  const queryOptions = {active: true, currentWindow: true};
+  const [tab] = await chrome.tabs.query(queryOptions);
+  return tab;
+}
+
 /** Open a new popup window
  * @param {{[name:string]:string}} params
  */
 const openWindow = (params = {}) => {
   const src = new URL(chrome.runtime.getURL("popup/main.html"));
-  // console.log(src.href, params);
   for (const [name, value] of Object.entries(params)) {
-    src.searchParams.append(name, value);
+    src.searchParams.set(name, value);
   }
-  // console.log(src);
+  src.searchParams.set('view', 'window');
   return chrome.windows.create({
     url: src.href,
     type: "popup",
     width: 700, // 867 for screenshots
     height: 460, // 540 for screenshots
-  }).then(() => true)
+  })
+  .then(() => true)
   .catch((e) => (console.error(e), false));
 };
 
-/** Open a new window for editing a snippet
+/** Open a new side panel for the tab
+ * @param {{[name:string]:string}} params
+ */
+const openPanel = async (tab, params = {}) => {
+  tab ||= await getCurrentTab();
+  if (!tab) return;
+
+  const src = new URL(chrome.runtime.getURL("popup/main.html"));
+  for (const [name, value] of Object.entries(params)) {
+    src.searchParams.set(name, value);
+  }
+  src.searchParams.set('view', 'panel');
+
+  await chrome.sidePanel.setOptions({
+    tabId: tab.id,
+    enabled: true,
+    path: src.href,
+  });
+  return chrome.sidePanel.open({
+    tabId: tab.id,
+  })
+  .then(() => true)
+  .catch((e) => (console.error(e), false));
+};
+
+/** Open a new window for editing a sniplet
  * @param {number[]} path
  * @param {number} seq
  */
@@ -121,7 +153,7 @@ const openPopup = async () => {
       openWindow();
     });
   } else if (settings.view.action === 'panel' && chrome.sidePanel.open) {
-    chrome.sidePanel.open().catch((e) => {
+    openPanel().catch((e) => {
       console.error(e);
       openWindow();
     });
@@ -133,20 +165,25 @@ const openPopup = async () => {
 /** Stores data required for following up on a task and opens a window to action it
  * @param {string} type Action which needs handling in a popup window
  * @param {{[key:string]:*}} args Properties needed by the followup function
- * @param {boolean} [popup=true] Open in the popup rather than a new window
  */
 const setFollowup = async (type, args) => {
-  await chrome.storage.session.set({ followup: {
+  const followup = {
     type: type,
     args: args || {}, // default value for destructuring
-  }}).catch((e) => console.error(e));
-  chrome.runtime.sendMessage({
-    type: 'followup',
-  }).catch((e) => {
-    // likely no open windows
-    console.error(e);
-    openPopup();
-  });
+  };
+
+  // check if we're a window that can handle it directly
+  if (typeof handleFollowup === 'function') {
+    handleFollowup(followup);
+    return;
+  }
+  
+  // save followup for a window that can handle it
+  await chrome.storage.session.set({followup: followup})
+  .catch((e) => console.error(e));
+  // alert any open windows that they should check for follow-ups or open a new one
+  chrome.runtime.sendMessage({type: 'followup'})
+  .catch(() => openPopup());
   return;
 };
 
@@ -216,7 +253,7 @@ const linkURLs = text => text.replaceAll(
  * @param {{content:string,nosubst:boolean}} snip 
  */
 const getRichText = async (snip) => {
-  // don't process flagged snippets
+  // don't process flagged sniplets
   if (snip.nosubst) return snip.content;
   // work on string copy
   let text = snip.content;
@@ -302,7 +339,7 @@ class Settings {
   }
 }
 
-/** Base constructor for folders, snippets and any future items */
+/** Base constructor for folders, sniplets and any future items */
 class TreeItem {
   constructor({name = i18n('title_new_generic'), seq, color} = {}) {
     /** @type {string} */
@@ -322,17 +359,17 @@ class Folder extends TreeItem {
       seq: seq,
       color: color || label, // clippings uses the label field
     });
-    /** @type {(TreeItem|Folder|Snippet)[]} */
+    /** @type {(TreeItem|Folder|Snip)[]} */
     this.children = children || [];
   }
 }
 
-/** Snippets are basic text blocks that can be pasted */
-class Snippet extends TreeItem {
+/** Sniplets are basic text blocks that can be pasted */
+class Sniplet extends TreeItem {
   constructor({name, seq, color, label, shortcut, sourceURL, content = "", nosubst = false} = {}) {
     // generate name from content if provided
     if (!name && content) {
-      // create snippet title from first line of text
+      // create sniplet title from first line of text
       name = content.match(/^.*/)[0];
       const maxLength = 27;
       if (name.length > maxLength) {
@@ -344,7 +381,7 @@ class Snippet extends TreeItem {
       }
     }
     super({
-      name: name || i18n('title_new_snippet'),
+      name: name || i18n('title_new_sniplet'),
       seq: seq || 1,
       color: color || label,
     });
@@ -358,14 +395,14 @@ class Snippet extends TreeItem {
     this.sourceURL = sourceURL;
   }
 }
-/** Basic snippets data bucket */
+/** Basic sniplets data bucket */
 class DataBucket {
   constructor({version = "1.0", children = [], counters = {}} = {}) {
     /** @type {string} */
     this.version = version;
     /** @type {number} */
     this.timestamp = Date.now();
-    /** @type {(TreeItem|Folder|Snippet)[]|string} */
+    /** @type {(TreeItem|Folder|Sniplet)[]|string} */
     this.children = children;
     const {startVal, ...encounters} = counters;
     /** @type {{[name:string]:number}} */
@@ -394,17 +431,17 @@ class DataBucket {
   }
 
   /** Cast an tree item to its appropriate class
-   * @param {(TreeItem | Folder | Snippet)} item 
+   * @param {(TreeItem | Folder | Sniplet)} item 
    */
   cast(item) {
     if (!item) return;
     if (Object.hasOwn(item, "children")) return new Folder(item);
-    if (Object.hasOwn(item, "content")) return new Snippet(item);
+    if (Object.hasOwn(item, "content")) return new Sniplet(item);
     return new TreeItem(item);
   }
 
   /** Cast an array of tree items to their appropriate class
-   * @param {(TreeItem | Folder | Snippet)[]} [folder=this.children] 
+   * @param {(TreeItem | Folder | Sniplet)[]} [folder=this.children] 
    */
   restructure(folder = this.children) {
     const items = [];
@@ -460,7 +497,7 @@ class DataBucket {
 
   /** process data into a clippings compatible object */
   toClippings() {
-    /** @param {(TreeItem|Folder|Snippet)[]} folder */
+    /** @param {(TreeItem|Folder|Sniplet)[]} folder */
     const mapData = (folder) => folder.map(o =>
     o instanceof Folder ? {
       name: o.name || "",
@@ -483,7 +520,7 @@ class DataBucket {
   }
 
   /** Removes all saved sourceURLs recursively
-   * @param {(TreeItem|Folder|Snippet)} folder 
+   * @param {(TreeItem|Folder|Sniplet)} folder 
    */
   removeSources(folder = this.children) {
     for (const item of folder) {
@@ -496,7 +533,7 @@ class DataBucket {
   }
 }
 
-/** Space object stores snippet groupings in buckets. */
+/** Space object stores sniplet groupings in buckets. */
 class Space {
   /** Construct a Space object
    * @param {{
@@ -606,7 +643,7 @@ class Space {
 
   /** Get the item found at a specific path sequence
    * @param {number[]} path - Full path to the tree item
-   * @returns {TreeItem|Folder|Snippet|void}
+   * @returns {TreeItem|Folder|Sniplet|void}
    */
   getItem(path = this.path) {
     let item = this.data;
@@ -621,7 +658,7 @@ class Space {
   }
 
   /** Add tree item to data bucket
-   * @param {TreeItem|Folder|Snippet} item 
+   * @param {TreeItem|Folder|Sniplet} item 
    * @param {number[]} [folderPath] 
    */
   addItem(item, folderPath = this.path) {
@@ -687,18 +724,18 @@ class Space {
     return removedItem;
   }
 
-  /** Process placeholders and rich text options of a snippet and return the result
+  /** Process placeholders and rich text options of a sniplet and return the result
    * @param {number} seq 
    * @param {number[]} path 
-   * @returns {Promise<{snip:Snippet,customFields?:Map<string,string>,counters?:Map<string,number>}
+   * @returns {Promise<{snip:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}
    */
-  async getProcessedSnippet(seq, path = this.path) {
+  async getProcessedSniplet(seq, path = this.path) {
     // console.log("Getting item...");
     const item = this.getItem(path.concat(seq));
     // console.log(item);
     if (!item) return;
     // avoid touching space
-    const snip = new Snippet(item);
+    const snip = new Sniplet(item);
     if (!snip.content) return {
       // nothing to process
       snip: snip,
@@ -712,7 +749,7 @@ class Space {
       };
     }
 
-    // process counters, kept track internally to allow use across multiple snippets
+    // process counters, kept track internally to allow use across multiple sniplets
     const counters = new Map();
     snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
       // add new counters to DataBucket
@@ -1094,7 +1131,7 @@ async function buildContextMenus(space) {
     "contexts": ["selection"],
   });
 
-  // build paster for saved snippets
+  // build paster for saved sniplets
   // console.log(space);
   if (space.data?.children?.length) {
     // set root menu item
@@ -1106,8 +1143,8 @@ async function buildContextMenus(space) {
     });
 
     /**
-     * Recursive function for snippet tree
-     * @param {(TreeItem|Folder|Snippet)[]} folder 
+     * Recursive function for sniplet tree
+     * @param {(TreeItem|Folder|Sniplet)[]} folder 
      * @param {*} parentData 
      */
     const buildFolder = (folder, parentData) => {
@@ -1119,14 +1156,14 @@ async function buildContextMenus(space) {
       const menuData = structuredClone(parentData);
       // console.log(menuData, parentData);
       if (menuData.seq) menuData.menuSpace.path.push(menuData.seq);
-      // list snippets in folder
+      // list sniplets in folder
       if (folder.length) {
         folder.forEach(item => {
           menuData.seq = item.seq;
           menuItem.id = JSON.stringify(menuData);
           // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
           const color = getColor(item.color);
-          menuItem.title = `${(item instanceof Folder) ? color.folder : color.snippet}\xA0\xA0${item.name.replaceAll("&", "&&")}`;
+          menuItem.title = `${(item instanceof Folder) ? color.folder : color.sniplet}\xA0\xA0${item.name.replaceAll("&", "&&")}`;
           addMenu(menuItem);
           if (item instanceof Folder) buildFolder(item.children, menuData);
         });
@@ -1138,7 +1175,7 @@ async function buildContextMenus(space) {
         addMenu(menuItem);
       }
     };
-    // build paste snippet menu tree
+    // build paste sniplet menu tree
     buildFolder(space.data.children, menuData);
   }
 }

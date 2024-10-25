@@ -11,7 +11,7 @@
 > Fixed sync error when clearing all data
 
 - Moved synced data recovery from back to front-end since store-deployed extensions handle clearing data in parallel, resulting in a race condition not seen in a test environment
-- Changed name from Snippets to Sniplets for easier searching on the Chrome Web Store and to avoid confusion with the [Chrome DevTools Snippets feature](https://developer.chrome.com/docs/devtools/javascript/snippets/)
+- Changed name from Snippets to Sniplets for easier searching on the Chrome Web Store and to avoid confusing it with [the Chrome DevTools Snippets feature](https://developer.chrome.com/docs/devtools/javascript/snippets/)
 
 ## v0.10.3 (2024-05-10)
 

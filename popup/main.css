@@ -73,7 +73,7 @@ hr.vr {
   background-image: linear-gradient(to bottom, #ccc, #333, #ccc);
 }
 
-#snippets {
+#sniplets {
   overflow: auto;
   flex-grow: 1;
   padding-bottom: 100px;
@@ -102,8 +102,8 @@ h2 {
   text-align: left;
 }
 
-.snippet .name,
-.snippet h2 {
+.sniplet .name,
+.sniplet h2 {
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -364,7 +364,7 @@ input:focus + label,
   transition: height 125ms;
 }
 
-.snippet .field label {
+.sniplet .field label {
   padding-left: 8px;
 }
 
@@ -445,7 +445,7 @@ select {
   margin-top: 4px;
 }
 
-#snippets > hr { 
+#sniplets > hr { 
   margin-left: 9px;
   margin-right: 9px;
 }

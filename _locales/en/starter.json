@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "createdBy": "Snippets",
+  "createdBy": "Sniplets",
   "data": {
     "version": "1.0",
     "timestamp": 1708709808073,
@@ -12,7 +12,7 @@
           {
             "name": "Basic Placeholders",
             "seq": 1,
-            "content": "The name of this snippet (Basic Placeholders):\n$[NAME]\n\nThe folder this snippet is in (Placeholders):\n$[FOLDER]\n\nThe full path to this snippet (Snippets/Placeholders):\n$[PATH]\n\nSame as above with a custom delimiter (Snippets > Placeholders):\n$[PATH( > )]\n\nThe name and version of your browser:\n$[HOSTAPP]\n\nThe User Agent your browser identifies as:\n$[UA]"
+            "content": "The name of this sniplet (Basic Placeholders):\n$[NAME]\n\nThe folder this sniplet is in (Placeholders):\n$[FOLDER]\n\nThe full path to this sniplet (Sniplets/Placeholders):\n$[PATH]\n\nSame as above with a custom delimiter (Sniplets > Placeholders):\n$[PATH( > )]\n\nThe name and version of your browser:\n$[HOSTAPP]\n\nThe User Agent your browser identifies as:\n$[UA]"
           },
           {
             "name": "Custom Placeholders",
@@ -37,12 +37,12 @@
           {
             "name": "RichText",
             "seq": 6,
-            "content": "<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won’t turn into spaces. URLs without anchor tags like https://github.com/AppliedElegance/Sniplets/issues will be hotlinked automatically along with email addresses like noreply@example.com. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this snippet will add both plain and rich text versions of this processed snippet ($[PATH]/$[NAME]) to the clipboard, just like if you’d copied it from a webpage."
+            "content": "<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won’t turn into spaces. URLs without anchor tags like https://github.com/AppliedElegance/Sniplets/issues will be hotlinked automatically along with email addresses like noreply@example.com. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this sniplet will add both plain and rich text versions of this processed sniplet ($[PATH]/$[NAME]) to the clipboard, just like if you’d copied it from a webpage."
           },
           {
             "name": "[NOSUBST] Disabled",
             "seq": 7,
-            "content": "The following text will be pasted as-is and without any rich text processing due to the inclusion of [NOSUBST] at the beginning of the snippet name:\n$[NAME], $[FOLDER], $[PATH]\n$[HOSTAPP], $[UA]\n#[COUNTER]\n$[DATE], $[TIME]\nunlinked.com, email@unlinked.com"
+            "content": "The following text will be pasted as-is and without any rich text processing due to the inclusion of [NOSUBST] at the beginning of the sniplet name:\n$[NAME], $[FOLDER], $[PATH]\n$[HOSTAPP], $[UA]\n#[COUNTER]\n$[DATE], $[TIME]\nunlinked.com, email@unlinked.com"
           },
           {
             "name": "Enhancements",
@@ -52,15 +52,15 @@
         ]
       },
       {
-        "name": "Welcome to Snippets!",
+        "name": "Welcome to Sniplets!",
         "seq": 2,
-        "content": "On the top line you will find a settings menu, the current folder path, a sync icon that allows you to swap between synchronizing your snippets or keeping them local, buttons for adding new folders and snippets in the current folder and a pop-out button to make organizing your snippets easier (unless you’re already in a separate window).\n\nClicking on a folder name will open it. Try clicking the Placeholders folder to see how the path updates."
+        "content": "On the top line you will find a settings menu, the current folder path, a sync icon that allows you to swap between synchronizing your sniplets or keeping them local, buttons for adding new folders and sniplets in the current folder and a pop-out button to make organizing your sniplets easier (unless you’re already in a separate window).\n\nClicking on a folder name will open it. Try clicking the Placeholders folder to see how the path updates."
       },
       {
         "name": "🢀 Try clicking the icon!",
         "seq": 3,
         "color": "Red",
-        "content": "Folder and snippet icons can be clicked to open their menu. The options currently available allow you to change the icon colour and move the item up or down manually. To move snippets around, you can also drag their border and drop them into a folder or position, and for folders just drag their button.\n\nOn the right are buttons to rename (folders), copy to clipboard (snippets) or delete. Once you get the hang of it, feel free to delete the tutorials! You can delete everything and start fresh right away by going to the settings menu at the top left under “Data” and clicking “Clear All Data and settings”."
+        "content": "Folder and sniplet icons can be clicked to open their menu. The options currently available allow you to change the icon colour and move the item up or down manually. To move sniplets around, you can also drag their border and drop them into a folder or position, and for folders just drag their button.\n\nOn the right are buttons to rename (folders), copy to clipboard (sniplets) or delete. Once you get the hang of it, feel free to delete the tutorials! You can delete everything and start fresh right away by going to the settings menu at the top left under “Data” and clicking “Clear All Data and settings”."
       }
     ],
     "counters": {

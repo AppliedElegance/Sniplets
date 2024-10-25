@@ -31,7 +31,7 @@
   },
   "action": {
     "default_title": "__MSG_app_command_open__",
-    "default_popup": "popup/main.html?popout=true"
+    "default_popup": "popup/main.html?view=popup"
   },
   "side_panel": {
     "default_path": "popup/main.html"

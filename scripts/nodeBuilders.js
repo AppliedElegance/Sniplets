@@ -138,11 +138,11 @@ function buildActionIcon(name, sprite, color, dataset) {
  * @param {string} color 
  * @param {HTMLElement[]} list 
  */
-function buildPopoverMenu(id, sprite, color, list) {
+function buildPopoverMenu(id, name, sprite, color, list) {
   return buildNode('div', {
     classList: ['menu'],
     children: [
-      buildActionIcon(`Open ${id} Menu`, sprite, color, {
+      buildActionIcon(`Open ${name} Menu`, sprite, color, {
         action: 'open-popover',
         target: id,
       }),
@@ -266,7 +266,7 @@ function buildMenuControl(type, name, value, checked, {id, title, dataset} = {})
 
 /**
  * Builder for TreeItem widgets depending on their extended class
- * @param {TreeItem} item - Folder or Snippet
+ * @param {TreeItem} item - Folder or Sniplet
  * @param {TreeItem[]} list - Folder list which includes `item`, for calculating dropzone targets
  * @param {number[]} path - Seq path to item
  * @param {Settings} settings - What to show
@@ -277,11 +277,12 @@ function buildItemWidget(item, list, path, settings) {
   if (index < 0) return;
   const widget = [];
   const isFolder = item instanceof Folder;
-  const isSnippet = item instanceof Snippet;
+  const isSniplet = item instanceof Sniplet;
 
   // widget menu
   const widgetMenu = buildPopoverMenu(
     `item-menu-${item.seq}`,
+    i18n('menu_item'),
     `icon-${item.constructor.name.toLowerCase()}`,
     getColor(item.color).value,
     [
@@ -323,7 +324,7 @@ function buildItemWidget(item, list, path, settings) {
     },
     draggable: 'true', // fires drag event so it can be prevented
     autocomplete: 'off',
-    'aria-label': (isFolder) ? i18n('label_folder_name') : i18n('label_snippet_name'),
+    'aria-label': (isFolder) ? i18n('label_folder_name') : i18n('label_sniplet_name'),
   });
   if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-');
 
@@ -337,7 +338,7 @@ function buildItemWidget(item, list, path, settings) {
         }),
       ] : [
         buildActionIcon(i18n('action_insert'), 'icon-insert', 'inherit', {
-          action: 'insert-contents',
+          action: 'paste',
           seq: item.seq,
         }),
         buildActionIcon(i18n('action_copy'), 'icon-copy', 'inherit', {
@@ -367,7 +368,7 @@ function buildItemWidget(item, list, path, settings) {
   // Separate widget contents from title
   if (!isFolder) widget.push(buildNode('hr'));
 
-  if (isSnippet) {
+  if (isSniplet) {
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
       children: [buildNode('textarea', {
@@ -381,7 +382,7 @@ function buildItemWidget(item, list, path, settings) {
         rows: 1,
         draggable: 'true', // fires drag event so it can be prevented
         autocomplete: 'off',
-        'aria-label': i18n('label_snippet_content'),
+        'aria-label': i18n('label_sniplet_content'),
       })],
     });
     widget.push(widgetBody);
