@@ -1,3 +1,18 @@
+/* global
+  i18n, uiLocale, i18nNum, getColor,
+  getCurrentTab, openWindow, openPanel,
+  setStorageData, getStorageData, removeStorageData,
+  getCurrentSpace, fetchFollowup, setClipboard,
+  Settings, Folder, Sniplet, DataBucket, Space,
+  buildNode, buildSvg, setSvgSprite, setSvgFill,
+  buildActionIcon, buildPopoverMenu,
+  buildMenuItem, buildMenuSeparator, buildSubMenu, buildMenuControl,
+  buildItemWidget, buildTreeWidget,
+  showModal, showAlert, confirmAction, confirmSelection, showAbout,
+  mergeCustomFields, requestOrigins,
+  snipSelection, insertSnip, pasteSnip
+*/
+
 /**
  * Shorthand for document.getElementById(id)
  * @param {string} id 
@@ -315,12 +330,19 @@ function buildMenu() {
   const customStartVal = (startVal > 1 || startVal < 0);
   // console.log(startVal, counters);
   return [
+    buildSubMenu(i18n('menu_action'), `settings-action`, [
+      buildMenuControl('radio', `set-icon-action`,
+        i18n('menu_set_view_action_popup'), settings.view.action === 'popup', {id: "set-action-panel"}),
+      buildMenuControl('radio', `set-icon-action`,
+        i18n('menu_set_view_action_panel'), settings.view.action === 'panel', {id: "set-action-panel"}),
+      buildMenuControl('radio', `set-icon-action`,
+        i18n('menu_set_view_action_panel-toggle'), settings.view.action === 'panel-toggle', {id: "set-action-panel-toggle"}),
+      buildMenuControl('radio', `set-icon-action`,
+        i18n('menu_set_view_action_window'), settings.view.action === 'window', {id: "set-action-window"}),
+    ]),
     buildSubMenu(i18n("menu_view"), `settings-view`, [
-      buildMenuControl('checkbox', `toggle-panel-action`,
-        i18n('menu_set_view_action_panel'), settings.view.action === 'panel'),
       buildMenuControl('checkbox', `toggle-remember-path`,
         i18n("menu_remember_path"), settings.view.rememberPath),
-      buildMenuSeparator(),
       buildMenuControl('checkbox', `toggle-folders-first`,
         i18n("menu_folders_first"), settings.sort.foldersOnTop),
       buildMenuControl('checkbox', `toggle-adjust-editors`,

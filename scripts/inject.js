@@ -1,4 +1,17 @@
 /* eslint-disable no-unused-vars */
+/* global
+  i18n, uiLocale, i18nNum, getColor,
+  getCurrentTab, openWindow, openPanel, openForEditing,
+  setStorageData, getStorageData, removeStorageData,
+  getCurrentSpace, setFollowup, fetchFollowup, setClipboard, getRichText,
+  Settings, Folder, Sniplet, DataBucket, Space,
+  buildNode, buildSvg, setSvgSprite, setSvgFill,
+  buildActionIcon, buildPopoverMenu,
+  buildMenuItem, buildMenuSeparator, buildSubMenu, buildMenuControl,
+  buildItemWidget, buildTreeWidget,
+  showModal, showAlert, confirmAction, confirmSelection, showAbout,
+  mergeCustomFields, requestOrigins
+*/
 
 /** Checks if a url is a known blocked site
  * @param {string|URL} url 

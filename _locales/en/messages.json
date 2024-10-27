@@ -515,13 +515,13 @@
     "message": "Help translate"
   },
   "menu_set_view_action_popup": {
-    "message": "Always open popup"
+    "message": "Open popup"
   },
   "menu_set_view_action_panel": {
-    "message": "Always open side panel"
+    "message": "Open side panel"
   },
   "menu_set_view_action_window": {
-    "message": "Always open new window"
+    "message": "Open new window"
   },
   "warning_panel_permissions": {
     "message": "The side panel requires additional site permissions for the insert feature to work correctly. To grant these, click Permit and accept the browser request. Alternatively, the side panel can be opened on a specific site by right-clicking the toolbar icon and selecting the side panel option."
@@ -531,5 +531,14 @@
   },
   "open_new_window": {
     "message": "Open Window"
+  },
+  "menu_action": {
+    "message": "Icon Action"
+  },
+  "menu_set_view_action_panel-toggle": {
+    "message": "Toggle side panel"
+  },
+  "test": {
+    "message": "test"
   }
 }

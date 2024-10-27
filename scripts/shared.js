@@ -109,7 +109,7 @@ const openForEditing = (path, seq) => openWindow({
  * @param {{[key:string]:*}} items - a {key: value} object to store
  * @param {boolean} [sync=false] - Whether to store the data in local (false, default) or sync (true).
  */
-const setStorageData = (items, sync = false) => {
+const setStorageData = async (items, sync = false) => {
   const bucket = sync ? chrome.storage.sync : chrome.storage.local;
   return bucket.set(items)
   .then(() => true)
@@ -120,7 +120,7 @@ const setStorageData = (items, sync = false) => {
  * @param {null|string|string[]|{[key:string]:*}} keys - The key name for the stored data.
  * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
  */
-const getStorageData = (keys, sync = false) => {
+const getStorageData = async (keys, sync = false) => {
   const bucket = sync ? chrome.storage.sync : chrome.storage.local;
   return bucket.get(keys)
   .catch((e) => (console.error(e), {}));
@@ -130,7 +130,7 @@ const getStorageData = (keys, sync = false) => {
  * @param {string|string[]} keys - The key name for the stored data.
  * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
  */
-const removeStorageData = (keys, sync = false) => {
+const removeStorageData = async (keys, sync = false) => {
   const bucket = sync ? chrome.storage.sync : chrome.storage.local;
   return bucket.remove(keys)
   .then(() => true)
@@ -174,6 +174,7 @@ const setFollowup = async (type, args) => {
 
   // check if we're a window that can handle it directly
   if (typeof handleFollowup === 'function') {
+    // eslint-disable-next-line no-undef
     handleFollowup(followup);
     return;
   }
@@ -350,7 +351,6 @@ class TreeItem {
     this.color = legacyColors.get(color) || color; // legacy color mapping check
   }
 }
-
 /** Folders contain tree items and can be nested. */
 class Folder extends TreeItem {
   constructor({name = i18n('title_new_folder'), seq, children, color, label} = {}) {
@@ -363,7 +363,6 @@ class Folder extends TreeItem {
     this.children = children || [];
   }
 }
-
 /** Sniplets are basic text blocks that can be pasted */
 class Sniplet extends TreeItem {
   constructor({name, seq, color, label, shortcut, sourceURL, content = "", nosubst = false} = {}) {
@@ -532,7 +531,6 @@ class DataBucket {
     }
   }
 }
-
 /** Space object stores sniplet groupings in buckets. */
 class Space {
   /** Construct a Space object

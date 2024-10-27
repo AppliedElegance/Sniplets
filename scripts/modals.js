@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+/* global i18n, getColor, buildNode, buildActionIcon, buildMenuControl */
 
 /** Builder for modal dialogue.
  * Buttons with the value `esc` return undefined and `true` & `false` return as boolean rather than string.

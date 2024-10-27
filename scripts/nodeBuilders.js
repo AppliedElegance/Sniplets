@@ -1,4 +1,5 @@
 /* eslint-disable no-unused-vars */
+/* global i18n, colors, getColor, Folder, Sniplet */
 
 /**
  * DOM helper for element creation including sub-elements
