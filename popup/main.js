@@ -1,17 +1,57 @@
-/* global
-  i18n, uiLocale, i18nNum, getColor,
-  getCurrentTab, openWindow, openPanel,
-  setStorageData, getStorageData, removeStorageData,
-  getCurrentSpace, fetchFollowup, setClipboard,
-  Settings, Folder, Sniplet, DataBucket, Space,
-  buildNode, buildSvg, setSvgSprite, setSvgFill,
-  buildActionIcon, buildPopoverMenu,
-  buildMenuItem, buildMenuSeparator, buildSubMenu, buildMenuControl,
-  buildItemWidget, buildTreeWidget,
-  showModal, showAlert, confirmAction, confirmSelection, showAbout,
-  mergeCustomFields, requestOrigins,
-  snipSelection, insertSnip, pasteSnip
-*/
+import {
+  i18n,
+  uiLocale,
+  i18nNum,
+  getColor,
+} from "../modules/refs.js";
+import {
+  setStorageData,
+  getStorageData,
+  removeStorageData,
+  getCurrentSpace,
+  fetchFollowup,
+  setClipboard,
+} from "../modules/storage.js";
+import {
+  Settings,
+} from "../modules/classes/settings.js";
+import {
+  Folder,
+  Sniplet,
+  DataBucket,
+  Space,
+} from "../modules/classes/spaces.js";
+import {
+  buildNode,
+  buildSvg,
+  setSvgSprite,
+  setSvgFill,
+  buildActionIcon,
+  buildPopoverMenu,
+  buildMenuItem,
+  buildMenuSeparator,
+  buildSubMenu,
+  buildMenuControl,
+  buildItemWidget,
+  buildTreeWidget,
+  getCurrentTab,
+  openWindow,
+  openPanel,
+} from "../modules/dom.js";
+import {
+  showModal,
+  showAlert,
+  confirmAction,
+  confirmSelection,
+  showAbout,
+  mergeCustomFields,
+  requestOrigins,
+} from "../modules/modals.js";
+import {
+  snipSelection,
+  insertSnip,
+  pasteSnip,
+} from "../modules/commands.js";
 
 /**
  * Shorthand for document.getElementById(id)
@@ -43,8 +83,8 @@ const debounce = function setDelay(f, delay) {
 };
 const resizing = new ResizeObserver(debounce(adjustPath, 0));
 
-const handleFollowup = async ({type, args}) => {
-  // counter rollback
+const handleFollowup = async ({ type, args }) => {
+  /** Set counters to match provided argument */
   const rollBackCounters = async () => {
     const counters = new Map(args?.counters || []);
     if (counters.size && await space.load(args.actionSpace)) {
@@ -54,7 +94,7 @@ const handleFollowup = async ({type, args}) => {
 
   /** Confirm any custom placeholders and merge them */
   const mergeAndPaste = async () => {
-    const {snip, target} = args;
+    const { snip, target } = args;
     const customFields = new Map(args.customFields || []);
     // console.log(target, snip, customFields);
     if (customFields.size) {
@@ -116,7 +156,7 @@ const handleFollowup = async ({type, args}) => {
       const currentSpace = await getCurrentSpace() || settings.defaultSpace;
       // console.log(currentSpace);
       if (args.name !== currentSpace.name) {
-        setStorageData({[args.name]: args.data}, args.synced);
+        setStorageData({ [args.name]: args.data }, args.synced);
         break;
       }
 
@@ -139,7 +179,7 @@ const handleFollowup = async ({type, args}) => {
       break;
     }
     break;
-  
+
   default:
     break;
   } // end switch(type)
@@ -152,15 +192,19 @@ const checkFollowup = async () => {
 };
 
 // Listen for updates on the fly in case of multiple popout windows
-chrome.runtime.onMessage.addListener(async ({type, args}) => {
+chrome.runtime.onMessage.addListener(async ({ type, args }) => {
   if (type === 'updateSpace') {
-    const {timestamp} = args;
+    const { timestamp } = args;
     if (timestamp > space.data.timestamp) {
       await space.loadCurrent();
       loadSniplets();
     }
   } else if (type === 'followup') {
-    checkFollowup();
+    if (args.type === 'action') {
+      handleAction(args.args);
+    } else {
+      checkFollowup();
+    }
   }
 });
 
@@ -174,15 +218,14 @@ const loadPopup = async () => {
   if (!(await settings.load())) {
     settings.init();
     settings.save();
+    // console.log("Settings loaded...", settings);
   }
-  // console.log("Settings loaded...", settings);
 
   // load parameters
-  const params = Object.fromEntries(new URLSearchParams(location.search));
+  window.params = Object.fromEntries(new URLSearchParams(location.search));
 
   // check if opened as popup and set style accordingly
-  window.view = params.view;
-  if (window.view === 'popup') {
+  if (window.params.view === 'popup') {
     document.body.style.width = "360px"; // column flex collapses width unless set
     document.body.style.height = "540px";
   }
@@ -217,8 +260,8 @@ const loadPopup = async () => {
   }
 
   // update path if needed
-  if (params.path) {
-    space.path = params.path.split('-').map(v => +v).filter(v => v);
+  if (window.params.path) {
+    space.path = window.params.path.split('-').map(v => +v).filter(v => v);
     if (settings.view.rememberPath) setCurrentSpace();
   }
 
@@ -233,7 +276,7 @@ const loadPopup = async () => {
   resizing.observe($('header'));
 
   // check and action URL parameters accordingly
-  if (params.action?.length) handleAction(params);
+  if (window.params.action?.length) handleAction(window.params);
 };
 document.addEventListener('DOMContentLoaded', loadPopup, false);
 
@@ -276,8 +319,8 @@ function setHeaderPath() {
     buildNode('li', {
       id: `folder-up`,
       classList: [`folder`],
-      style: {display: `none`}, // only display when out of room
-      dataset: {path: ``},
+      style: { display: `none` }, // only display when out of room
+      dataset: { path: `` },
       children: [buildActionIcon(`Back`, `path-back`, `inherit`, {
         action: 'open-folder',
         target: ``,
@@ -285,7 +328,7 @@ function setHeaderPath() {
     }),
     buildNode('li', {
       classList: [`folder`],
-      dataset: {path: `root`},
+      dataset: { path: `root` },
       children: [buildNode('button', {
         type: `button`,
         dataset: {
@@ -326,19 +369,19 @@ function setHeaderPath() {
 }
 
 function buildMenu() {
-  const {startVal, ...counters} = space.data.counters;
+  const { startVal, ...counters } = space.data.counters;
   const customStartVal = (startVal > 1 || startVal < 0);
   // console.log(startVal, counters);
   return [
-    buildSubMenu(i18n('menu_action'), `settings-action`, [
-      buildMenuControl('radio', `set-icon-action`,
-        i18n('menu_set_view_action_popup'), settings.view.action === 'popup', {id: "set-action-panel"}),
-      buildMenuControl('radio', `set-icon-action`,
-        i18n('menu_set_view_action_panel'), settings.view.action === 'panel', {id: "set-action-panel"}),
-      buildMenuControl('radio', `set-icon-action`,
-        i18n('menu_set_view_action_panel-toggle'), settings.view.action === 'panel-toggle', {id: "set-action-panel-toggle"}),
-      buildMenuControl('radio', `set-icon-action`,
-        i18n('menu_set_view_action_window'), settings.view.action === 'window', {id: "set-action-window"}),
+    buildSubMenu(i18n('menu_action'), 'settings-action', [
+      buildMenuControl('radio', 'set-icon-action',
+        i18n('menu_set_view_action_popup'), settings.view.action === 'popup', { id: "set-action-panel" }),
+      buildMenuControl('radio', 'set-icon-action',
+        i18n('menu_set_view_action_panel'), settings.view.action === 'panel', { id: "set-action-panel" }),
+      buildMenuControl('radio', 'set-icon-action',
+        i18n('menu_set_view_action_panel_toggle'), settings.view.action === 'panel-toggle', { id: "set-action-panel-toggle" }),
+      buildMenuControl('radio', 'set-icon-action',
+        i18n('menu_set_view_action_window'), settings.view.action === 'window', { id: "set-action-window" }),
     ]),
     buildSubMenu(i18n("menu_view"), `settings-view`, [
       buildMenuControl('checkbox', `toggle-remember-path`,
@@ -367,9 +410,9 @@ function buildMenu() {
     buildSubMenu(i18n("menu_counters"), `settings-counters`, [
       buildSubMenu(i18n('menu_count_init'), `counter-init`, [
         buildMenuControl('radio', `set-counter-init`,
-          i18nNum(0), startVal === 0, {id: `counter-init-0`}),
+          i18nNum(0), startVal === 0, { id: `counter-init-0` }),
         buildMenuControl('radio', 'set-counter-init',
-          i18nNum(1), startVal === 1, {id: `counter-init-1`}),
+          i18nNum(1), startVal === 1, { id: `counter-init-1` }),
         buildMenuControl('radio', 'set-counter-init',
           startVal, customStartVal, { id: `counter-init-x`,
             title: i18n("menu_count_x") + (customStartVal ? ` (${i18nNum(startVal)})…` : `…`),
@@ -391,9 +434,9 @@ function buildMenu() {
       buildMenuItem(i18n("menu_reinit"), `initialize`),
     ]),
     buildSubMenu(i18n("menu_backups"), `settings-backup`, [
-      buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, {action: 'backup'}),
-      buildMenuItem(i18n("menu_bak_full"), `backup-full`, `full`, {action: 'backup'}),
-      buildMenuItem(i18n("menu_bak_clip"), `backup-clippings`, `clippings61`, {action: 'backup'}),
+      buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, { action: 'backup' }),
+      buildMenuItem(i18n("menu_bak_full"), `backup-full`, `full`, { action: 'backup' }),
+      buildMenuItem(i18n("menu_bak_clip"), `backup-clippings`, `clippings61`, { action: 'backup' }),
       buildMenuSeparator(),
       buildMenuItem(i18n("menu_restore"), `restore`),
     ]),
@@ -407,7 +450,7 @@ function buildHeader() {
 
   // add path navigation element
   const path = buildNode('nav', {
-    children: [buildNode('ul', {id: 'path'})],
+    children: [buildNode('ul', { id: 'path' })],
   });
 
   // quick actions
@@ -424,7 +467,7 @@ function buildHeader() {
         buildMenuItem(i18n('action_add_folder'), 'new-folder'),
         buildMenuItem(i18n('action_add_sniplet'), 'new-sniplet'),
       ]),
-      ...(window.view !== 'window') ? [
+      ...(window.params.view !== 'window') ? [
         buildActionIcon(i18n('open_new_window'), 'menu-pop-out', 'inherit', {
           action: 'open-window',
         }),
@@ -498,12 +541,12 @@ function buildTree() {
     // list container with initial drop zone for reordering
     const folderList = buildNode('ul', {
       id: `folder-${path}`,
-      ...isRoot ? {} : {children: [
+      ...isRoot ? {} : { children: [
         buildNode('li', {
-          dataset: {path: path, seq: '.5'},
+          dataset: { path: path, seq: '.5' },
           classList: ['delimiter'],
         }),
-      ]},
+      ] },
     });
 
     // add each folder with a following drop-zone for reordering
@@ -515,7 +558,7 @@ function buildTree() {
         classList: ['folder'],
         dataset: {
           path: path,
-          ...isRoot ? {} : {seq: folder.seq},
+          ...isRoot ? {} : { seq: folder.seq },
         },
       });
       // add folder details
@@ -534,7 +577,7 @@ function buildTree() {
       // Insert dropzone after for reordering
       if (!isRoot) {
         folderList.append(buildNode('li', {
-          dataset: {path: path, seq: String(folder.seq + .5)},
+          dataset: { path: path, seq: String(folder.seq + .5) },
           classList: ['delimiter'],
         }));
       }
@@ -549,11 +592,11 @@ function buildList() {
   // shorthands
   const container = $('sniplets');
   const scroll = container.scrollTop;
-  const {path} = space;
+  const { path } = space;
   const fot = settings.sort.foldersOnTop;
   
   // clear current list and get info
-  container.replaceChildren(buildNode('div', {classList: ['sizer']}));
+  container.replaceChildren(buildNode('div', { classList: ['sizer'] }));
   const folder = space.getItem(path).children || [];
   const groupedItems = fot && groupItems(folder, 'type');
 
@@ -663,7 +706,7 @@ function adjustTextArea(target, maxHeight) {
   if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight;
 
   // save current scroll position
-  const {scrollTop} = $('sniplets');
+  const { scrollTop } = $('sniplets');
 
   // disable animation while inputting
   if (target.type === 'input') textarea.style.transition = 'none';
@@ -780,8 +823,8 @@ function handleKeyup(event) {
 function handleChange(event) {
   // console.log(event);
   // helpers
-  const {target} = event;
-  const {dataset} = target;
+  const { target } = event;
+  const { dataset } = target;
   dataset.action ||= target.name;
 
   // console.log(target, dataset);
@@ -798,7 +841,7 @@ function handleChange(event) {
 
 function handleFocusOut(event) {
   /** @type {Element} */
-  const {target} = event;
+  const { target } = event;
   if (target.ariaLabel === i18n('label_folder_name')) {
     // set back as button
     target.type = `button`;
@@ -852,7 +895,7 @@ function handleDragDrop(event) {
 
   const dragEnter = function (event) {
     // make sure there's another list item to drop on
-    let {target} = event;
+    let { target } = event;
     while (target && target.tagName !== 'LI')
       target = target.parentElement;
     if (target)
@@ -861,7 +904,7 @@ function handleDragDrop(event) {
 
   const dragOver = function (event) {
     // make sure there's another list item to drop on
-    let {target} = event;
+    let { target } = event;
     while (target && target.tagName !== 'LI')
       target = target.parentElement;
     if (target) {
@@ -1116,7 +1159,7 @@ async function handleAction(target) {
         suggestedName: filename,
         types: [{
           description: i18n('file_save_type'),
-          accept: {"application/json": [".json"]},
+          accept: { "application/json": [".json"] },
         }],
       });
       const ws = await f.createWritable();
@@ -1136,7 +1179,7 @@ async function handleAction(target) {
       // get file
       const [fileHandle] = await window.showOpenFilePicker({ types: [{
         description: i18n('file_save_type'),
-        accept: {"application/json": ".json"},
+        accept: { "application/json": ".json" },
       }] });
       // console.log('Grabbed file', fileHandle);
       const fileData = await fileHandle.getFile();
@@ -1156,13 +1199,13 @@ async function handleAction(target) {
       space.path.length = 0;
       if (backup.currentSpace) {
         // console.log('updating current space', backup.currentSpace);
-        setStorageData({currentSpace: backup.currentSpace});
+        setStorageData({ currentSpace: backup.currentSpace });
       }
 
       // restore data
       if (backup.userClippingsRoot) { // check for clippings data
         // console.log("Creating new DataBucket...");
-        const newData = new DataBucket({children: backup.userClippingsRoot});
+        const newData = new DataBucket({ children: backup.userClippingsRoot });
         // console.log("Parsing data...", structuredClone(newData), newData);
         if (await newData.parse()) {
           // console.log("Updated data", space.data);
@@ -1213,7 +1256,7 @@ async function handleAction(target) {
   // copy processed sniplet
   case 'copy': {
     // get requested item
-    const {snip, customFields, counters} = await space.getProcessedSniplet(dataset.seq) || {};
+    const { snip, customFields, counters } = await space.getProcessedSniplet(dataset.seq) || {};
     // console.log(snip, customFields);
     if (!snip) break;
     // rebuild settings menu in case there was an update to counters
@@ -1241,11 +1284,12 @@ async function handleAction(target) {
   case 'paste': {
     // attempt to paste into a selected field
     const activeTab = await getCurrentTab();
-    pasteSnip({tabId: activeTab.id}, dataset.seq, space, {pageUrl: activeTab.url});
+    pasteSnip({ tabId: activeTab.id }, dataset.seq, space, { pageUrl: activeTab.url });
     break; }
 
   // settings
-  case 'toggle-panel-action':
+  // TODO: set various view options
+  case 'set-icon-action':
     if (settings.view.action === 'panel') {
       settings.view.action = 'popup';
     } else {
@@ -1307,15 +1351,15 @@ async function handleAction(target) {
     if (targetBucket && targetBucket[space.name]) {
       // console.log('Working on it');
       const response = await confirmSelection(i18n('warning_sync_overwrite'), [
-        {title: i18n('action_keep_local'), value: 'local'},
-        {title: i18n('action_keep_sync'), value: 'sync'},
+        { title: i18n('action_keep_local'), value: 'local' },
+        { title: i18n('action_keep_sync'), value: 'sync' },
       ], i18n('action_start_sync'));
       // console.log(response);
       switch (response) {
       case 'sync':
         // update local data before moving, set to false since it'll be reset after
         try {
-          await space.init({name: space.name, synced: false, data: targetBucket[space.name]});
+          await space.init({ name: space.name, synced: false, data: targetBucket[space.name] });
         } catch (e) {
           console.error(e);
           alert(i18n('error_shift_failed'));
@@ -1406,7 +1450,7 @@ async function handleAction(target) {
           value: startVal,
           id: `submitCounterDefaults`,
         }],
-      }, ({target}) => {
+      }, ({ target }) => {
         const submitButton = target.closest('dialog').querySelector('#submitCounterDefaults');
         submitButton.value = target.value;
       });
@@ -1420,7 +1464,7 @@ async function handleAction(target) {
 
   case 'manage-counters': {
     // eslint-disable-next-line no-unused-vars
-    const {startVal, ...counters} = space.data.counters;
+    const { startVal, ...counters } = space.data.counters;
     const values = await showModal({
       title: i18n('title_counter_manage'),
       fields: Object.entries(counters).sort((a, b) => a - b).map(([key, value], i) => ({
@@ -1434,7 +1478,7 @@ async function handleAction(target) {
         value: `{}`,
         id: `submitCounters`,
       }],
-    }, ({target}) => {
+    }, ({ target }) => {
       const button = target.closest('dialog').querySelector('#submitCounters');
       const changes = JSON.parse(button.value);
       const val = +target.value;
@@ -1448,8 +1492,8 @@ async function handleAction(target) {
     break; }
 
   case 'clear-counters': {
-    const {startVal} = space.data.counters;
-    space.data.counters = {startVal: startVal};
+    const { startVal } = space.data.counters;
+    space.data.counters = { startVal: startVal };
     space.save();
     $('settings').replaceChildren(...buildMenu());
     break; }
@@ -1460,7 +1504,7 @@ async function handleAction(target) {
     space.sort(settings.sort);
     space.save();
     buildList();
-    handleAction({action: 'focus', seq: newSniplet.seq, field: 'name'});
+    handleAction({ action: 'focus', seq: newSniplet.seq, field: 'name' });
     break; }
   
   case 'new-folder': {
@@ -1470,7 +1514,7 @@ async function handleAction(target) {
     buildList();
     buildTree();
     setHeaderPath();
-    handleAction({action: 'rename', seq: newFolder.seq, field: 'name'});
+    handleAction({ action: 'rename', seq: newFolder.seq, field: 'name' });
     break; }
   
   case 'delete':
@@ -1515,8 +1559,8 @@ async function handleAction(target) {
     // console.log(dataset);
     if (target.value) {
       const movedItem = space.moveItem(
-        {seq: dataset.seq},
-        {seq: target.value},
+        { seq: dataset.seq },
+        { seq: target.value },
       );
       space.save();
       buildList();

@@ -27,7 +27,8 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "service_worker.js"
+    "service_worker": "service_worker.js",
+    "type": "module"
   },
   "action": {
     "default_title": "__MSG_app_command_open__",

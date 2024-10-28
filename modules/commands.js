@@ -1,17 +1,94 @@
-/* eslint-disable no-unused-vars */
-/* global
-  i18n, uiLocale, i18nNum, getColor,
-  getCurrentTab, openWindow, openPanel, openForEditing,
-  setStorageData, getStorageData, removeStorageData,
-  getCurrentSpace, setFollowup, fetchFollowup, setClipboard, getRichText,
-  Settings, Folder, Sniplet, DataBucket, Space,
-  buildNode, buildSvg, setSvgSprite, setSvgFill,
-  buildActionIcon, buildPopoverMenu,
-  buildMenuItem, buildMenuSeparator, buildSubMenu, buildMenuControl,
-  buildItemWidget, buildTreeWidget,
-  showModal, showAlert, confirmAction, confirmSelection, showAbout,
-  mergeCustomFields, requestOrigins
-*/
+import { i18n, getColor, getRichText } from "./refs.js";
+import { Settings } from "./classes/settings.js";
+import { Folder, Sniplet, Space } from "./classes/spaces.js";
+import { setFollowup } from "./storage.js";
+// import { openWindow } from "./dom.js";
+
+
+/** (Re)build context menu for snipping and pasting
+ * @param {Space} space 
+ */
+async function buildContextMenus(space) {
+  // Since there's no way to poll current menu items, clear all first
+  await new Promise((resolve, reject) => {
+    chrome.contextMenus.removeAll(() =>
+      (chrome.runtime.lastError)
+      ? reject(chrome.runtime.lastError)
+      : resolve(true),
+    );
+  }).catch((e) => console.error(e));
+
+  if (!space?.name) return;
+
+  const addMenu = (properties) => chrome.contextMenus.create(properties, () =>
+    chrome.runtime.lastError && console.error(chrome.runtime.lastError),
+  );
+  
+  /** @type {{action:string,path:number[],seq:number,menuSpace:{name:string,synced:boolean}}} */
+  const menuData = {
+    action: 'snip',
+    menuSpace: {
+      name: space.name,
+      synced: space.synced,
+      path: [],
+    },
+  };
+
+  // create snipper for selected text
+  addMenu({
+    "id": JSON.stringify(menuData),
+    "title": i18n('action_snip_selection'),
+    "contexts": ["selection"],
+  });
+
+  // build paster for saved sniplets
+  // console.log(space);
+  if (space.data?.children?.length) {
+    // set root menu item
+    menuData.action = 'paste';
+    addMenu({
+      "id": JSON.stringify(menuData),
+      "title": i18n('action_paste'),
+      "contexts": ["editable"],
+    });
+
+    /**
+     * Recursive function for sniplet tree
+     * @param {(TreeItem|Folder|Sniplet)[]} folder 
+     * @param {*} parentData 
+     */
+    const buildFolder = (folder, parentData) => {
+      const menuItem = {
+        "contexts": ["editable"],
+        "parentId": JSON.stringify(parentData),
+      };
+      // clone parent object to avoid polluting it
+      const menuData = structuredClone(parentData);
+      // console.log(menuData, parentData);
+      if (menuData.seq) menuData.menuSpace.path.push(menuData.seq);
+      // list sniplets in folder
+      if (folder.length) {
+        folder.forEach(item => {
+          menuData.seq = item.seq;
+          menuItem.id = JSON.stringify(menuData);
+          // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
+          const color = getColor(item.color);
+          menuItem.title = `${(item instanceof Folder) ? color.folder : color.sniplet}\xA0\xA0${item.name.replaceAll("&", "&&")}`;
+          addMenu(menuItem);
+          if (item instanceof Folder) buildFolder(item.children, menuData);
+        });
+      } else {
+        menuData.seq = undefined;
+        menuItem.id = JSON.stringify(menuData);
+        menuItem.title = i18n('folder_empty');
+        menuItem.enabled = false;
+        addMenu(menuItem);
+      }
+    };
+    // build paste sniplet menu tree
+    buildFolder(space.data.children, menuData);
+  }
+}
 
 /** Checks if a url is a known blocked site
  * @param {string|URL} url 
@@ -50,7 +127,7 @@ const injectScript = (injection) => chrome.scripting.executeScript(injection)
 /** Injection script to grab selection text
  * @param {{preserveTags:boolean,saveSource:boolean}} options
  */
-const returnSnip = ({preserveTags, saveSource}) => {
+const returnSnip = ({ preserveTags, saveSource }) => {
   /** Recursive for traversing embedded content - required for keyboard shortcuts
    * @param {Window} window 
    */
@@ -90,7 +167,7 @@ const returnSnip = ({preserveTags, saveSource}) => {
       }
       return {
         content: text,
-        ...saveSource ? {sourceURL: window.location.href} : {},
+        ...saveSource ? { sourceURL: window.location.href } : {},
       };
   };
 
@@ -117,7 +194,7 @@ const getSnip = async (target, options) => (await injectScript({
  * @param {{pageUrl:string,frameUrl:string}} urls 
  * @returns {Promise<void>}
  */
-async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {}) {
+async function snipSelection(target, actionSpace = {}, { pageUrl, frameUrl } = {}) {
   const url = frameUrl || pageUrl;
 
   // check if we're on a known blocked page
@@ -134,7 +211,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
   if (!result) {
     // Double-check we're not just inside a frame and activeTab isn't working
     if ((target.allFrames || target.frameIds?.length)) {
-      result = await getSnip({tabId: target.tabId}, settings.control);
+      result = await getSnip({ tabId: target.tabId }, settings.control);
       // console.log(result);
     }
     // report top level blocked if there's still no result
@@ -147,12 +224,12 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
   // check for cross-origin errors
   if (result.error === 'SecurityError') {
     // console.log(result, target, url);
-    const {pageSrc, frameSrc} = result;
+    const { pageSrc, frameSrc } = result;
     const pageOrigin = [frameUrl, frameSrc].includes(pageSrc) && `${(new URL(pageSrc)).origin}/*`;
     const frameOrigin = frameUrl && `${(new URL(frameUrl)).origin}/*`;
     const srcOrigin = frameSrc && `${(new URL(frameSrc)).origin}/*`;
     const origins = [pageOrigin, frameOrigin, srcOrigin].filter(v => v && v !== 'null/*');
-    if (!url || await chrome.permissions.contains({origins:origins})) {
+    if (!url || await chrome.permissions.contains({ origins:origins })) {
       // nothing more we can do
       setFollowup('alert', {
         title: i18n('title_snip_blocked'),
@@ -164,7 +241,7 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
     setFollowup('permissions', {
       action: 'snip',
       target: target,
-      ...origins?.length ? {origins: origins} : {},
+      ...origins?.length ? { origins: origins } : {},
       actionSpace: actionSpace,
     });
     return;
@@ -177,7 +254,18 @@ async function snipSelection(target, actionSpace = {}, {pageUrl, frameUrl} = {})
   const newSnip = space.addItem(new Sniplet(result));
   space.sort(settings.sort);
   await space.save();
-  openForEditing(space.path, newSnip.seq);
+  setFollowup('action', {
+    action: 'focus',
+    path: space.path.join('-'),
+    seq: newSnip.seq,
+    field: 'name',
+  });
+  // openWindow({
+  //   action: 'focus',
+  //   path: space.path.join('-'),
+  //   seq: newSnip.seq,
+  //   field: 'name',
+  // });
   return;
 }
 
@@ -220,7 +308,7 @@ const paste = (snip, richText) => {
     // CKEditor requires special handling
     if (input.classList.contains('ck') && window.editor) {
       // CKEditor 5
-      const {editor} = window;
+      const { editor } = window;
       const ckViewFrag = editor.data.processor.toView(richText);
       const ckModFrag = editor.data.toModel(ckViewFrag);
       editor.model.insertContent(ckModFrag);
@@ -253,7 +341,7 @@ const paste = (snip, richText) => {
     : document.execCommand('insertHTML', false, richText);
     if (!pasted) {
       // prepare content for backup code
-      const {content} = snip;
+      const { content } = snip;
 
       // forward-compatible manual cut paste code - kills the undo stack
       if (input.value === 'undefined') {
@@ -269,7 +357,7 @@ const paste = (snip, richText) => {
         }
         selection.collapseToEnd();
       } else {
-        const {value} = input;
+        const { value } = input;
         const start = input.selectionStart;
         const end = input.selectionEnd;
         input.value = value.slice(0, start) + content + value.slice(end);
@@ -320,7 +408,7 @@ const insertSnip = async (target, snip) => (await injectScript({
  * @param {{pageUrl:string,frameUrl:string}} urls 
  * @returns {Promise<void>}
  */
-async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
+async function pasteSnip(target, seq, actionSpace, { pageUrl, frameUrl } = {}) {
   const url = frameUrl || pageUrl;
 
   // make sure we have a seq of something to paste
@@ -338,7 +426,7 @@ async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
     });
     return;
   }
-  const {snip, customFields, counters} = await space.getProcessedSniplet(seq) || {};
+  const { snip, customFields, counters } = await space.getProcessedSniplet(seq) || {};
   if (!snip) {
     setFollowup('alert', {
       title: i18n('title_snip_not_found'),
@@ -357,7 +445,7 @@ async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
   if (!errorCheck) {
     // Double-check we're not just inside a frame and activeTab isn't working
     if ((target.allFrames || target.frameIds?.length)) {
-      testInjection.target = {tabId: testInjection.target.tabId};
+      testInjection.target = { tabId: testInjection.target.tabId };
       errorCheck = (await injectScript(testInjection))[0]?.result;
       // console.log(result);
     }
@@ -367,12 +455,12 @@ async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
   // check for any security errors that require permissions
   if (errorCheck?.error === 'SecurityError') {
     // console.log(result, target, url);
-    const {pageSrc, frameSrc} = errorCheck;
+    const { pageSrc, frameSrc } = errorCheck;
     const pageOrigin = [frameUrl, frameSrc].includes(pageSrc) && `${(new URL(pageSrc)).origin}/*`;
     const frameOrigin = frameUrl && `${(new URL(frameUrl)).origin}/*`;
     const srcOrigin = frameSrc && `${(new URL(frameSrc)).origin}/*`;
     const origins = [pageOrigin, frameOrigin, srcOrigin].filter(v => v && v !== 'null/*');
-    if (!url || await chrome.permissions.contains({origins:origins})) {
+    if (!url || await chrome.permissions.contains({ origins:origins })) {
       // nothing more we can do
       setFollowup('alert', {
         title: i18n('title_paste_blocked'),
@@ -382,13 +470,13 @@ async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
     }
     // pass off to permissions window through service worker
     setFollowup('permissions', {
-      ...origins?.length ? {origins: origins} : {},
+      ...origins?.length ? { origins: origins } : {},
       action: 'paste',
       target: target,
       snip: snip,
       actionSpace: actionSpace,
-      ...customFields ? {customFields: Array.from(customFields.entries())} : {},
-      ...counters ? {counters: Array.from(counters.entries())} : {},
+      ...customFields ? { customFields: Array.from(customFields.entries()) } : {},
+      ...counters ? { counters: Array.from(counters.entries()) } : {},
     });
     return;
   }
@@ -402,7 +490,7 @@ async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
       snip: snip,
       actionSpace: actionSpace,
       customFields: Array.from(customFields.entries()),
-      ...counters ? {counters: Array.from(counters.entries())} : {},
+      ...counters ? { counters: Array.from(counters.entries()) } : {},
     });
     return;
   }
@@ -431,3 +519,10 @@ async function pasteSnip(target, seq, actionSpace, {pageUrl, frameUrl} = {}) {
 
   return;
 }
+
+export {
+  buildContextMenus,
+  snipSelection,
+  insertSnip,
+  pasteSnip,
+};

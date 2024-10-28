@@ -1,359 +1,33 @@
-/* eslint-disable no-unused-vars */
+import { i18n, uiLocale, i18nOrd } from "../refs.js";
+import { setStorageData, getStorageData, getCurrentSpace } from "../storage.js";
+import { Settings } from "./settings.js";
 
-/** chrome.i18n helper to pull strings from _locales/[locale]/messages.json
- * @param {string} messageName 
- * @param {string|string[]} substitutions
- * @example
- * // returns "Sniplets"
- * i18n("app_name")
- */
-const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName, substitutions);
-/** @type {string} */
-const uiLocale = i18n('@@ui_locale').replace('_', '-');
-const i18nNum = (i, options = {useGrouping: false}) =>
-  new Intl.NumberFormat(uiLocale, options).format(i);
-const i18nOrd = (i) =>
-  i18n(`ordinal_${new Intl.PluralRules(uiLocale).select(i)}`, i);
-
-/** Map of default colours
- * @type {Map<string,{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,sniplet:string}>}
- */
-const colors = new Map()
-.set('default', {value: "inherit", label: i18n('color_default'), square: "\u2B1B\uFE0F", circle: "\u26AB\uFE0F", heart: "🖤",                       folder: "📁",                       sniplet: "📝"})
-.set('red',     {value: "#D0312D", label: i18n('color_red'),     square: "🟥",           circle: "🔴",           heart: "\u2764\uFE0F", book: "📕", get folder() {return this.book;},   get sniplet() {return this.circle;}})
-.set('orange',  {value: "#FFA500", label: i18n('color_orange'),  square: "🟧",           circle: "🟠",           heart: "🧡",           book: "📙", get folder() {return this.book;},   get sniplet() {return this.circle;}})
-.set('yellow',  {value: "#FFD700", label: i18n('color_yellow'),  square: "🟨",           circle: "🟡",           heart: "💛",           book: "📒", get folder() {return this.book;},   get sniplet() {return this.circle;}})
-.set('green',   {value: "#3CB043", label: i18n('color_green'),   square: "🟩",           circle: "🟢",           heart: "💚",           book: "📗", get folder() {return this.book;},   get sniplet() {return this.circle;}})
-.set('blue',    {value: "#3457D5", label: i18n('color_blue'),    square: "🟦",           circle: "🔵",           heart: "💙",           book: "📘", get folder() {return this.book;},   get sniplet() {return this.circle;}})
-.set('purple',  {value: "#A32CC4", label: i18n('color_purple'),  square: "🟪",           circle: "🟣",           heart: "💜",                       get folder() {return this.square;}, get sniplet() {return this.circle;}})
-.set('gray',    {value: "#808080", label: i18n('color_gray'),    square: "\u2B1C\uFE0F", circle: "\u26AA\uFE0F", heart: "🤍",           book: "📓", get folder() {return this.book;},   get sniplet() {return this.circle;}});
-
-/** Safe getter for the colors that will return a default value if not available
- * @param {string} [color] 
- */
-const getColor = color => colors.get(colors.has(color) ? color : 'default');
-
-/** legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files) */
-const legacyColors = new Map()
-.set('Red','red')
-.set('Orange','orange')
-.set('Yellow','yellow')
-.set('Green','green')
-.set('Blue','blue')
-.set('Purple','purple')
-.set('Grey','gray');
-
-// Get the current tab (adapted from https://developer.chrome.com/docs/extensions/reference/api/tabs#get_the_current_tab)
-async function getCurrentTab() {
-  const queryOptions = {active: true, currentWindow: true};
-  const [tab] = await chrome.tabs.query(queryOptions);
-  return tab;
-}
-
-/** Open a new popup window
- * @param {{[name:string]:string}} params
- */
-const openWindow = (params = {}) => {
-  const src = new URL(chrome.runtime.getURL("popup/main.html"));
-  for (const [name, value] of Object.entries(params)) {
-    src.searchParams.set(name, value);
-  }
-  src.searchParams.set('view', 'window');
-  return chrome.windows.create({
-    url: src.href,
-    type: "popup",
-    width: 700, // 867 for screenshots
-    height: 460, // 540 for screenshots
-  })
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
-
-/** Open a new side panel for the tab
- * @param {{[name:string]:string}} params
- */
-const openPanel = async (tab, params = {}) => {
-  tab ||= await getCurrentTab();
-  if (!tab) return;
-
-  const src = new URL(chrome.runtime.getURL("popup/main.html"));
-  for (const [name, value] of Object.entries(params)) {
-    src.searchParams.set(name, value);
-  }
-  src.searchParams.set('view', 'panel');
-
-  await chrome.sidePanel.setOptions({
-    tabId: tab.id,
-    enabled: true,
-    path: src.href,
-  });
-  return chrome.sidePanel.open({
-    tabId: tab.id,
-  })
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
-
-/** Open a new window for editing a sniplet
- * @param {number[]} path
- * @param {number} seq
- */
-const openForEditing = (path, seq) => openWindow({
-  action: 'focus',
-  path: path.join('-'),
-  seq: seq,
-  field: 'name',
-});
-
-/** Safely stores data to chrome.storage.local (default) or .sync.
- * @param {{[key:string]:*}} items - a {key: value} object to store
- * @param {boolean} [sync=false] - Whether to store the data in local (false, default) or sync (true).
- */
-const setStorageData = async (items, sync = false) => {
-  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
-  return bucket.set(items)
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
-
-/** Safely retrieves storage data from chrome.storage.local (default) or .sync.
- * @param {null|string|string[]|{[key:string]:*}} keys - The key name for the stored data.
- * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
- */
-const getStorageData = async (keys, sync = false) => {
-  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
-  return bucket.get(keys)
-  .catch((e) => (console.error(e), {}));
-};
-
-/** Safely removes storage data from chrome.storage.local (default) or .sync.
- * @param {string|string[]} keys - The key name for the stored data.
- * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
- */
-const removeStorageData = async (keys, sync = false) => {
-  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
-  return bucket.remove(keys)
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
-
-/** Get details of saved current space
- * @returns {Promise<{name:string,synced:boolean,path?:number[]}>}
-*/
-const getCurrentSpace = async () => (await getStorageData('currentSpace'))?.currentSpace;
-
-/** Open correct type of popup depending on setting */
-const openPopup = async () => {
-  const settings = new Settings();
-  await settings.load();
-  if (settings.view.action === 'popup' && chrome.action.openPopup) {
-    // only available in dev/canary when there's an active window, soon moving to stable
-    chrome.action.openPopup().catch((e) => {
-      console.error(e);
-      openWindow();
-    });
-  } else if (settings.view.action === 'panel' && chrome.sidePanel.open) {
-    openPanel().catch((e) => {
-      console.error(e);
-      openWindow();
-    });
-  } else {
-    openWindow();
-  }
-};
-
-/** Stores data required for following up on a task and opens a window to action it
- * @param {string} type Action which needs handling in a popup window
- * @param {{[key:string]:*}} args Properties needed by the followup function
- */
-const setFollowup = async (type, args) => {
-  const followup = {
-    type: type,
-    args: args || {}, // default value for destructuring
-  };
-
-  // check if we're a window that can handle it directly
-  if (typeof handleFollowup === 'function') {
-    // eslint-disable-next-line no-undef
-    handleFollowup(followup);
-    return;
-  }
-  
-  // save followup for a window that can handle it
-  await chrome.storage.session.set({followup: followup})
-  .catch((e) => console.error(e));
-  // alert any open windows that they should check for follow-ups or open a new one
-  chrome.runtime.sendMessage({type: 'followup'})
-  .catch(() => openPopup());
-  return;
-};
-
-/** Fetch requests from session storage set using the `setFollowup()` function
- * @returns {Promise<{type:string,message:*,args:Object}|void>}
- */
-const fetchFollowup = async () => {
-  const {followup} = await chrome.storage.session.get('followup')
-  .catch(e => console.error(e));
-  if (followup) chrome.storage.session.remove('followup')
-  .catch(e => console.error(e));
-  // console.log(followup);
-  return followup;
-};
-
-/** Send text to clipboard
- * @param {{content:string,nosubst:boolean}} snip 
- */
-const setClipboard = async (snip) => {
-  if(!snip.content) return;
-  const items = {
-    "text/plain":  new Blob([snip.content], {type: "text/plain"}),
-  };
-  if (!snip.nosubst) items["text/html"] = new Blob([await getRichText(snip)], {type: "text/html"});
-  // console.log(`Copying to clipboard...`);
-  return navigator.clipboard.write([new ClipboardItem(items)])
-  .then(() => true)
-  .catch((e) => console.error(e));
-};
-
-/** Add HTML line break tags where appropriate and remove newlines to avoid unwanted spaces
- * @param {string} text
- */
-const tagNewlines = text => text.replaceAll(
-  /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\r|\n)/g,
-  (match) => `<br>`,
-).replaceAll(
-  /\r\n|\r|\n/g,
-  ``,
-);
-/** Place anchor tags around emails if not already linked
- * @param {string} text
- */
-const linkEmails = text => text.replaceAll(
-  /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
-  (match) => `<a href="mailto:${match}">${match}</a>`,
-);
-/** Place anchor tags around urls if not already linked
- * @param {string} text
- */
-const linkURLs = text => text.replaceAll(
-  /<a.+?\/a>|<[^>]*?>|((?<![.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file):\/+)?(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?)/gi,
-  (match, p1, p2) => {
-    // console.log(match, p1, p2);
-    // skip anchors and tag attributes
-    if (!p1) return match;
-    // skip IP addresses with no protocol
-    if (match.match(/^\d+\.\d+\.\d+\.\d+$/)) return match;
-    // ensure what was picked up evaluates to a proper url (just in case)
-    const matchURL = new URL(((!p2) ? `http://${match}` : match));
-    // console.log(matchURL);
-    return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match;
-  },
-);
-
-/** Process and return snip contents according to rich text settings
- * @param {{content:string,nosubst:boolean}} snip 
- */
-const getRichText = async (snip) => {
-  // don't process flagged sniplets
-  if (snip.nosubst) return snip.content;
-  // work on string copy
-  let text = snip.content;
-  // check what processing has been enabled
-  const settings = new Settings();
-  await settings.load();
-  const {rtLineBreaks, rtLinkEmails, rtLinkURLs} = settings.control;
-  // process according to settings
-  if (rtLineBreaks) text = tagNewlines(text);
-  if (rtLinkEmails) text = linkEmails(text);
-  if (rtLinkURLs) text = linkURLs(text);
-  return text;
-};
-
-/** Settings object for persisting as window global */
-class Settings {
-  /** @param {Settings} settings */
-  constructor(settings) {
-    if (settings) this.init(settings);
-  }
-
-  /** Optionally take provided settings and initialize the remaining settings
-   * @param {Settings} [settings] 
-   */
-  init({defaultSpace, sort, view, control, data} = {}) {
-    // console.log(defaultSpace, sort, view, control, data);
-    const setDefaultSpace = ({name = i18n('default_space_name'), synced = true} = {}) => ({
-      name: name,
-      synced: synced,
-    });
-    /** @type {{name:string,synced:boolean}} */
-    this.defaultSpace = setDefaultSpace(defaultSpace);
-    const setSort = ({by = 'seq', groupBy = '', foldersOnTop = true} = {}) => ({
-      by: by,
-      groupBy: groupBy,
-      foldersOnTop: foldersOnTop,
-    });
-    /** @type {{by:('seq'|'name'),groupBy:(''|'color'|'src'),foldersOnTop:boolean}} */
-    this.sort = setSort(sort);
-    const setView = ({adjustTextArea = true, sourceURL = false, rememberPath = false, action = 'popup'} = {}) => ({
-      adjustTextArea: adjustTextArea,
-      sourceURL: sourceURL,
-      rememberPath: rememberPath,
-      action: action,
-    });
-    /** @type {{adjustTextArea:boolean,sourceURL:boolean,rememberPath:boolean,action:('popup'|'panel'|'window')}} */
-    this.view = setView(view);
-    const setControl = ({saveSource = false, preserveTags = false, rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true} = {}) => ({
-      saveSource: saveSource,
-      preserveTags: preserveTags,
-      rtLineBreaks: rtLineBreaks,
-      rtLinkEmails: rtLinkEmails,
-      rtLinkURLs: rtLinkURLs,
-    });
-    /** @type {{saveSource:boolean,preserveTags:boolean,rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} */
-    this.control = setControl(control);
-    const setData = ({compress = true} = {}) => ({
-      compress: compress,
-    });
-    /** @type {{compress:boolean}} */
-    this.data = setData(data);
-  }
-
-  /** Load settings from sync storage */
-  async load() {
-    const {settings} = await getStorageData('settings', true);
-    if (!settings) return;
-
-    // legacy check
-    if (settings.foldersOnTop) {
-      settings.sort = {foldersOnTop: settings.foldersOnTop};
-      delete settings.foldersOnTop;
-    }
-
-    // upgrade settings object as needed and return the object
-    this.init(settings);
-    return this;
-  }
-
-  /** Save settings to sync storage */
-  async save() {
-    return await setStorageData({settings: this}, true);
-  }
-}
 
 /** Base constructor for folders, sniplets and any future items */
 class TreeItem {
-  constructor({name = i18n('title_new_generic'), seq, color} = {}) {
+  constructor({ name = i18n('title_new_generic'), seq, color } = {}) {
     /** @type {string} */
     this.name = name;
     /** @type {number} */
     this.seq = seq;
+
+    /** legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files) */
+    const legacyColors = new Map()
+    .set('Red','red')
+    .set('Orange','orange')
+    .set('Yellow','yellow')
+    .set('Green','green')
+    .set('Blue','blue')
+    .set('Purple','purple')
+    .set('Grey','gray');
+
     /** @type {string} */
     this.color = legacyColors.get(color) || color; // legacy color mapping check
   }
 }
 /** Folders contain tree items and can be nested. */
 class Folder extends TreeItem {
-  constructor({name = i18n('title_new_folder'), seq, children, color, label} = {}) {
+  constructor({ name = i18n('title_new_folder'), seq, children, color, label } = {}) {
     super({
       name: name,
       seq: seq,
@@ -365,7 +39,7 @@ class Folder extends TreeItem {
 }
 /** Sniplets are basic text blocks that can be pasted */
 class Sniplet extends TreeItem {
-  constructor({name, seq, color, label, shortcut, sourceURL, content = "", nosubst = false} = {}) {
+  constructor({ name, seq, color, label, shortcut, sourceURL, content = "", nosubst = false } = {}) {
     // generate name from content if provided
     if (!name && content) {
       // create sniplet title from first line of text
@@ -396,14 +70,14 @@ class Sniplet extends TreeItem {
 }
 /** Basic sniplets data bucket */
 class DataBucket {
-  constructor({version = "1.0", children = [], counters = {}} = {}) {
+  constructor({ version = "1.0", children = [], counters = {} } = {}) {
     /** @type {string} */
     this.version = version;
     /** @type {number} */
     this.timestamp = Date.now();
     /** @type {(TreeItem|Folder|Sniplet)[]|string} */
     this.children = children;
-    const {startVal, ...encounters} = counters;
+    const { startVal, ...encounters } = counters;
     /** @type {{[name:string]:number}} */
     this.counters = encounters || {};
     this.counters.startVal = +startVal || 0;
@@ -420,7 +94,7 @@ class DataBucket {
     }
 
     // create a compression stream
-    const stream = new Blob([JSON.stringify(this.children)], {type: 'application/json'})
+    const stream = new Blob([JSON.stringify(this.children)], { type: 'application/json' })
       .stream().pipeThrough(new CompressionStream("gzip"));
     // read the compressed stream and convert to b64
     const blob = await new Response(stream).blob();
@@ -471,7 +145,7 @@ class DataBucket {
 
     try {
       // create stream for decompression
-      const stream = new Blob([gzipData], {type: "application/json"})
+      const stream = new Blob([gzipData], { type: "application/json" })
         .stream().pipeThrough(new DecompressionStream("gzip"));
       // read the decompressed stream
       const dataBlob = await new Response(stream).blob();
@@ -489,7 +163,7 @@ class DataBucket {
    * @returns 
    */
   syncable(name) {
-    const {size} = new Blob([JSON.stringify({[name]: this.data})]);
+    const { size } = new Blob([JSON.stringify({ [name]: this.data })]);
     const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
     return (size <= maxSize);
   }
@@ -541,7 +215,7 @@ class Space {
    *   path: number[]|string
    * }} details
    */
-  constructor({name = i18n('default_space_name'), synced = false, data = new DataBucket(), path = []} = {}) {
+  constructor({ name = i18n('default_space_name'), synced = false, data = new DataBucket(), path = [] } = {}) {
     this.name = name;
     this.synced = synced;
     this.data = data;
@@ -559,7 +233,7 @@ class Space {
     };
     // save path as well if requested
     if (rememberPath) currentSpace.path = this.path;
-    return await setStorageData({currentSpace: currentSpace}) && currentSpace;
+    return await setStorageData({ currentSpace: currentSpace }) && currentSpace;
   }
 
   /** load last used space or fall back to default */
@@ -595,7 +269,7 @@ class Space {
 
     // update local timestamp and store data
     this.data.timestamp = dataBucket.timestamp;
-    return setStorageData({[this.name]: dataBucket}, this.synced);
+    return setStorageData({ [this.name]: dataBucket }, this.synced);
   }
 
   /** Load a stored DataBucket into the space
@@ -605,7 +279,7 @@ class Space {
    *   path: number[]
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
-  async load({name = this.name, synced = this.synced, path = []} = {}) {
+  async load({ name = this.name, synced = this.synced, path = [] } = {}) {
     if (!name) return false;
     // console.log("Loading space...", name, synced, typeof synced, path);
     const bucket = await getStorageData(name, synced);
@@ -997,8 +671,8 @@ class Space {
     // console.log(snip, customFields);
     return {
       snip: snip,
-      ...customFields.size ? {customFields: customFields} : {},
-      ...counters.size ? {counters: counters}: {},
+      ...customFields.size ? { customFields: customFields } : {},
+      ...counters.size ? { counters: counters }: {},
     };
   }
 
@@ -1013,7 +687,7 @@ class Space {
   }
 
   /** Sort tree items according to sort rules */
-  sort({by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all']} = {}) {
+  sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'] } = {}) {
     // recursive function in case everything needs to be sorted
     const sortFolder = (data, recursive, by, foldersOnTop, reverse) => {
       if (!data.children)
@@ -1065,7 +739,7 @@ class Space {
    *   path: number[]|string
    * }} details
    */
-  async init({name, synced, data, path} = {}) {
+  async init({ name, synced, data, path } = {}) {
     // console.log(name, synced, data, path);
     // check defaults if either name or synced are blank
     const settings = new Settings();
@@ -1093,87 +767,9 @@ class Space {
   }
 }
 
-/** (Re)build context menu for snipping and pasting
- * @param {Space} space 
- */
-async function buildContextMenus(space) {
-  // Since there's no way to poll current menu's, clear all first
-  await new Promise((resolve, reject) => {
-    chrome.contextMenus.removeAll(() =>
-      (chrome.runtime.lastError)
-      ? reject(chrome.runtime.lastError)
-      : resolve(true),
-    );
-  }).catch((e) => console.error(e));
-
-  if (!space?.name) return;
-
-  const addMenu = (properties) => chrome.contextMenus.create(properties, () =>
-    chrome.runtime.lastError && console.error(chrome.runtime.lastError),
-  );
-  
-  /** @type {{action:string,path:number[],seq:number,menuSpace:{name:string,synced:boolean}}} */
-  const menuData = {
-    action: 'snip',
-    menuSpace: {
-      name: space.name,
-      synced: space.synced,
-      path: [],
-    },
-  };
-
-  // create snipper for selected text
-  addMenu({
-    "id": JSON.stringify(menuData),
-    "title": i18n('action_snip_selection'),
-    "contexts": ["selection"],
-  });
-
-  // build paster for saved sniplets
-  // console.log(space);
-  if (space.data?.children?.length) {
-    // set root menu item
-    menuData.action = 'paste';
-    addMenu({
-      "id": JSON.stringify(menuData),
-      "title": i18n('action_paste'),
-      "contexts": ["editable"],
-    });
-
-    /**
-     * Recursive function for sniplet tree
-     * @param {(TreeItem|Folder|Sniplet)[]} folder 
-     * @param {*} parentData 
-     */
-    const buildFolder = (folder, parentData) => {
-      const menuItem = {
-        "contexts": ["editable"],
-        "parentId": JSON.stringify(parentData),
-      };
-      // clone parent object to avoid polluting it
-      const menuData = structuredClone(parentData);
-      // console.log(menuData, parentData);
-      if (menuData.seq) menuData.menuSpace.path.push(menuData.seq);
-      // list sniplets in folder
-      if (folder.length) {
-        folder.forEach(item => {
-          menuData.seq = item.seq;
-          menuItem.id = JSON.stringify(menuData);
-          // using emojis for ease of parsing, && escaping, nbsp needed for chrome bug
-          const color = getColor(item.color);
-          menuItem.title = `${(item instanceof Folder) ? color.folder : color.sniplet}\xA0\xA0${item.name.replaceAll("&", "&&")}`;
-          addMenu(menuItem);
-          if (item instanceof Folder) buildFolder(item.children, menuData);
-        });
-      } else {
-        menuData.seq = undefined;
-        menuItem.id = JSON.stringify(menuData);
-        menuItem.title = i18n('folder_empty');
-        menuItem.enabled = false;
-        addMenu(menuItem);
-      }
-    };
-    // build paste sniplet menu tree
-    buildFolder(space.data.children, menuData);
-  }
-}
+export {
+  DataBucket,
+  Folder,
+  Sniplet,
+  Space,
+};

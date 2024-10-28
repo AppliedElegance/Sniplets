@@ -535,7 +535,7 @@
   "menu_action": {
     "message": "Icon Action"
   },
-  "menu_set_view_action_panel-toggle": {
+  "menu_set_view_action_panel_toggle": {
     "message": "Toggle side panel"
   },
   "test": {

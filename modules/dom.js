@@ -1,5 +1,6 @@
-/* eslint-disable no-unused-vars */
-/* global i18n, colors, getColor, Folder, Sniplet */
+import { i18n, colors, getColor } from "./refs.js";
+import { Folder, Sniplet } from "./classes/spaces.js";
+
 
 /**
  * DOM helper for element creation including sub-elements
@@ -170,7 +171,7 @@ function buildMenuItem(title, name, value, data) {
       type: 'button',
       name: name,
       value: value,
-      dataset: data || {action: name},
+      dataset: data || { action: name },
       textContent: title,
     })],
   });
@@ -224,7 +225,7 @@ function buildSubMenu(label, id, items) {
  * @param {{id: string, title: string, dataset: Object}} attributes - id is required for radio options,
  * the value will be used for the label if no title is provided
  */
-function buildMenuControl(type, name, value, checked, {id, title, dataset} = {}) {
+function buildMenuControl(type, name, value, checked, { id, title, dataset } = {}) {
   if (!['checkbox', 'radio'].includes(type)) return;
   id ||= name;
   title ||= value;
@@ -258,7 +259,7 @@ function buildMenuControl(type, name, value, checked, {id, title, dataset} = {})
               `control-${type}-checked`,
             )],
           }),
-          buildNode('h3', {textContent: title}),
+          buildNode('h3', { textContent: title }),
         ],
       }),
     ],
@@ -287,18 +288,18 @@ function buildItemWidget(item, list, path, settings) {
     `icon-${item.constructor.name.toLowerCase()}`,
     getColor(item.color).value,
     [
-      buildSubMenu(i18n('color'), `item-${item.seq}-color-menu`, Array.from(colors).map(([color, {label}], i) =>
+      buildSubMenu(i18n('color'), `item-${item.seq}-color-menu`, Array.from(colors).map(([color, { label }], i) =>
         buildMenuControl('radio', `item-${item.seq}-color`,
         color, ((color === item.color) || (!item.color && color === 'default')), {
           id: `item-${item.seq}-color-${i}`,
           title: label,
-          dataset: {action: 'edit', field: 'color', seq: item.seq},
+          dataset: { action: 'edit', field: 'color', seq: item.seq },
         }),
       )),
       buildSubMenu(i18n('action_move'), `item-${item.seq}-move-menu`, list.reduce((a, o, i) => {
         const l = list.length - 1;
         const b = (title, direction) => buildMenuItem(title, `move-${direction}`,
-          o.seq, {action: 'move', seq: item.seq});
+          o.seq, { action: 'move', seq: item.seq });
         if (i === (index - 1)) {
           a.push(b(i18n('direction_up'), 'up'));
         } else if (i === (index + 1)) {
@@ -433,7 +434,7 @@ function buildTreeWidget(collapsible, color, target, text) {
       buildNode('button', {
         type: 'button',
         disabled: !collapsible,
-        dataset: collapsible && {action: 'collapse'},
+        dataset: collapsible && { action: 'collapse' },
         classList: ['icon'],
         children: [
           buildSvg(i18n('label_folder'), collapsible ? 'icon-folder-collapse' : 'icon-folder', color),
@@ -456,3 +457,72 @@ function buildTreeWidget(collapsible, color, target, text) {
     ],
   });
 }
+
+// Get the current tab (adapted from https://developer.chrome.com/docs/extensions/reference/api/tabs#get_the_current_tab)
+async function getCurrentTab() {
+  const queryOptions = { active: true, currentWindow: true };
+  const [tab] = await chrome.tabs.query(queryOptions);
+  return tab;
+}
+
+/** Open a new popup window
+ * @param {{[name:string]:string}} params
+ */
+const openWindow = (params = {}) => {
+  const src = new URL(chrome.runtime.getURL("popup/main.html"));
+  for (const [name, value] of Object.entries(params)) {
+    src.searchParams.set(name, value);
+  }
+  src.searchParams.set('view', 'window');
+  return chrome.windows.create({
+    url: src.href,
+    type: "popup",
+    width: 700, // 867 for screenshots
+    height: 460, // 540 for screenshots
+  })
+  .then(() => true)
+  .catch((e) => (console.error(e), false));
+};
+
+/** Open a new side panel for the tab
+ * @param {{[name:string]:string}} params
+ */
+const openPanel = async (tab, params = {}) => {
+  tab ||= await getCurrentTab();
+  if (!tab) return;
+
+  const src = new URL(chrome.runtime.getURL("popup/main.html"));
+  for (const [name, value] of Object.entries(params)) {
+    src.searchParams.set(name, value);
+  }
+  src.searchParams.set('view', 'panel');
+
+  await chrome.sidePanel.setOptions({
+    tabId: tab.id,
+    enabled: true,
+    path: src.href,
+  });
+  return chrome.sidePanel.open({
+    tabId: tab.id,
+  })
+  .then(() => true)
+  .catch((e) => (console.error(e), false));
+};
+
+export {
+  buildNode,
+  buildSvg,
+  setSvgSprite,
+  setSvgFill,
+  buildActionIcon,
+  buildPopoverMenu,
+  buildMenuItem,
+  buildMenuSeparator,
+  buildSubMenu,
+  buildMenuControl,
+  buildItemWidget,
+  buildTreeWidget,
+  getCurrentTab,
+  openWindow,
+  openPanel,
+};

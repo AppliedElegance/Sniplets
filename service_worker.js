@@ -1,26 +1,26 @@
-if(typeof importScripts === 'function') {
-  importScripts("./scripts/shared.js");
-  importScripts("./scripts/nodeBuilders.js");
-  importScripts("./scripts/modals.js");
-  importScripts("./scripts/inject.js");
-}
+import { Settings } from "./modules/classes/settings.js";
+import { Space, DataBucket } from "./modules/classes/spaces.js";
+import { getStorageData, removeStorageData, getCurrentSpace, setFollowup } from "./modules/storage.js";
+import { i18n } from "./modules/refs.js";
+import { buildContextMenus, snipSelection, pasteSnip } from "./modules/commands.js";
+
 
 const setDefaultAction = (action) => {
   // set popup action
   if (action === 'popup') {
-    chrome.action.setPopup({popup: 'popup/main.html?view=popup'})
+    chrome.action.setPopup({ popup: 'popup/main.html?view=popup' })
     .catch((error) => console.error(error));
   } else {
-    chrome.action.setPopup({popup: ''})
+    chrome.action.setPopup({ popup: '' })
     .catch((error) => console.error(error));
   }
 
   // set side panel action
   if (action === 'panel') {
-    chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: true})
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => console.error(error));
   } else {
-    chrome.sidePanel.setPanelBehavior({openPanelOnActionClick: false})
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
     .catch((error) => console.error(error));
   }
 };
@@ -40,7 +40,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (!(await settings.load())) {
     settings.init();
     // bug check
-    const {name, synced} = settings.defaultSpace;
+    const { name, synced } = settings.defaultSpace;
     let defaultSpace = await getStorageData(name, synced);
     // console.log(defaultSpace);
     if (!defaultSpace[name]) {
@@ -70,7 +70,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   if (!(await space.load(currentSpace || settings.defaultSpace))) {
     // legacy check for existing sniplets
     // console.log("Checking for legacy data...");
-    const legacySpace = {name: "snippets", synced: true};
+    const legacySpace = { name: "snippets", synced: true };
     if (await space.load(legacySpace)) {
       // console.log("Confirming that legacy space is indeed legacy and shifting...");
       const lastVersion = space.data.version.split('.');
@@ -138,14 +138,14 @@ chrome.action.onClicked.addListener((tab) => {
 chrome.contextMenus.onClicked.addListener((data, tab) => {
   // get details from menu item and ignore "empty" ones (sanity check)
   /** @type {{action:string},{menuSpace:{name:string,synced:boolean,path:number[]}}} */
-  const {action, seq, menuSpace} = JSON.parse(data.menuItemId);
+  const { action, seq, menuSpace } = JSON.parse(data.menuItemId);
   // console.log(action, seq, menuSpace);
   if (!action) return;
     
   // set up injection target
   const target = {
     tabId: tab.id,
-    ...data.frameId ? {frameIds: [data.frameId]} : {},
+    ...data.frameId ? { frameIds: [data.frameId] } : {},
   };
 
   // get menu action and perform accordingly
@@ -164,17 +164,17 @@ chrome.contextMenus.onClicked.addListener((data, tab) => {
   } // end switch(action)
 });
 
-chrome.commands.onCommand.addListener((command, {id, url}) => {
+chrome.commands.onCommand.addListener((command, { id, url }) => {
   // console.log(command, id, url);
   
   switch (command) {
   case "snip":
-    snipSelection({tabId: id}, {}, {pageUrl: url});
+    snipSelection({ tabId: id }, {}, { pageUrl: url });
     break;
     
   case "paste":
     setFollowup('paste', {
-      target: {tabId: id},
+      target: { tabId: id },
       pageUrl: url,
     });
     break;
