@@ -1,0 +1,23 @@
+{
+  "name": "sniplets",
+  "version": "0.10.6",
+  "description": "clippings-compatible post-it wall",
+  "main": "popup/main.html",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AppliedElegance/Sniplets.git"
+  },
+  "author": "Jason P Cochrane",
+  "license": "CC-BY-4.0",
+  "bugs": {
+    "url": "https://github.com/AppliedElegance/Sniplets/issues"
+  },
+  "homepage": "https://github.com/AppliedElegance/Sniplets#readme",
+  "devDependencies": {
+    "@eslint/js": "^9.14.0",
+    "@types/chrome": "^0.0.280",
+    "eslint": "^9.14.0",
+    "eslint-plugin-jsdoc": "^50.4.3",
+    "globals": "^15.11.0"
+  }
+}

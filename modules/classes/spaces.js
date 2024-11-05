@@ -1,7 +1,13 @@
 import { i18n, uiLocale, i18nOrd } from "../refs.js";
-import { setStorageData, getStorageData, getCurrentSpace } from "../storage.js";
+import { getCurrentSpace, StorageKey, keyStore, getStorageData } from "../storage.js";
 import { Settings } from "./settings.js";
 
+
+/** Converts a boolean value (`synced`) to a `chrome.storage` area name
+ * @param {boolean} synced `true` for `'sync'` and `false` for `'local'`
+ * @returns {'sync'|'local'} The appropriate area name
+ */
+const getStorageArea = (synced) => synced ? 'sync' : 'local';
 
 /** Base constructor for folders, sniplets and any future items */
 class TreeItem {
@@ -162,7 +168,7 @@ class DataBucket {
    * @param {string} name Key that will be used for retrieving the data (factored into the browser's storage limits)
    * @returns 
    */
-  syncable(name) {
+  isSyncable(name) {
     const { size } = new Blob([JSON.stringify({ [name]: this.data })]);
     const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
     return (size <= maxSize);
@@ -222,18 +228,28 @@ class Space {
     this.path = path;
   }
 
+  get storageArea () {
+    return getStorageArea(this.synced);
+  }
+
+  get storage() {
+    console.log(this.synced, this.storageArea);
+    return new StorageKey(this.name, this.storageArea);
+  }
+
+  get syncable() {
+    return this.data.isSyncable(this.name);
+  }
+
   /** Set this space as the current space in the local browser
    * @param {boolean} rememberPath 
    */
   async setAsCurrent(rememberPath) {
-    /** @type {{name:string,synced:boolean,path?:number[]}} */
-    const currentSpace = {
+    return keyStore.currentSpace.store({
       name: this.name,
       synced: this.synced,
-    };
-    // save path as well if requested
-    if (rememberPath) currentSpace.path = this.path;
-    return await setStorageData({ currentSpace: currentSpace }) && currentSpace;
+      ...(rememberPath ? { path: this.path } : {}),
+    });
   }
 
   /** load last used space or fall back to default */
@@ -265,11 +281,13 @@ class Space {
     if (settings.data.compress) await dataBucket.compress();
 
     // ensure synced spaces are syncable
-    if (this.synced && !dataBucket.syncable(this.name)) return false;
+    if (this.synced && !dataBucket.isSyncable(this.name)) return false;
 
     // update local timestamp and store data
     this.data.timestamp = dataBucket.timestamp;
-    return setStorageData({ [this.name]: dataBucket }, this.synced);
+    console.log(this.storage);
+    
+    return this.storage.store(dataBucket);
   }
 
   /** Load a stored DataBucket into the space
@@ -281,11 +299,9 @@ class Space {
    */
   async load({ name = this.name, synced = this.synced, path = [] } = {}) {
     if (!name) return false;
-    // console.log("Loading space...", name, synced, typeof synced, path);
-    const bucket = await getStorageData(name, synced);
-    // console.log("Getting data from bucket...", bucket);
-    const data = bucket[name];
-    // console.log("Confirming data...", data);
+    console.log("Loading space...", name, synced, typeof synced, path, getStorageArea(synced));
+    const data = await getStorageData(name, getStorageArea(synced));
+    console.log("Confirming data...", data);
     if (!data) return;
     await this.init({
       name: name,
@@ -768,6 +784,7 @@ class Space {
 }
 
 export {
+  getStorageArea,
   DataBucket,
   Folder,
   Sniplet,

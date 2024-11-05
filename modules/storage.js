@@ -1,41 +1,81 @@
 import { getRichText } from "./refs.js";
 
-/** Safely stores data to chrome.storage.local (default) or .sync.
- * @param {{[key:string]:*}} items - a {key: value} object to store
- * @param {boolean} [sync=false] - Whether to store the data in local (false, default) or sync (true).
- */
-const setStorageData = async (items, sync = false) => {
-  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
-  return bucket.set(items)
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
 
-/** Safely retrieves storage data from chrome.storage.local (default) or .sync.
- * @param {null|string|string[]|{[key:string]:*}} keys - The key name for the stored data.
- * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
+/** Safely stores data in a chrome.storage bucket
+ * @param {string} key The name of the storage bucket
+ * @param {*} data Any JSON-serializable data
+ * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to use (defaults to local)
  */
-const getStorageData = async (keys, sync = false) => {
-  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
-  return bucket.get(keys)
-  .catch((e) => (console.error(e), {}));
-};
+async function setStorageData(key, data, area = 'local') {
+  /** @type {chrome.storage.StorageArea} */
+  const bucket = chrome.storage[area];
+  if (!bucket) return;
+  return bucket.set({ [key]: data })
+    .then(() => true)
+    .catch((e) => (console.error(e)));
+}
+
+/** Safely retrieves storage data from a chrome.storage bucket
+ * @param {string} key - The name of the storage bucket
+ * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to look in (defaults to local)
+ * @returns {Promise<*>} Any JSON serializable value or undefined
+ */
+async function getStorageData(key, area = 'local') {
+  console.log(key, area);
+  /** @type {chrome.storage.StorageArea} */
+  const bucket = chrome.storage[area];
+  console.log(bucket);
+  if (!bucket) return;
+  const result = await bucket.get(key)
+    .catch((e) => (console.error(e), {}));
+  console.log(result);
+  return result[key];
+}
 
 /** Safely removes storage data from chrome.storage.local (default) or .sync.
- * @param {string|string[]} keys - The key name for the stored data.
- * @param {boolean} [sync=false] - Whether to look in local (false, default) or sync (true).
+ * @param {string} key - The name of the storage bucket
+ * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to look in (defaults to local)
  */
-const removeStorageData = async (keys, sync = false) => {
-  const bucket = sync ? chrome.storage.sync : chrome.storage.local;
-  return bucket.remove(keys)
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
+async function removeStorageData(key, area = 'local') {
+  /** @type {chrome.storage.StorageArea} */
+  const bucket = chrome.storage[area];
+  if (!bucket) return;
+  return bucket.remove(key)
+    .then(() => true)
+    .catch((e) => (console.error(e)));
+}
+
+class StorageKey {
+  /**
+   * @param {string} key The name of the storage bucket
+   * @param {['local', 'managed', 'session', 'sync']=} area Which storage area to use (defaults to 'local')
+   * @param {string} [legacyKey=] The legacy name of the storage bucket if it exists
+   */
+  constructor (key, area = 'local') {
+    this.key = key;
+    this.area = area;
+  }
+
+  async store(data) {
+    return setStorageData(this.key, data, this.area);
+  }
+
+  async retrieve() {
+    return getStorageData(this.key, this.area);
+  }
+}
+
+const keyStore = {
+  settings: new StorageKey('_Settings', 'sync'),
+  currentSpace: new StorageKey('_CurrentSpace', 'local'),
+  followup: new StorageKey('_Followup', 'session'),
+  activeSessions: new StorageKey('_ActiveSessions', 'session'),
 };
 
 /** Get details of saved current space
  * @returns {Promise<{name:string,synced:boolean,path?:number[]}>}
 */
-const getCurrentSpace = async () => (await getStorageData('currentSpace'))?.currentSpace;
+const getCurrentSpace = async () => keyStore.currentSpace.retrieve();
 
 /** Stores data required for following up on a task and opens a window to action it
  * @param {string} type Action which needs handling in a popup window
@@ -54,10 +94,15 @@ const setFollowup = async (type, args) => {
     return;
   }
 
+  // alert any open windows that they should check for follow-ups or open a new one
+  chrome.runtime.sendMessage({ type: 'followup', args: followup })
+  .catch(() => chrome.action.openPopup());
+
   // actions should be handled 
   chrome.tabs.query({}, (tabs) => {
     console.log(Array.from(tabs));
     
+    // TODO: send to the correct tab
     // let doFlag = true;
     // for (let i=tabs.length-1; i>=0; i--) {
     //   if (tabs[i].url === `chrome-extension://${chrome.i18n.getMessage("@@extension_id")}/feedback-panel.html`) {
@@ -112,6 +157,8 @@ export {
   setStorageData,
   getStorageData,
   removeStorageData,
+  StorageKey,
+  keyStore,
   getCurrentSpace,
   setFollowup,
   fetchFollowup,

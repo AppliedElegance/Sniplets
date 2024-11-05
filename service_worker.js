@@ -1,11 +1,17 @@
-import { Settings } from "./modules/classes/settings.js";
-import { Space, DataBucket } from "./modules/classes/spaces.js";
-import { getStorageData, removeStorageData, getCurrentSpace, setFollowup } from "./modules/storage.js";
 import { i18n } from "./modules/refs.js";
-import { buildContextMenus, snipSelection, pasteSnip } from "./modules/commands.js";
+import { Settings } from "./modules/classes/settings.js";
+import { Space, DataBucket, getStorageArea } from "./modules/classes/spaces.js";
+import { getStorageData, removeStorageData, getCurrentSpace, setFollowup, keyStore } from "./modules/storage.js";
+import { buildContextMenus, snipSelection, pasteSnip } from "./modules/actions.js";
 
 
-const setDefaultAction = (action) => {
+// cache settings
+const settings = new Settings();
+
+/** Set what the browser action bar button does
+ * @param {'popup'|'panel'|'panel-toggle'|'window'} action type of window to open
+ */
+function setDefaultAction(action) {
   // set popup action
   if (action === 'popup') {
     chrome.action.setPopup({ popup: 'popup/main.html?view=popup' })
@@ -16,14 +22,14 @@ const setDefaultAction = (action) => {
   }
 
   // set side panel action
-  if (action === 'panel') {
+  if (action === 'panel-toggle') {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
     .catch((error) => console.error(error));
   } else {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
     .catch((error) => console.error(error));
   }
-};
+}
 
 // init on installation
 chrome.runtime.onInstalled.addListener(async (details) => {
@@ -31,32 +37,21 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   self.skipWaiting();
 
   // check currently stored data
-  // console.log(await getStorageData(null), await getStorageData(null, true));
+  // console.log(await chrome.storage.local.get(null), await chrome.storage.sync.get(null));
 
   // prepare defaults
-  const settings = new Settings();
-
-  // settings init in case of corrupt data
   if (!(await settings.load())) {
+    // settings init in case of corrupt data
     settings.init();
-    // bug check
+    // bug check if the default space is in the wrong area
     const { name, synced } = settings.defaultSpace;
-    let defaultSpace = await getStorageData(name, synced);
-    // console.log(defaultSpace);
-    if (!defaultSpace[name]) {
-      defaultSpace = await getStorageData(name, !synced);
-      // console.log(defaultSpace);
-      if (defaultSpace[name]) {
+    if (!(await getStorageData(name, getStorageArea(synced)))) {
+      if (await getStorageData(name, getStorageArea(synced))) {
         settings.defaultSpace.synced = !synced;
       }
     }
     settings.save();
   }
-
-  // make the side panel open on a per tab basis
-  chrome.sidePanel.setOptions({
-    enabled: false,
-  });
 
   // set default action as needed
   setDefaultAction(settings.view.action);
@@ -65,7 +60,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const space = new Space();
 
   // check for current space in case of reinstall
-  const currentSpace = await getCurrentSpace();
+  const currentSpace = await keyStore.currentSpace.retrieve()
+                    || await getStorageData('currentSpace', 'local');
   // console.log(currentSpace);
   if (!(await space.load(currentSpace || settings.defaultSpace))) {
     // legacy check for existing sniplets
@@ -77,7 +73,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       if ((+lastVersion[0] === 0) && (+lastVersion[1] < 9)) {
         // console.log("Shifting data to default space");
         space.name = settings.defaultSpace.name;
-        if (await space.save()) await removeStorageData(legacySpace);
+        if (await space.save()) await removeStorageData(legacySpace.name, getStorageArea(legacySpace.synced));
       } else {
         // console.log("Updating default space... (should never happen)");
         settings.defaultSpace = legacySpace;
@@ -137,7 +133,7 @@ chrome.action.onClicked.addListener((tab) => {
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener((data, tab) => {
   // get details from menu item and ignore "empty" ones (sanity check)
-  /** @type {{action:string},{menuSpace:{name:string,synced:boolean,path:number[]}}} */
+  /** @type {{action:string,seq:number,menuSpace:{name:string,synced:boolean,path:number[]}}} */
   const { action, seq, menuSpace } = JSON.parse(data.menuItemId);
   // console.log(action, seq, menuSpace);
   if (!action) return;
@@ -188,42 +184,38 @@ chrome.commands.onCommand.addListener((command, { id, url }) => {
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
   // console.log(changes, areaName);
-  const isSyncChange = (areaName === 'sync');
+  const synced = (areaName === 'sync');
 
-  for (const key in changes) {
-    // console.log(key, changes[key], areaName);
-    // ignore updates to currentSpace itself
-    if (key === 'currentSpace') continue;
-
+  for (const [key, change] of Object.entries(changes)) {
     // check for settings updates and update the action as necessary
     if ( true
-      && key === 'settings'
-      && changes[key].newValue
-      && changes[key].newValue.view.action !== changes[key].oldValue?.view.action
-    ) setDefaultAction(changes[key].newValue.view.action);
+      && key === keyStore.settings.key
+      && change.newValue
+      && change.newValue.view.action !== change.oldValue?.view.action
+    ) setDefaultAction(change.newValue.view.action);
 
     // check for data updates, key can be anything
-    if (changes[key].newValue?.children) {
+    if (change.newValue?.children) {
       // send a message to update any open windows
       chrome.runtime.sendMessage({
         type: 'updateSpace',
         args: {
           name: key,
-          synced: isSyncChange,
-          timestamp: changes[key].newValue.timestamp,
+          synced: synced,
+          timestamp: change.newValue.timestamp,
         },
       }).catch(() => false);
 
       // check if current space was changed
       const currentSpace = await getCurrentSpace();
       // console.log(name, synced, areaName);
-      if (!currentSpace || (currentSpace.name === key && currentSpace.synced === isSyncChange)) {
+      if (!currentSpace || (currentSpace.name === key && currentSpace.synced === synced)) {
         const space = new Space();
         try {
           await space.init({
             name: key,
-            synced: isSyncChange,
-            data: changes[key].newValue,
+            synced: synced,
+            data: change.newValue,
           });
           buildContextMenus(space);
         } catch (e) {
@@ -233,16 +225,17 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
     }
 
     // check for removed sync data without local data
-    // console.log(isSyncChange, await new DataBucket(changes[key].oldValue).parse(), await new DataBucket(changes[key].newValue).parse());
-    if (isSyncChange && changes[key].oldValue?.children && !changes[key].newValue) {
+    if ( true
+      && synced
+      && change.oldValue?.children
+      && !change.newValue
+    ) {
       // double-check we don't have a local space with the same name
-      const bucket = await getStorageData(key, false);
-      // console.log(bucket);
-      if (!bucket[key]) {
+      if (!(await getStorageData(key, 'local'))) {
         // don't lose the data on other synced instances without confirming first
         setFollowup('unsynced', {
           name: key,
-          data: changes[key].oldValue,
+          data: change.oldValue,
         });
       }
     }

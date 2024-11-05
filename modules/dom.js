@@ -85,7 +85,7 @@ function buildSvg(title, sprite, fill) {
   svgTitle.textContent = title;
   // Add a use element referencing the spritesheet
   const svgUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-  svgUse.setAttribute('href', `sprites.svg#${sprite}`);
+  svgUse.setAttribute('href', `/icons/sprites.svg#${sprite}`);
   // Set the sprite colour if requested
   if (fill) svgUse.setAttribute('fill', fill);
   // Append the title and sprite to the SVG element
@@ -100,7 +100,7 @@ function buildSvg(title, sprite, fill) {
  * @param {string} sprite - Name of the sprite
  */
 function setSvgSprite(target, sprite) {
-  target.querySelector('use').setAttribute('href', `sprites.svg#${sprite}`);
+  target.querySelector('use').setAttribute('href', `/icons/sprites.svg#${sprite}`);
 }
 
 /**
@@ -458,57 +458,6 @@ function buildTreeWidget(collapsible, color, target, text) {
   });
 }
 
-// Get the current tab (adapted from https://developer.chrome.com/docs/extensions/reference/api/tabs#get_the_current_tab)
-async function getCurrentTab() {
-  const queryOptions = { active: true, currentWindow: true };
-  const [tab] = await chrome.tabs.query(queryOptions);
-  return tab;
-}
-
-/** Open a new popup window
- * @param {{[name:string]:string}} params
- */
-const openWindow = (params = {}) => {
-  const src = new URL(chrome.runtime.getURL("popup/main.html"));
-  for (const [name, value] of Object.entries(params)) {
-    src.searchParams.set(name, value);
-  }
-  src.searchParams.set('view', 'window');
-  return chrome.windows.create({
-    url: src.href,
-    type: "popup",
-    width: 700, // 867 for screenshots
-    height: 460, // 540 for screenshots
-  })
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
-
-/** Open a new side panel for the tab
- * @param {{[name:string]:string}} params
- */
-const openPanel = async (tab, params = {}) => {
-  tab ||= await getCurrentTab();
-  if (!tab) return;
-
-  const src = new URL(chrome.runtime.getURL("popup/main.html"));
-  for (const [name, value] of Object.entries(params)) {
-    src.searchParams.set(name, value);
-  }
-  src.searchParams.set('view', 'panel');
-
-  await chrome.sidePanel.setOptions({
-    tabId: tab.id,
-    enabled: true,
-    path: src.href,
-  });
-  return chrome.sidePanel.open({
-    tabId: tab.id,
-  })
-  .then(() => true)
-  .catch((e) => (console.error(e), false));
-};
-
 export {
   buildNode,
   buildSvg,
@@ -522,7 +471,4 @@ export {
   buildMenuControl,
   buildItemWidget,
   buildTreeWidget,
-  getCurrentTab,
-  openWindow,
-  openPanel,
 };

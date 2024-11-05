@@ -2,7 +2,6 @@ import { i18n, getColor, getRichText } from "./refs.js";
 import { Settings } from "./classes/settings.js";
 import { Folder, Sniplet, Space } from "./classes/spaces.js";
 import { setFollowup } from "./storage.js";
-// import { openWindow } from "./dom.js";
 
 
 /** (Re)build context menu for snipping and pasting

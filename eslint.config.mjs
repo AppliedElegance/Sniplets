@@ -1,19 +1,31 @@
 import globals from "globals";
 import pluginJs from "@eslint/js";
+import pluginJsdoc from "eslint-plugin-jsdoc";
 
 
 export default [
+  pluginJs.configs.recommended,
+  pluginJsdoc.configs["flat/recommended"],
   {
+    files: ["/service_worker.js"],
     languageOptions: {
       globals: {
-        ...globals.browser,
-        ...globals.webextensions,
         ...globals.worker,
       },
     },
   },
-  pluginJs.configs.recommended,
   {
+    files: ["**/*.js", "**/*.mjs"],
+    plugins: {
+      pluginJs,
+      pluginJsdoc,
+    },
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.webextensions,
+      },
+    },
     rules: {
       "no-constant-binary-expression": "off",
       "semi": ["warn", "always"],
@@ -35,6 +47,8 @@ export default [
       "arrow-body-style": "error",
       "prefer-promise-reject-errors": "error",
       "no-promise-executor-return": "error",
+      "jsdoc/multiline-blocks": ["warn", { "noZeroLineText": false }],
+      "jsdoc/require-returns": "off",
     },
   },
 ];

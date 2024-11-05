@@ -1,26 +1,10 @@
-import {
-  i18n,
-  uiLocale,
-  i18nNum,
-  getColor,
-} from "../modules/refs.js";
-import {
-  setStorageData,
-  getStorageData,
-  removeStorageData,
-  getCurrentSpace,
-  fetchFollowup,
-  setClipboard,
-} from "../modules/storage.js";
-import {
-  Settings,
-} from "../modules/classes/settings.js";
-import {
-  Folder,
-  Sniplet,
-  DataBucket,
-  Space,
-} from "../modules/classes/spaces.js";
+// import { storeSession, removeSession } from "../modules/sessions.js";
+import { getCurrentTab, openWindow, openPanel } from "../modules/sessions.js";
+import { i18n, uiLocale, i18nNum, getColor } from "../modules/refs.js";
+import { setStorageData, getStorageData, removeStorageData, keyStore,
+  getCurrentSpace, fetchFollowup, setClipboard } from "../modules/storage.js";
+import { Settings } from "../modules/classes/settings.js";
+import { Folder, Sniplet, DataBucket, Space, getStorageArea } from "../modules/classes/spaces.js";
 import {
   buildNode,
   buildSvg,
@@ -34,9 +18,6 @@ import {
   buildMenuControl,
   buildItemWidget,
   buildTreeWidget,
-  getCurrentTab,
-  openWindow,
-  openPanel,
 } from "../modules/dom.js";
 import {
   showModal,
@@ -47,11 +28,25 @@ import {
   mergeCustomFields,
   requestOrigins,
 } from "../modules/modals.js";
-import {
-  snipSelection,
-  insertSnip,
-  pasteSnip,
-} from "../modules/commands.js";
+import { snipSelection, insertSnip, pasteSnip } from "../modules/actions.js";
+
+window.addEventListener('focus', async () => {
+  const tab = await chrome.tabs.getCurrent();
+  console.log(tab);
+  
+  chrome.tabs.query({}, (tabs) => {
+    console.log(Array.from(tabs));
+  });
+}, false);
+
+window.addEventListener('unload', (ev) => {
+  console.log(ev);
+  console.log(window);
+
+  chrome.tabs.query({}, (tabs) => {
+    console.log(Array.from(tabs));
+  });
+}, false);
 
 /**
  * Shorthand for document.getElementById(id)
@@ -144,7 +139,7 @@ const handleFollowup = async ({ type, args }) => {
   case 'unsynced':
     // make sure it hasn't already been restored and we're not removing everything
     if ( false
-      || ((await getStorageData(args.name, true))[args.name])
+      || (await getStorageData(args.name, 'sync'))
       || (!(await getCurrentSpace())) // resolves race condition
     ) break;
     
@@ -156,7 +151,7 @@ const handleFollowup = async ({ type, args }) => {
       const currentSpace = await getCurrentSpace() || settings.defaultSpace;
       // console.log(currentSpace);
       if (args.name !== currentSpace.name) {
-        setStorageData({ [args.name]: args.data }, args.synced);
+        setStorageData(args.name, args.data, getStorageArea(args.synced));
         break;
       }
 
@@ -200,6 +195,8 @@ chrome.runtime.onMessage.addListener(async ({ type, args }) => {
       loadSniplets();
     }
   } else if (type === 'followup') {
+    console.log(type, args);
+    
     if (args.type === 'action') {
       handleAction(args.args);
     } else {
@@ -415,7 +412,7 @@ function buildMenu() {
           i18nNum(1), startVal === 1, { id: `counter-init-1` }),
         buildMenuControl('radio', 'set-counter-init',
           startVal, customStartVal, { id: `counter-init-x`,
-            title: i18n("menu_count_x") + (customStartVal ? ` (${i18nNum(startVal)})…` : `…`),
+            title: `${i18n("menu_count_x")}${customStartVal ? ` (${i18nNum(startVal)})` : ''}…`,
           }),
       ]),
       ...Object.keys(counters).length ? [
@@ -459,7 +456,7 @@ function buildHeader() {
     children: [
       buildActionIcon(
         space.synced ? i18n('action_stop_sync') : i18n('action_start_sync'),
-        `icon-${space.synced ? 'sync' : 'local'}`,
+        `icon-${getStorageArea(space.synced)}`,
         'inherit', {
         action: 'toggle-sync',
       }),
@@ -1199,7 +1196,7 @@ async function handleAction(target) {
       space.path.length = 0;
       if (backup.currentSpace) {
         // console.log('updating current space', backup.currentSpace);
-        setStorageData({ currentSpace: backup.currentSpace });
+        keyStore.currentSpace.store(backup.currentSpace);
       }
 
       // restore data
@@ -1334,45 +1331,39 @@ async function handleAction(target) {
 
   case 'toggle-sync': {
     // check for sync size constraints
-    // console.log(space);
     if (!space.synced) {
-      const testBucket = new DataBucket(this.data);
-      // console.log(testBucket);
-      if (settings.data.compress) await testBucket.compress();
-      if (!testBucket.syncable(space.name)) {
+      const testData = new DataBucket(space.data);
+      if (settings.data.compress) await testData.compress();
+      if (!testData.isSyncable(space.name)) {
         alert(i18n('error_sync_full'));
         return false;
       }
     }
 
     // check if data already exists
-    const targetBucket = await getStorageData(space.name, !space.synced);
+    const targetData = await getStorageData(space.name, getStorageArea(!space.synced));
     // console.log(targetBucket);
-    if (targetBucket && targetBucket[space.name]) {
+    if (targetData && targetData[space.name]) {
       // console.log('Working on it');
       const response = await confirmSelection(i18n('warning_sync_overwrite'), [
         { title: i18n('action_keep_local'), value: 'local' },
         { title: i18n('action_keep_sync'), value: 'sync' },
       ], i18n('action_start_sync'));
       // console.log(response);
-      switch (response) {
-      case 'sync':
+      if (response === 'sync') {
         // update local data before moving, set to false since it'll be reset after
         try {
-          await space.init({ name: space.name, synced: false, data: targetBucket[space.name] });
+          await space.init({ name: space.name, synced: false, data: targetData[space.name] });
         } catch (e) {
           console.error(e);
           alert(i18n('error_shift_failed'));
           return false;
         }
-        break;
-
-      case 'local':
-        // pretend there's no data
-        break;
-    
-      default:
-        return false;
+      } else if (response === 'local') {
+        // do nothing (ignore the synced data)
+      } else {
+        // action cancelled
+        return;
       }
     }
     
@@ -1380,10 +1371,11 @@ async function handleAction(target) {
     space.synced = !space.synced;
     if (await space.save()) {
       setCurrentSpace();
-      removeStorageData(space.name, !space.synced);
+      removeStorageData(space.name, getStorageArea(!space.synced));
       buildHeader();
       loadSniplets();
     } else {
+      // revert change
       space.synced = !space.synced;
       alert(i18n('error_shift_failed'));
       return false;
@@ -1572,11 +1564,13 @@ async function handleAction(target) {
   case 'open-window': {
     const url = new URL(location.href);
     await openWindow(url.searchParams);
+    window.close();
     break; }
   
   case 'open-panel': {
     const url = new URL(location.href);
     await openPanel(null, url.searchParams);
+    window.close();
     break; }
   
   case 'open-folder': {
