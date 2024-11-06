@@ -279,16 +279,16 @@ document.addEventListener('DOMContentLoaded', loadPopup, false);
 
 /**
  * Helper for grouping tree items by type
- * @param {(Folder|Snip)[]} list 
- * @param {string} type - accepts 'all' or the specific type of TreeItem
- * @returns {Object}
+ * @param {(Folder|Sniplet)[]} list 
+ * @param {'type'|'color'|'src'} by - accepts 'type' to group by class name, or a field name
+ * @returns {{folder?:Folder[], sniplet?:Sniplet[], color?:(Folder|Sniplet)[], src?:(Folder|Sniplet)[]}}
  * @example
  * // itemGroups will have separate properties .folder & . containing only
  * // subfolders of the space.children root folder
  * const itemGroups = groupItems(space.children, 'type');
  */
 const groupItems = (list, by = settings.sort.groupBy) => list.reduce((groups, item) => {
-  if (!by?.length) {
+  if (!by) {
     (groups.all ||= []).push(item);
   }
   const group = by === 'type'
@@ -481,9 +481,7 @@ function buildHeader() {
   setHeaderPath();
 }
 
-/** Hide folder entries as needed
- * @param {ResizeObserverEntry[]} entries 
- */
+/** Hide folder entries as needed */
 function adjustPath() {
   const maxHeight = 33; // normal is 32, 33 allows for subpixels
   const upIcon = $('folder-up');
@@ -751,10 +749,6 @@ function handleMouseDown(event) {
   }
 }
 
-/**
- * MouseUp handler
- * @param {MouseEvent} event 
- */
 function handleMouseUp() {
   if (window.clicked) {
     window.clicked.style.removeProperty('box-shadow');
@@ -1023,10 +1017,8 @@ function handleDragDrop(event) {
   document.addEventListener('dragend', dragEnd, false);
 }
 
-/**
- * Action handler for various inputs
- * @param {HTMLElement|Object} target 
- * @returns 
+/** Action handler for various inputs
+ * @param {HTMLElement|object} target 
  */
 async function handleAction(target) {
   // console.log(target, target.dataset, target.action);

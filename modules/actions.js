@@ -53,7 +53,7 @@ async function buildContextMenus(space) {
 
     /**
      * Recursive function for sniplet tree
-     * @param {(TreeItem|Folder|Sniplet)[]} folder 
+     * @param {(Folder|Sniplet)[]} folder 
      * @param {*} parentData 
      */
     const buildFolder = (folder, parentData) => {
@@ -175,10 +175,9 @@ const returnSnip = ({ preserveTags, saveSource }) => {
 };
 
 /** Inject snip code for retrieving selection
- * @param {InjectionTarget} target 
+ * @param {chrome.scripting.InjectionTarget} target 
  * @param {{preserveTags:boolean,saveSource:boolean}} options 
- * @param {{name:string,synced:boolean,path:number[]}} [actionSpace]
- * @return {Promise<{content:string,error:string,pageSrc:string,frameSrc:string}>}
+ * @returns {Promise<{content:string,error:string,pageSrc:string,frameSrc:string}>}
  */
 const getSnip = async (target, options) => (await injectScript({
   target: target,
@@ -301,7 +300,8 @@ const paste = (snip, richText) => {
     }
 
     /** Get input element (may be contenteditable)
-     * @type {HTMLInputElement|HTMLTextAreaElement} */
+     * @type {HTMLInputElement|HTMLTextAreaElement}
+     */
     const input = window.document.activeElement;
 
     // CKEditor requires special handling
@@ -388,9 +388,9 @@ const paste = (snip, richText) => {
 };
 
 /** Inject paste code for retrieving selection
- * @param {InjectionTarget} target 
+ * @param {chrome.scripting.InjectionTarget} target 
  * @param {{content:string}} snip 
- * @return {Promise<{error:string,pageSrc:string,frameSrc:string,snip:{content:string,richText:string}}>}
+ * @returns {Promise<{error:string,pageSrc:string,frameSrc:string,snip:{content:string,richText:string}}>}
  */
 const insertSnip = async (target, snip) => (await injectScript({
   target: target,

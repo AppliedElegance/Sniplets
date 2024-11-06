@@ -47,8 +47,12 @@ export default [
       "arrow-body-style": "error",
       "prefer-promise-reject-errors": "error",
       "no-promise-executor-return": "error",
+      "jsdoc/require-jsdoc": "off",
       "jsdoc/multiline-blocks": ["warn", { "noZeroLineText": false }],
+      "jsdoc/no-undefined-types": "off",
+      "jsdoc/require-param-description": "off",
       "jsdoc/require-returns": "off",
+      "jsdoc/require-returns-description": "off",
     },
   },
 ];

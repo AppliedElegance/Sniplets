@@ -118,7 +118,7 @@ const setFollowup = async (type, args) => {
 };
 
 /** Fetch requests from session storage set using the `setFollowup()` function
- * @returns {Promise<{type:string,message:*,args:*}|void>}
+ * @returns {Promise<{type:string,message:*,args:*}|void>} Return object includes type, message and arguments
  */
 const fetchFollowup = async () => {
   const followup = await keyStore.followup.get();
@@ -127,7 +127,7 @@ const fetchFollowup = async () => {
 };
 
 /** Send text to clipboard
- * @param {{content:string,nosubst:boolean}} snip 
+ * @param {{content:string,nosubst:boolean}} snip The content of a snippet and whether to skip substitutions
  */
 const setClipboard = async (snip) => {
   if(!snip.content) return;

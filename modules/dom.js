@@ -73,7 +73,6 @@ function buildNode(tagName, attributes) {
  * @param {string} title - Accessible descriptor
  * @param {string} sprite - Name of sprite as found in spritesheet
  * @param {string} fill - Optional fill color to apply to the sprite
- * @returns 
  */
 function buildSvg(title, sprite, fill) {
   // Create inline SVG element with the correct namespace
@@ -117,7 +116,7 @@ function setSvgFill(target, fill) {
  * @param {string} name 
  * @param {string} sprite 
  * @param {string} color 
- * @param {Object} dataset 
+ * @param {object} dataset 
  * @returns {HTMLButtonElement}
  */
 function buildActionIcon(name, sprite, color, dataset) {
@@ -136,6 +135,7 @@ function buildActionIcon(name, sprite, color, dataset) {
 /**
  * Builder for icon popover menus
  * @param {string} id 
+ * @param {string} name 
  * @param {string} sprite 
  * @param {string} color 
  * @param {HTMLElement[]} list 
@@ -266,13 +266,12 @@ function buildMenuControl(type, name, value, label, checked, { id, dataset } = {
 
 /**
  * Builder for TreeItem widgets depending on their extended class
- * @param {TreeItem} item - Folder or Sniplet
- * @param {TreeItem[]} list - Folder list which includes `item`, for calculating dropzone targets
+ * @param {Folder|Sniplet} item - Folder or Sniplet
+ * @param {(Folder|Sniplet)[]} list - Folder list which includes `item`, for calculating dropzone targets
  * @param {number[]} path - Seq path to item
- * @param {Settings} settings - What to show
- * @returns {HTMLElement[]}
+ * @param {{view:{sourceURL:boolean}}} settings - What to show/hide as part of the widget
  */
-function buildItemWidget(item, list, path, settings) {
+function buildItemWidget(item, list, path, { view }) {
   const index = list.indexOf(item);
   if (index < 0) return;
   const widget = [];
@@ -385,7 +384,7 @@ function buildItemWidget(item, list, path, settings) {
       })],
     });
     widget.push(widgetBody);
-    if (settings.view.sourceURL) {
+    if (view.sourceURL) {
       const widgetSource = buildNode('div', {
         classList: ['fields', 'source-url'],
         children: [buildNode('div', {

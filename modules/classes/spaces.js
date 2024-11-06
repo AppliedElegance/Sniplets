@@ -39,7 +39,7 @@ class Folder extends TreeItem {
       seq: seq,
       color: color || label, // clippings uses the label field
     });
-    /** @type {(TreeItem|Folder|Snip)[]} */
+    /** @type {(TreeItem|Folder|Sniplet)[]} */
     this.children = children || [];
   }
 }
@@ -120,7 +120,7 @@ class DataBucket {
   }
 
   /** Cast an array of tree items to their appropriate class
-   * @param {(TreeItem | Folder | Sniplet)[]} [folder=this.children] 
+   * @param {(TreeItem | Folder | Sniplet)[]=} folder
    */
   restructure(folder = this.children) {
     const items = [];
@@ -402,7 +402,7 @@ class Space {
   /** Process placeholders and rich text options of a sniplet and return the result
    * @param {number} seq 
    * @param {number[]} path 
-   * @returns {Promise<{snip:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}
+   * @returns {Promise<{snip:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}>}
    */
   async getProcessedSniplet(seq, path = this.path) {
     // console.log("Getting item...");
@@ -689,7 +689,9 @@ class Space {
     }
   }
 
-  /** Sort tree items according to sort rules */
+  /** Sort tree items according to sort rules
+   * @param {{by?:('seq'|'color'|'name'), foldersOnTop?:boolean, reverse?:boolean, folderPath?:(string|number)[]}} options
+   */
   sort({ by = 'seq', foldersOnTop = true, reverse = false, folderPath = ['all'] } = {}) {
     // recursive function in case everything needs to be sorted
     const sortFolder = (data, recursive, by, foldersOnTop, reverse) => {

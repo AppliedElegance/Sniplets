@@ -5,14 +5,14 @@ import { buildNode, buildActionIcon, buildMenuControl } from "./dom.js";
 /** Builder for modal dialogue.
  * Buttons with the value `esc` return undefined and `true` & `false` return as boolean rather than string.
  * @param {{
-* title?:string
-* message?:string
-* content?:HTMLElement[]
-* fields?:{type:string,name:string,label:string,value:string,id:string,options:string[]|{id:string,label:string,value:string}[],checked:Boolean}[]
-* buttons?:{title:string,value:string,id:string}[]
-* }} options
-* @param {Function} [onChange] 
-*/
+ * title?:string
+ * message?:string
+ * content?:HTMLElement[]
+ * fields?:{type:string,name:string,label:string,value:string,id:string,options:string[]|{id:string,label:string,value:string}[],checked:boolean}[]
+ * buttons?:{title:string,value:string,id:string}[]
+ * }} options Model elements to include
+ * @param {Function=} onChange Event handler for form updates
+ */
 function showModal({ title, message, content, fields, buttons }, onChange) {  
  // console.log("Setting up container...");
  const form = buildNode('form', {
@@ -152,23 +152,24 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
  });
 }
 
-/** Modal alert, always returns `void`
-* @param {string} message
-* @param {string} [title] 
-*/
+/** Show an 'alert' in a modal box
+ * @param {string} message Text alert to show
+ * @param {string=} title Title to show at top of modal
+ * @returns {Promise<void>} Always returns `void`
+ */
 function showAlert(message, title) {
  return showModal({
    ...title ? { title: title } : {},
    message: message,
-   buttons: [{ title: i18n('ok'), value: `esc` }],
+   buttons: [{ title: i18n('ok'), value: 'esc' }],
  });
 }
 
 /** Modal confirmation, returns `true` for the OK action, `false` if cancelled, or undefined if escaped
-* @param {string} message - confirmation message
-* @param {string} [okLabel] - confirmation button text
-* @param {string} [cancelLabel] - cancel button text
-*/
+ * @param {string} message - confirmation message
+ * @param {string} [okLabel] - confirmation button text
+ * @param {string} [cancelLabel] - cancel button text
+ */
 function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
  return showModal({
    message: message,
@@ -180,11 +181,11 @@ function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel
 }
 
 /** Modal confirmation, returns `true` for the action, `false` if cancelled, or undefined if escaped
-* @param {string} message - confirmation message
-* @param {{title:string,value:string}[]} selections - list of available selections
-* @param {string|{title:string,value:string}[]} [okLabel] - confirmation button text, may be array
-* @param {string} [cancelLabel] - cancel button text
-*/
+ * @param {string} message - confirmation message
+ * @param {{title:string,value:string}[]} selections - list of available selections
+ * @param {string|{title:string,value:string}[]} [okLabel] - confirmation button text, may be array
+ * @param {string} [cancelLabel] - cancel button text
+ */
 function confirmSelection(message, selections, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
  return showModal({
    message: message,
@@ -250,9 +251,10 @@ function showAbout() {
 }
 
 /** Request and update values for custom fields
-* @param {Map<string,{type:string,value:string,options:string[]}>} fields 
-* @returns {Promise<Map<string,{type:string,value:string,options:string[]}>>}
-*/
+ * @param {string} content text content with placeholders
+ * @param {Map<string,{type:string,value:string,options:string[]}>} fields Custom fields taken from placeholders for replacement matching
+ * @returns {string} Updated string with placeholders replaced by confirmed field values
+ */
 async function mergeCustomFields(content, fields) {
  // console.log(content, fields, fields instanceof Map);
  if (!fields?.size) return content;
@@ -300,8 +302,8 @@ async function mergeCustomFields(content, fields) {
  );
 }
 
-/**
- * @param {*} origins 
+/** Request optional permissions to access specific or all host site urls
+ * @param {string[]} origins list of origin matching strings
  */
 async function requestOrigins(origins) {
  const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || []);
@@ -312,10 +314,11 @@ async function requestOrigins(origins) {
  if (request) {
    return chrome.permissions.request({
      origins: JSON.parse(request),
-   }).catch((e) => console.error(e));
+   }).catch((e) => (console.error(e), false));
  }
  return false;
 }
+
 
 export {
   showModal,
