@@ -1,8 +1,9 @@
 import { i18n } from "./modules/refs.js";
 import { Settings } from "./modules/classes/settings.js";
 import { Space, DataBucket, getStorageArea } from "./modules/classes/spaces.js";
-import { getStorageData, removeStorageData, getCurrentSpace, setFollowup, keyStore } from "./modules/storage.js";
+import { getStorageData, removeStorageData, setFollowup, keyStore } from "./modules/storage.js";
 import { buildContextMenus, snipSelection, pasteSnip } from "./modules/actions.js";
+import { getMainUrl } from "./modules/sessions.js";
 
 
 // cache settings
@@ -15,19 +16,30 @@ function setDefaultAction(action) {
   // set popup action
   if (action === 'popup') {
     chrome.action.setPopup({ popup: 'popup/main.html?view=popup' })
-    .catch((error) => console.error(error));
+    .catch((e) => console.error(e));
   } else {
     chrome.action.setPopup({ popup: '' })
-    .catch((error) => console.error(error));
+    .catch((e) => console.error(e));
   }
 
   // set side panel action
+  if (action === 'panel') {
+    // disable except when opened by action on specific tab
+    chrome.sidePanel.setOptions({ enabled: false })
+    .catch((e) => console.error(e));
+  } else {
+    // enable for right-click open and toggle action
+    chrome.sidePanel.setOptions({ enabled: true })
+    .catch((e) => console.error(e));
+  }
+
+  // set side panel toggle behaviour
   if (action === 'panel-toggle') {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-    .catch((error) => console.error(error));
+    .catch((e) => console.error(e));
   } else {
     chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
-    .catch((error) => console.error(error));
+    .catch((e) => console.error(e));
   }
 }
 
@@ -46,7 +58,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     // bug check if the default space is in the wrong area
     const { name, synced } = settings.defaultSpace;
     if (!(await getStorageData(name, getStorageArea(synced)))) {
-      if (await getStorageData(name, getStorageArea(synced))) {
+      if (await getStorageData(name, getStorageArea(!synced))) {
         settings.defaultSpace.synced = !synced;
       }
     }
@@ -60,8 +72,8 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const space = new Space();
 
   // check for current space in case of reinstall
-  const currentSpace = await keyStore.currentSpace.retrieve()
-                    || await getStorageData('currentSpace', 'local');
+  const currentSpace = (await keyStore.currentSpace.get())
+                    || (await getStorageData('currentSpace', 'local'));
   // console.log(currentSpace);
   if (!(await space.load(currentSpace || settings.defaultSpace))) {
     // legacy check for existing sniplets
@@ -73,7 +85,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       if ((+lastVersion[0] === 0) && (+lastVersion[1] < 9)) {
         // console.log("Shifting data to default space");
         space.name = settings.defaultSpace.name;
-        if (await space.save()) await removeStorageData(legacySpace.name, getStorageArea(legacySpace.synced));
+        if (await space.save(settings.data)) await removeStorageData(legacySpace.name, getStorageArea(legacySpace.synced));
       } else {
         // console.log("Updating default space... (should never happen)");
         settings.defaultSpace = legacySpace;
@@ -101,7 +113,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
           console.error(`Starter data could not be loaded at ${starterPath}`, e);
         }
       }
-      await space.save();
+      await space.save(settings.data);
     }
   } else {
     buildContextMenus(space);
@@ -110,24 +122,38 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 });
 
 chrome.runtime.onStartup.addListener(async () => {
+  // cache settings
+  settings.load();
   // rebuild context menus in case of crash or CCleaner deletion
   const space = new Space();
   if (await space.loadCurrent()) buildContextMenus(space);
 });
 
-// Open the side panel when popup is not set
+// Open the side panel or a window when set instead of a popup
 chrome.action.onClicked.addListener((tab) => {
-  // openPanel(tab);
-  const src = new URL(chrome.runtime.getURL("popup/main.html?view=panel"));
-  chrome.sidePanel.setOptions({
-    tabId: tab.id,
-    enabled: true,
-    path: src.href,
-  }, () => {
-    chrome.sidePanel.open({
+  const src = getMainUrl();
+  
+  // use cashed settings and callbacks to avoid losing gesture
+  if (settings.view.action === 'panel') {
+    src.searchParams.append('view', 'panel');
+    chrome.sidePanel.setOptions({
       tabId: tab.id,
+      enabled: true,
+      path: src.href,
+    }, () => {
+      chrome.sidePanel.open({
+        tabId: tab.id,
+      });
     });
-  });
+  } else if (settings.view.action === 'window') {
+    src.searchParams.append('view', 'window');
+    chrome.windows.create({
+      url: src.href,
+      type: "popup",
+      width: 700, // 867 for screenshots
+      height: 460, // 540 for screenshots
+    });
+  }
 });
 
 // set up context menu listener
@@ -188,11 +214,14 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
   for (const [key, change] of Object.entries(changes)) {
     // check for settings updates and update the action as necessary
-    if ( true
-      && key === keyStore.settings.key
-      && change.newValue
-      && change.newValue.view.action !== change.oldValue?.view.action
-    ) setDefaultAction(change.newValue.view.action);
+    if ((key === keyStore.settings.key) && change.newValue) {
+      // update cached settings
+      settings.init(change.newValue);
+      // update actions to match new settings
+      if (change.newValue.view.action !== change.oldValue?.view.action) {
+        setDefaultAction(change.newValue.view.action);
+      }
+    }
 
     // check for data updates, key can be anything
     if (change.newValue?.children) {
@@ -207,7 +236,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       }).catch(() => false);
 
       // check if current space was changed
-      const currentSpace = await getCurrentSpace();
+      const currentSpace = await keyStore.currentSpace.get();
       // console.log(name, synced, areaName);
       if (!currentSpace || (currentSpace.name === key && currentSpace.synced === synced)) {
         const space = new Space();

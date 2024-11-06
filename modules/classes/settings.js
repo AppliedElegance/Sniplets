@@ -64,8 +64,8 @@ class Settings {
   /** Load settings from sync storage */
   async load() {
     const legacyKey = new StorageKey('settings', 'sync');
-    const settings = await keyStore.settings.retrieve()
-                  || await legacyKey.retrieve();
+    const settings = await keyStore.settings.get()
+                  || await legacyKey.get();
     if (!settings) return;
 
     // upgrade settings object as needed and return the object
@@ -74,7 +74,7 @@ class Settings {
 
   /** Save settings to sync storage */
   async save() {
-    return keyStore.settings.store(this);
+    return keyStore.settings.set(this);
   }
 }
 

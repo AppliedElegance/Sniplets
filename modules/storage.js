@@ -11,8 +11,8 @@ async function setStorageData(key, data, area = 'local') {
   const bucket = chrome.storage[area];
   if (!bucket) return;
   return bucket.set({ [key]: data })
-    .then(() => true)
-    .catch((e) => (console.error(e)));
+  .then(() => true)
+  .catch((e) => (console.error(e)));
 }
 
 /** Safely retrieves storage data from a chrome.storage bucket
@@ -21,14 +21,11 @@ async function setStorageData(key, data, area = 'local') {
  * @returns {Promise<*>} Any JSON serializable value or undefined
  */
 async function getStorageData(key, area = 'local') {
-  console.log(key, area);
   /** @type {chrome.storage.StorageArea} */
   const bucket = chrome.storage[area];
-  console.log(bucket);
   if (!bucket) return;
   const result = await bucket.get(key)
-    .catch((e) => (console.error(e), {}));
-  console.log(result);
+  .catch((e) => (console.error(e), {}));
   return result[key];
 }
 
@@ -41,26 +38,25 @@ async function removeStorageData(key, area = 'local') {
   const bucket = chrome.storage[area];
   if (!bucket) return;
   return bucket.remove(key)
-    .then(() => true)
-    .catch((e) => (console.error(e)));
+  .then(() => true)
+  .catch((e) => (console.error(e)));
 }
 
 class StorageKey {
   /**
    * @param {string} key The name of the storage bucket
    * @param {['local', 'managed', 'session', 'sync']=} area Which storage area to use (defaults to 'local')
-   * @param {string} [legacyKey=] The legacy name of the storage bucket if it exists
    */
   constructor (key, area = 'local') {
     this.key = key;
     this.area = area;
   }
 
-  async store(data) {
+  async set(data) {
     return setStorageData(this.key, data, this.area);
   }
 
-  async retrieve() {
+  async get() {
     return getStorageData(this.key, this.area);
   }
 }
@@ -71,11 +67,6 @@ const keyStore = {
   followup: new StorageKey('_Followup', 'session'),
   activeSessions: new StorageKey('_ActiveSessions', 'session'),
 };
-
-/** Get details of saved current space
- * @returns {Promise<{name:string,synced:boolean,path?:number[]}>}
-*/
-const getCurrentSpace = async () => keyStore.currentSpace.retrieve();
 
 /** Stores data required for following up on a task and opens a window to action it
  * @param {string} type Action which needs handling in a popup window
@@ -127,14 +118,11 @@ const setFollowup = async (type, args) => {
 };
 
 /** Fetch requests from session storage set using the `setFollowup()` function
- * @returns {Promise<{type:string,message:*,args:Object}|void>}
+ * @returns {Promise<{type:string,message:*,args:*}|void>}
  */
 const fetchFollowup = async () => {
-  const { followup } = await chrome.storage.session.get('followup')
-  .catch(e => console.error(e));
-  if (followup) chrome.storage.session.remove('followup')
-  .catch(e => console.error(e));
-  // console.log(followup);
+  const followup = await keyStore.followup.get();
+  if (followup) removeStorageData(keyStore.followup.key, keyStore.followup.area);
   return followup;
 };
 
@@ -159,7 +147,6 @@ export {
   removeStorageData,
   StorageKey,
   keyStore,
-  getCurrentSpace,
   setFollowup,
   fetchFollowup,
   setClipboard,

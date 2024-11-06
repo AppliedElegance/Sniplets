@@ -2,7 +2,7 @@
 import { getCurrentTab, openWindow, openPanel } from "../modules/sessions.js";
 import { i18n, uiLocale, i18nNum, getColor } from "../modules/refs.js";
 import { setStorageData, getStorageData, removeStorageData, keyStore,
-  getCurrentSpace, fetchFollowup, setClipboard } from "../modules/storage.js";
+  fetchFollowup, setClipboard } from "../modules/storage.js";
 import { Settings } from "../modules/classes/settings.js";
 import { Folder, Sniplet, DataBucket, Space, getStorageArea } from "../modules/classes/spaces.js";
 import {
@@ -29,6 +29,7 @@ import {
   requestOrigins,
 } from "../modules/modals.js";
 import { snipSelection, insertSnip, pasteSnip } from "../modules/actions.js";
+
 
 window.addEventListener('focus', async () => {
   const tab = await chrome.tabs.getCurrent();
@@ -64,6 +65,7 @@ const q$ = query => document.querySelector(query);
 // globals for settings and keeping track of the current folder
 const settings = new Settings();
 const space = new Space();
+const saveSpace = async () => space.save(settings.data);
 
 /** Update currently viewed space */
 const setCurrentSpace = () => space.setAsCurrent(settings.view.rememberPath);
@@ -140,7 +142,7 @@ const handleFollowup = async ({ type, args }) => {
     // make sure it hasn't already been restored and we're not removing everything
     if ( false
       || (await getStorageData(args.name, 'sync'))
-      || (!(await getCurrentSpace())) // resolves race condition
+      || (!(await keyStore.currentSpace.get())) // resolves race condition
     ) break;
     
     // make it possible to keep local data or keep synchronizing on this machine just in case
@@ -148,7 +150,7 @@ const handleFollowup = async ({ type, args }) => {
     // console.log(args);
     if (args.synced === true || args.synced === false) {
       // if not currently working on the same data, make do with saving the data
-      const currentSpace = await getCurrentSpace() || settings.defaultSpace;
+      const currentSpace = (await keyStore.currentSpace.get()) || settings.defaultSpace;
       // console.log(currentSpace);
       if (args.name !== currentSpace.name) {
         setStorageData(args.name, args.data, getStorageArea(args.synced));
@@ -158,7 +160,7 @@ const handleFollowup = async ({ type, args }) => {
       // recover the data
       try {
         await space.init(args);
-        if (!(await space.save())) {
+        if (!(await saveSpace())) {
           showAlert(i18n('error_data_corrupt'));
           break;
         }
@@ -195,8 +197,6 @@ chrome.runtime.onMessage.addListener(async ({ type, args }) => {
       loadSniplets();
     }
   } else if (type === 'followup') {
-    console.log(type, args);
-    
     if (args.type === 'action') {
       handleAction(args.args);
     } else {
@@ -245,7 +245,7 @@ const loadPopup = async () => {
     if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
       try {
         await space.init(settings.defaultSpace);
-        space.save();
+        saveSpace();
       } catch (e) {
         // well and truly borked
         console.error(e);
@@ -371,49 +371,47 @@ function buildMenu() {
   // console.log(startVal, counters);
   return [
     buildSubMenu(i18n('menu_action'), 'settings-action', [
-      buildMenuControl('radio', 'set-icon-action',
-        i18n('menu_set_view_action_popup'), settings.view.action === 'popup', { id: "set-action-panel" }),
-      buildMenuControl('radio', 'set-icon-action',
-        i18n('menu_set_view_action_panel'), settings.view.action === 'panel', { id: "set-action-panel" }),
-      buildMenuControl('radio', 'set-icon-action',
-        i18n('menu_set_view_action_panel_toggle'), settings.view.action === 'panel-toggle', { id: "set-action-panel-toggle" }),
-      buildMenuControl('radio', 'set-icon-action',
-        i18n('menu_set_view_action_window'), settings.view.action === 'window', { id: "set-action-window" }),
+      buildMenuControl('radio', 'set-icon-action', 'popup', i18n('menu_set_view_action_popup'),
+        settings.view.action === 'popup', { id: "set-action-popup" }),
+      buildMenuControl('radio', 'set-icon-action', 'panel', i18n('menu_set_view_action_panel'),
+        settings.view.action === 'panel', { id: "set-action-panel" }),
+      buildMenuControl('radio', 'set-icon-action', 'panel-toggle', i18n('menu_set_view_action_panel_toggle'),
+        settings.view.action === 'panel-toggle', { id: "set-action-panel-toggle" }),
+      buildMenuControl('radio', 'set-icon-action', 'window', i18n('menu_set_view_action_window'),
+        settings.view.action === 'window', { id: "set-action-window" }),
     ]),
     buildSubMenu(i18n("menu_view"), `settings-view`, [
-      buildMenuControl('checkbox', `toggle-remember-path`,
+      buildMenuControl('checkbox', `toggle-remember-path`, !settings.view.rememberPath,
         i18n("menu_remember_path"), settings.view.rememberPath),
-      buildMenuControl('checkbox', `toggle-folders-first`,
+      buildMenuControl('checkbox', `toggle-folders-first`, !settings.sort.foldersOnTop,
         i18n("menu_folders_first"), settings.sort.foldersOnTop),
-      buildMenuControl('checkbox', `toggle-adjust-editors`,
+      buildMenuControl('checkbox', `toggle-adjust-editors`, !settings.view.adjustTextArea,
         i18n("menu_adjust_textarea"), settings.view.adjustTextArea),
-      buildMenuControl('checkbox', `toggle-show-source`,
+      buildMenuControl('checkbox', `toggle-show-source`, !settings.view.sourceURL,
         i18n("menu_show_src"), settings.view.sourceURL),
     ]),
     buildSubMenu(i18n("menu_snip"), `settings-snip`, [
-      buildMenuControl('checkbox', `toggle-save-source`,
+      buildMenuControl('checkbox', `toggle-save-source`, !settings.control.saveSource,
         i18n("menu_save_src"), settings.control.saveSource),
-      buildMenuControl('checkbox', `toggle-save-tags`,
+      buildMenuControl('checkbox', `toggle-save-tags`, !settings.control.preserveTags,
         i18n("menu_save_tags"), settings.control.preserveTags),
     ]),
     buildSubMenu(i18n("menu_paste"), `settings-paste`, [
-      buildMenuControl('checkbox', `toggle-rt-line-breaks`,
+      buildMenuControl('checkbox', `toggle-rt-line-breaks`, !settings.control.rtLineBreaks,
         i18n("menu_rt_br"), settings.control.rtLineBreaks),
-      buildMenuControl('checkbox', `toggle-rt-link-urls`,
+      buildMenuControl('checkbox', `toggle-rt-link-urls`, !settings.control.rtLinkURLs,
         i18n("menu_rt_url"), settings.control.rtLinkURLs),
-      buildMenuControl('checkbox', `toggle-rt-link-emails`,
+      buildMenuControl('checkbox', `toggle-rt-link-emails`, !settings.control.rtLinkEmails,
         i18n("menu_rt_email"), settings.control.rtLinkEmails),
     ]),
     buildSubMenu(i18n("menu_counters"), `settings-counters`, [
       buildSubMenu(i18n('menu_count_init'), `counter-init`, [
-        buildMenuControl('radio', `set-counter-init`,
+        buildMenuControl('radio', `set-counter-init`, '0',
           i18nNum(0), startVal === 0, { id: `counter-init-0` }),
-        buildMenuControl('radio', 'set-counter-init',
+        buildMenuControl('radio', 'set-counter-init', '1',
           i18nNum(1), startVal === 1, { id: `counter-init-1` }),
-        buildMenuControl('radio', 'set-counter-init',
-          startVal, customStartVal, { id: `counter-init-x`,
-            title: `${i18n("menu_count_x")}${customStartVal ? ` (${i18nNum(startVal)})` : ''}…`,
-          }),
+        buildMenuControl('radio', 'set-counter-init', startVal,
+          `${i18n("menu_count_x")}${customStartVal ? ` (${i18nNum(startVal)})` : ''}…`, customStartVal, { id: `counter-init-x` }),
       ]),
       ...Object.keys(counters).length ? [
         buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
@@ -423,7 +421,7 @@ function buildMenu() {
       ] : [],
     ]),
     buildSubMenu(i18n("menu_data"), `settings-data`, [
-      buildMenuControl('checkbox', `toggle-data-compression`,
+      buildMenuControl('checkbox', `toggle-data-compression`, !settings.data.compress,
         i18n("menu_data_compression"), settings.data.compress),
       buildMenuSeparator(),
       buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
@@ -979,7 +977,7 @@ function handleDragDrop(event) {
       }
       const movedItem = space.moveItem(moveFrom, moveTo);
       space.sort(settings.sort);
-      await space.save();
+      await saveSpace();
       // console.log(event);
       event.preventDefault();
       dragEnd();
@@ -1103,7 +1101,7 @@ async function handleAction(target) {
       settings.init();
       await settings.save();
       await space.init(settings.defaultSpace);
-      await space.save();
+      await saveSpace();
       setCurrentSpace();
       loadPopup();
     } catch (e) {
@@ -1136,7 +1134,11 @@ async function handleAction(target) {
       backup.createdBy = appName;
       backup.spaces = [structuredClone(space)];
       delete backup.spaces[0].path;
-      backup.currentSpace = await setCurrentSpace();
+      backup.currentSpace = {
+        name: space.name,
+        synced: space.synced,
+        ...(settings.view.rememberPath ? { path: this.path } : {}),
+      };
       backup.settings = settings;
       break;
   
@@ -1147,7 +1149,11 @@ async function handleAction(target) {
       backup.createdBy = appName;
       backup.space = structuredClone(space);
       delete backup.space.path;
-      backup.currentSpace = await setCurrentSpace();
+      backup.currentSpace = {
+        name: space.name,
+        synced: space.synced,
+        ...(settings.view.rememberPath ? { path: this.path } : {}),
+      };
       break;
     }
     try {
@@ -1196,7 +1202,7 @@ async function handleAction(target) {
       space.path.length = 0;
       if (backup.currentSpace) {
         // console.log('updating current space', backup.currentSpace);
-        keyStore.currentSpace.store(backup.currentSpace);
+        keyStore.currentSpace.set(backup.currentSpace);
       }
 
       // restore data
@@ -1208,7 +1214,7 @@ async function handleAction(target) {
           // console.log("Updated data", space.data);
           space.data = newData;
           space.sort();
-          space.save();
+          saveSpace();
         } else {
           failAlert();
           break;
@@ -1216,12 +1222,12 @@ async function handleAction(target) {
       } else if (backup.data) {
         const data = new DataBucket(backup.data);
         space.data = await data.parse();
-        space.save();
+        saveSpace();
       } else if (backup.space) {
         try {
           await space.init(backup.space);
           space.sort();
-          await space.save();
+          await saveSpace();
           await setCurrentSpace();
         } catch (e) {
           console.error(e);
@@ -1231,9 +1237,9 @@ async function handleAction(target) {
       } else if (backup.spaces) {
         for (const backupSpace of backup.spaces) {
           try {
-            const saveSpace = new Space();
-            await saveSpace.init(backupSpace);
-            await saveSpace.save();
+            const tempSpace = new Space();
+            await tempSpace.init(backupSpace);
+            await tempSpace.save(settings.data);
           } catch (e) {
             console.error(e);
           }
@@ -1287,11 +1293,10 @@ async function handleAction(target) {
   // settings
   // TODO: set various view options
   case 'set-icon-action':
-    if (settings.view.action === 'panel') {
-      settings.view.action = 'popup';
-    } else {
-      settings.view.action = 'panel';
-    }
+    console.log(target, { ...settings.view });
+    
+    if (!['popup', 'panel', 'panel-toggle', 'window'].includes(target.value)) break;
+    settings.view.action = target.value;
     await settings.save();
     break;
 
@@ -1307,7 +1312,7 @@ async function handleAction(target) {
     settings.save();
     if (settings.sort.foldersOnTop)
       space.sort(settings.sort);
-    space.save();
+    saveSpace();
     buildList();
     break;
 
@@ -1326,38 +1331,32 @@ async function handleAction(target) {
   case 'toggle-data-compression':
     settings.data.compress = !settings.data.compress;
     settings.save();
-    space.save();
+    saveSpace();
     break;
 
   case 'toggle-sync': {
     // check for sync size constraints
-    if (!space.synced) {
-      const testData = new DataBucket(space.data);
-      if (settings.data.compress) await testData.compress();
-      if (!testData.isSyncable(space.name)) {
-        alert(i18n('error_sync_full'));
-        return false;
-      }
+    if (!space.synced && !(await space.isSyncable(settings.data))) {
+      alert(i18n('error_sync_full'));
+      return false;
     }
 
     // check if data already exists
     const targetData = await getStorageData(space.name, getStorageArea(!space.synced));
-    // console.log(targetBucket);
-    if (targetData && targetData[space.name]) {
-      // console.log('Working on it');
+    if (targetData) {
+      // confirm what to do with existing data
       const response = await confirmSelection(i18n('warning_sync_overwrite'), [
         { title: i18n('action_keep_local'), value: 'local' },
         { title: i18n('action_keep_sync'), value: 'sync' },
       ], i18n('action_start_sync'));
-      // console.log(response);
       if (response === 'sync') {
-        // update local data before moving, set to false since it'll be reset after
+        // replace live with sync data before moving, set to false since it'll be reset after
         try {
-          await space.init({ name: space.name, synced: false, data: targetData[space.name] });
+          await space.init({ name: space.name, synced: false, data: targetData });
         } catch (e) {
           console.error(e);
           alert(i18n('error_shift_failed'));
-          return false;
+          return;
         }
       } else if (response === 'local') {
         // do nothing (ignore the synced data)
@@ -1369,7 +1368,7 @@ async function handleAction(target) {
     
     // attempt to move the space
     space.synced = !space.synced;
-    if (await space.save()) {
+    if (await saveSpace()) {
       setCurrentSpace();
       removeStorageData(space.name, getStorageArea(!space.synced));
       buildHeader();
@@ -1378,14 +1377,14 @@ async function handleAction(target) {
       // revert change
       space.synced = !space.synced;
       alert(i18n('error_shift_failed'));
-      return false;
+      return;
     }
     break; }
 
   case 'clear-src-urls':
     if (await confirmAction(i18n('warning_clear_src'), i18n('action_clear_srcs'))) {
       space.data.removeSources();
-      space.save();
+      saveSpace();
       if (settings.view.sourceURL) buildList();
     }
     break;
@@ -1398,7 +1397,7 @@ async function handleAction(target) {
       && (await confirmAction(i18n('option_clear_srcs'), i18n('action_clear_srcs'), i18n('action_leave_srcs')))
     ) {
       space.data.removeSources();
-      space.save();
+      saveSpace();
       if (settings.view.sourceURL) buildList();
     }
     break;
@@ -1450,7 +1449,7 @@ async function handleAction(target) {
       if (!isNaN(val) && (parseInt(val) === Math.abs(+val))) startVal = +val;
     }
     space.data.counters.startVal = startVal;
-    space.save();
+    saveSpace();
     $('settings').replaceChildren(...buildMenu());
     break; }
 
@@ -1480,13 +1479,13 @@ async function handleAction(target) {
     if (!values) break; // modal cancelled
     const changes = JSON.parse(values);
     for (const key in changes) space.data.counters[key] = changes[key];
-    space.save();
+    saveSpace();
     break; }
 
   case 'clear-counters': {
     const { startVal } = space.data.counters;
     space.data.counters = { startVal: startVal };
-    space.save();
+    saveSpace();
     $('settings').replaceChildren(...buildMenu());
     break; }
   
@@ -1494,7 +1493,7 @@ async function handleAction(target) {
   case 'new-sniplet': {
     const newSniplet = space.addItem(new Sniplet());
     space.sort(settings.sort);
-    space.save();
+    saveSpace();
     buildList();
     handleAction({ action: 'focus', seq: newSniplet.seq, field: 'name' });
     break; }
@@ -1502,7 +1501,7 @@ async function handleAction(target) {
   case 'new-folder': {
     const newFolder = space.addItem(new Folder());
     space.sort(settings.sort);
-    space.save();
+    saveSpace();
     buildList();
     buildTree();
     setHeaderPath();
@@ -1513,7 +1512,7 @@ async function handleAction(target) {
     if(await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
       const deletedItem = space.deleteItem(dataset.seq);
       // console.log(deletedItem, deletedItem instanceof Folder);
-      space.save();
+      saveSpace();
       buildList();
       // console.log("should I build the tree");
       if (deletedItem instanceof Folder) {
@@ -1542,7 +1541,7 @@ async function handleAction(target) {
       ? void 0 : value,
     );
     // console.log(item, dataset);
-    space.save();
+    saveSpace();
     // update tree if changes were made to a folder
     if (item instanceof Folder) buildTree();
     break; }
@@ -1554,7 +1553,7 @@ async function handleAction(target) {
         { seq: dataset.seq },
         { seq: target.value },
       );
-      space.save();
+      saveSpace();
       buildList();
       if (movedItem instanceof Folder) buildTree();
     }

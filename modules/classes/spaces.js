@@ -1,5 +1,5 @@
 import { i18n, uiLocale, i18nOrd } from "../refs.js";
-import { getCurrentSpace, StorageKey, keyStore, getStorageData } from "../storage.js";
+import { StorageKey, keyStore, getStorageData } from "../storage.js";
 import { Settings } from "./settings.js";
 
 
@@ -164,16 +164,6 @@ class DataBucket {
     }
   }
 
-  /** Check if the data is small enough to fit in a sync storage bucket with the given key name.
-   * @param {string} name Key that will be used for retrieving the data (factored into the browser's storage limits)
-   * @returns 
-   */
-  isSyncable(name) {
-    const { size } = new Blob([JSON.stringify({ [name]: this.data })]);
-    const maxSize = chrome.storage.sync.QUOTA_BYTES_PER_ITEM;
-    return (size <= maxSize);
-  }
-
   /** process data into a clippings compatible object */
   toClippings() {
     /** @param {(TreeItem|Folder|Sniplet)[]} folder */
@@ -228,24 +218,22 @@ class Space {
     this.path = path;
   }
 
-  get storageArea () {
-    return getStorageArea(this.synced);
-  }
-
   get storage() {
-    console.log(this.synced, this.storageArea);
-    return new StorageKey(this.name, this.storageArea);
+    return new StorageKey(this.name, getStorageArea(this.synced));
   }
 
-  get syncable() {
-    return this.data.isSyncable(this.name);
+  async isSyncable({ compress = true }) {
+    const testData = new DataBucket(this.data);
+    if (compress) await testData.compress();
+    const { size } = new Blob([JSON.stringify({ [this.name]: testData })]);
+    return (size <= chrome.storage.sync.QUOTA_BYTES_PER_ITEM);
   }
 
   /** Set this space as the current space in the local browser
    * @param {boolean} rememberPath 
    */
   async setAsCurrent(rememberPath) {
-    return keyStore.currentSpace.store({
+    return keyStore.currentSpace.set({
       name: this.name,
       synced: this.synced,
       ...(rememberPath ? { path: this.path } : {}),
@@ -254,7 +242,7 @@ class Space {
 
   /** load last used space or fall back to default */
   async loadCurrent() {
-    const currentSpace = await getCurrentSpace();
+    const currentSpace = await keyStore.currentSpace.get();
     if (!(await this.load(currentSpace))) {
       const settings = new Settings();
       await settings.load();
@@ -269,25 +257,24 @@ class Space {
     return true;
   }
 
-  /** Save the space's DataBucket into the appropriate storage */
-  async save() {
+  /** Save the space's DataBucket into the appropriate storage
+   * @param {{compress:boolean}} options External save options
+   */
+  async save({ compress = true }) {
     // make sure the space has been initialized
     if (!this.name?.length) return;
 
+    // ensure synced space is syncable
+    if (this.synced && !(await this.isSyncable(compress))) return;
+
     const dataBucket = new DataBucket(this.data);
     // gzip compression adds about 8x more storage space, but can be toggled
-    const settings = new Settings();
-    await settings.load();
-    if (settings.data.compress) await dataBucket.compress();
-
-    // ensure synced spaces are syncable
-    if (this.synced && !dataBucket.isSyncable(this.name)) return false;
+    if (compress) await dataBucket.compress();
 
     // update local timestamp and store data
     this.data.timestamp = dataBucket.timestamp;
-    console.log(this.storage);
     
-    return this.storage.store(dataBucket);
+    return this.storage.set(dataBucket);
   }
 
   /** Load a stored DataBucket into the space
@@ -299,9 +286,9 @@ class Space {
    */
   async load({ name = this.name, synced = this.synced, path = [] } = {}) {
     if (!name) return false;
-    console.log("Loading space...", name, synced, typeof synced, path, getStorageArea(synced));
+    // console.log("Loading space...", name, synced, typeof synced, path, getStorageArea(synced));
     const data = await getStorageData(name, getStorageArea(synced));
-    console.log("Confirming data...", data);
+    // console.log("Confirming data...", data);
     if (!data) return;
     await this.init({
       name: name,

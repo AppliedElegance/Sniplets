@@ -252,7 +252,7 @@ async function snipSelection(target, actionSpace = {}, { pageUrl, frameUrl } = {
   if (!(actionSpace.name && await space.load(actionSpace)) && !(await space.loadCurrent())) return;
   const newSnip = space.addItem(new Sniplet(result));
   space.sort(settings.sort);
-  await space.save();
+  await space.save(settings.data);
   setFollowup('action', {
     action: 'focus',
     path: space.path.join('-'),

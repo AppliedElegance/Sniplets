@@ -48,11 +48,9 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
            field.type,
            field.name,
            option.value,
+           option.label,
            i === 0,
-           {
-             id: option.id,
-             title: option.label,
-           },
+           { id: option.id },
          )),
        }));
      } else if (field.type === 'checkbox') {
@@ -61,11 +59,8 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
            field.type,
            field.name,
            field.value,
+           field.label,
            i === 0,
-           {
-             id: field.id,
-             title: field.label,
-           },
          )],
        }));
      } else {
@@ -305,6 +300,9 @@ async function mergeCustomFields(content, fields) {
  );
 }
 
+/**
+ * @param {*} origins 
+ */
 async function requestOrigins(origins) {
  const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || []);
  const request = await confirmSelection(i18n('request_origins'), [

@@ -16,11 +16,13 @@ const i18nNum = (i, options = { useGrouping: false }) =>
 const i18nOrd = (i) =>
   i18n(`ordinal_${new Intl.PluralRules(uiLocale).select(i)}`, i);
 
+const defaultColor = 'default';
+
 /** Map of default colours
  * @type {Map<string,{value:string,label:string,square:string,circle:string,heart:string,book?:string,folder:string,sniplet:string}>}
  */
 const colors = new Map()
-.set('default', { value: "inherit", label: i18n('color_default'), square: "⬛️", circle: "⚫️", heart: "🖤",             folder: "📁",                       sniplet: "📝" })
+.set(defaultColor, { value: "inherit", label: i18n('color_default'), square: "⬛️", circle: "⚫️", heart: "🖤",             folder: "📁",                       sniplet: "📝" })
 .set('red',     { value: "#D0312D", label: i18n('color_red'),     square: "🟥", circle: "🔴", heart: "❤️", book: "📕", get folder() {return this.book;},   get sniplet() {return this.circle;} })
 .set('orange',  { value: "#FFA500", label: i18n('color_orange'),  square: "🟧", circle: "🟠", heart: "🧡", book: "📙", get folder() {return this.book;},   get sniplet() {return this.circle;} })
 .set('yellow',  { value: "#FFD700", label: i18n('color_yellow'),  square: "🟨", circle: "🟡", heart: "💛", book: "📒", get folder() {return this.book;},   get sniplet() {return this.circle;} })
@@ -32,7 +34,7 @@ const colors = new Map()
 /** Safe getter for the colors that will return a default value if not available
  * @param {string} [color] 
  */
-const getColor = color => colors.get(colors.has(color) ? color : 'default');
+const getColor = color => colors.get(colors.has(color) ? color : defaultColor);
 
 /** Add HTML line break tags where appropriate and remove newlines to avoid unwanted spaces
  * @param {string} text
@@ -95,6 +97,7 @@ export {
   uiLocale,
   i18nNum,
   i18nOrd,
+  defaultColor,
   colors,
   getColor,
   getRichText,

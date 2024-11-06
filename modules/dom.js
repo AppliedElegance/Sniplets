@@ -1,4 +1,4 @@
-import { i18n, colors, getColor } from "./refs.js";
+import { i18n, defaultColor, colors, getColor } from "./refs.js";
 import { Folder, Sniplet } from "./classes/spaces.js";
 
 
@@ -221,14 +221,13 @@ function buildSubMenu(label, id, items) {
  * @param {string} type - Input type (`checkbox`|`radio`)
  * @param {string} name - Name of the form input (must be unique if id not present)
  * @param {string} value - Value sent when checked
+ * @param {string} label - The text to show with the control
  * @param {boolean} checked - Whether the control is in a checked state
- * @param {{id: string, title: string, dataset: Object}} attributes - id is required for radio options,
- * the value will be used for the label if no title is provided
+ * @param {{id: string, dataset: object}} attributes - id is required for radio options
  */
-function buildMenuControl(type, name, value, checked, { id, title, dataset } = {}) {
+function buildMenuControl(type, name, value, label, checked, { id, dataset } = {}) {
   if (!['checkbox', 'radio'].includes(type)) return;
   id ||= name;
-  title ||= value;
   return buildNode('p', {
     classList: ['menu-item', 'control'],
     children: [
@@ -242,24 +241,23 @@ function buildMenuControl(type, name, value, checked, { id, title, dataset } = {
       }),
       buildNode('label', {
         for: id,
-        title: title,
         tabindex: '0',
         children: [
           buildNode('div', {
             classList: ['icon'],
             children: [buildSvg(
-              title,
+              label,
               `control-${type}`,
             )],
           }),
           buildNode('div', {
             classList: ['icon', 'checked'],
             children: [buildSvg(
-              title,
+              label,
               `control-${type}-checked`,
             )],
           }),
-          buildNode('h3', { textContent: title }),
+          buildNode('h3', { textContent: label }),
         ],
       }),
     ],
@@ -289,10 +287,9 @@ function buildItemWidget(item, list, path, settings) {
     getColor(item.color).value,
     [
       buildSubMenu(i18n('color'), `item-${item.seq}-color-menu`, Array.from(colors).map(([color, { label }], i) =>
-        buildMenuControl('radio', `item-${item.seq}-color`,
-        color, ((color === item.color) || (!item.color && color === 'default')), {
+        buildMenuControl('radio', `item-${item.seq}-color`, color, label,
+          ((color === item.color) || (color === defaultColor && !item.color)), {
           id: `item-${item.seq}-color-${i}`,
-          title: label,
           dataset: { action: 'edit', field: 'color', seq: item.seq },
         }),
       )),

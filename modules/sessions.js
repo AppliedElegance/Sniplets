@@ -7,12 +7,12 @@ const getMainUrl = () => new URL(chrome.runtime.getURL("popup/main.html"));
 /** Store list of opened session windows
  * @param {string[]} sessionList List of currently active sessions
  */
-const setActiveSessions = async (sessionList) => keyStore.activeSessions.store(sessionList);
+const setActiveSessions = async (sessionList) => keyStore.activeSessions.set(sessionList);
 
 /** Retrieve list of opened session windows
  * @returns {Promise<string[]>} List of currently active sessions
  */
-const getActiveSessions = async () => (await keyStore.activeSessions.retrieve()) || [];
+const getActiveSessions = async () => (await keyStore.activeSessions.get()) || [];
 
 /** Retrieve last focused session */
 async function getActiveSession() {
@@ -103,6 +103,7 @@ async function openPanel(tab, params = {}) {
 
 
 export {
+  getMainUrl,
   getActiveSession,
   storeSession,
   removeSession,
