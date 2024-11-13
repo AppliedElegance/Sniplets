@@ -1,10 +1,8 @@
-// import { storeSession, removeSession } from "../modules/sessions.js";
-import { getCurrentTab, openWindow, openPanel } from "../modules/sessions.js";
-import { i18n, uiLocale, i18nNum, getColor } from "../modules/refs.js";
-import { setStorageData, getStorageData, removeStorageData, keyStore,
-  fetchFollowup, setClipboard } from "../modules/storage.js";
-import { Settings } from "../modules/classes/settings.js";
-import { Folder, Sniplet, DataBucket, Space, getStorageArea } from "../modules/classes/spaces.js";
+import settings from '/modules/settings.js'
+import { getCurrentTab, openWindow } from '/modules/sessions.js'
+import { i18n, locale, i18nNum, Colors } from '/modules/refs.js'
+import { setStorageData, getStorageData, removeStorageData, KeyStore, setClipboard } from '/modules/storage.js'
+import { Folder, Sniplet, DataBucket, Space, getStorageArea } from '/modules/spaces.js'
 import {
   buildNode,
   buildSvg,
@@ -18,7 +16,7 @@ import {
   buildMenuControl,
   buildItemWidget,
   buildTreeWidget,
-} from "../modules/dom.js";
+} from '/modules/dom.js'
 import {
   showModal,
   showAlert,
@@ -27,259 +25,240 @@ import {
   showAbout,
   mergeCustomFields,
   requestOrigins,
-} from "../modules/modals.js";
-import { snipSelection, insertSnip, pasteSnip } from "../modules/actions.js";
-
-
-window.addEventListener('focus', async () => {
-  const tab = await chrome.tabs.getCurrent();
-  console.log(tab);
-  
-  chrome.tabs.query({}, (tabs) => {
-    console.log(Array.from(tabs));
-  });
-}, false);
-
-window.addEventListener('unload', (ev) => {
-  console.log(ev);
-  console.log(window);
-
-  chrome.tabs.query({}, (tabs) => {
-    console.log(Array.from(tabs));
-  });
-}, false);
+} from '/modules/modals.js'
+import { snipSelection, insertSnip, pasteSnip } from '/modules/actions.js'
 
 /**
  * Shorthand for document.getElementById(id)
- * @param {string} id 
+ * @param {string} id
  * @returns {HTMLElement}
  */
-const $ = id => document.getElementById(id);
+const $ = id => document.getElementById(id)
+
 /**
  * Shorthand for document.querySelector(query)
- * @param {string} query 
+ * @param {string} query
  * @returns {HTMLElement}
  */
-const q$ = query => document.querySelector(query);
+const q$ = query => document.querySelector(query)
 
 // globals for settings and keeping track of the current folder
-const settings = new Settings();
-const space = new Space();
-const saveSpace = async () => space.save(settings.data);
+const space = new Space()
+const saveSpace = async () => space.save(settings.data)
+const setCurrentSpace = () => space.setAsCurrent(settings.view.rememberPath)
 
-/** Update currently viewed space */
-const setCurrentSpace = () => space.setAsCurrent(settings.view.rememberPath);
-
-// for handling resize of header path, debounce may cause flashing but prevents loop errors
+// observer for resizing the header path, debounce may cause flashing but prevents loop errors
 const debounce = function setDelay(f, delay) {
-  let timer = 0;
-  return function(...args) {
-    clearTimeout(timer);
-    timer = setTimeout(() => f.apply(this, args), delay);
-  };
-};
-const resizing = new ResizeObserver(debounce(adjustPath, 0));
+  let timer = 0
+  return function (...args) {
+    clearTimeout(timer)
+    timer = setTimeout(() => f.apply(this, args), delay)
+  }
+}
+const resizing = new ResizeObserver(debounce(adjustPath, 0))
 
 const handleFollowup = async ({ type, args }) => {
   /** Set counters to match provided argument */
-  const rollBackCounters = async () => {
-    const counters = new Map(args?.counters || []);
+  async function rollBackCounters() {
+    const counters = new Map(args?.counters || [])
     if (counters.size && await space.load(args.actionSpace)) {
-      space.setCounters(counters);
+      space.setCounters(counters)
     }
   };
 
   /** Confirm any custom placeholders and merge them */
-  const mergeAndPaste = async () => {
-    const { snip, target } = args;
-    const customFields = new Map(args.customFields || []);
+  async function mergeAndPaste() {
+    const { snip, target } = args
+    const customFields = new Map(args.customFields || [])
     // console.log(target, snip, customFields);
     if (customFields.size) {
-      const text = await mergeCustomFields(snip.content, customFields);
+      const text = await mergeCustomFields(snip.content, customFields)
       // console.log(text);
       if (!text) {
         // modal cancelled, rollback if necessary
-        await rollBackCounters();
-        return;
+        await rollBackCounters()
+        return
       }
-      snip.content = text;
+      snip.content = text
     }
     if ((await insertSnip(target, snip)).error) {
-      await rollBackCounters();
-    }
-  };
-
-  switch (type) {
-  case 'alert':
-    await showAlert(args.message, args.title);
-    break;
-  
-  case 'permissions': {
-    if (await requestOrigins(args.origins)) {
-      switch (args.action) {
-      case 'snip': 
-        snipSelection(args.target, args.actionSpace);
-        window.close(); // in popup, happens automatically after this function completes
-        return;
-    
-      case 'paste':
-        await mergeAndPaste();
-        window.close(); // in popup, happens automatically after this function completes
-        return;
-        
-      default:
-        window.close(); // in popup, happens automatically after this function completes
-        return;
-      }
-    }
-    break; }
-    
-  case 'placeholders':
-    if (args.action === 'paste') await mergeAndPaste(); // should always be true
-    break;
-
-  case 'unsynced':
-    // make sure it hasn't already been restored and we're not removing everything
-    if ( false
-      || (await getStorageData(args.name, 'sync'))
-      || (!(await keyStore.currentSpace.get())) // resolves race condition
-    ) break;
-    
-    // make it possible to keep local data or keep synchronizing on this machine just in case
-    args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'));
-    // console.log(args);
-    if (args.synced === true || args.synced === false) {
-      // if not currently working on the same data, make do with saving the data
-      const currentSpace = (await keyStore.currentSpace.get()) || settings.defaultSpace;
-      // console.log(currentSpace);
-      if (args.name !== currentSpace.name) {
-        setStorageData(args.name, args.data, getStorageArea(args.synced));
-        break;
-      }
-
-      // recover the data
-      try {
-        await space.init(args);
-        if (!(await saveSpace())) {
-          showAlert(i18n('error_data_corrupt'));
-          break;
-        }
-        // console.log(space);
-        setCurrentSpace();
-        loadSniplets();
-      } catch (e) {
-        console.error(e);
-        showAlert(i18n('error_data_corrupt'));
-      }
-    } else {
-      showAlert(i18n('error_data_corrupt'));
-      break;
-    }
-    break;
-
-  default:
-    break;
-  } // end switch(type)
-};
-
-const checkFollowup = async () => {
-  // check for followups before loading sniplets
-  const followup = await fetchFollowup();
-  if (followup) handleFollowup(followup);
-};
-
-// Listen for updates on the fly in case of multiple popout windows
-chrome.runtime.onMessage.addListener(async ({ type, args }) => {
-  if (type === 'updateSpace') {
-    const { timestamp } = args;
-    if (timestamp > space.data.timestamp) {
-      await space.loadCurrent();
-      loadSniplets();
-    }
-  } else if (type === 'followup') {
-    if (args.type === 'action') {
-      handleAction(args.args);
-    } else {
-      checkFollowup();
+      await rollBackCounters()
     }
   }
-});
+
+  switch (type) {
+    case 'alert':
+      await showAlert(args.message, args.title)
+      break
+
+    case 'permissions': {
+      if (await requestOrigins(args.origins)) {
+        switch (args.action) {
+          case 'snip':
+            snipSelection(args.target, args.actionSpace)
+            window.close() // in popup, happens automatically after this function completes
+            return
+
+          case 'paste':
+            await mergeAndPaste()
+            window.close() // in popup, happens automatically after this function completes
+            return
+
+          default:
+            window.close() // in popup, happens automatically after this function completes
+            return
+        }
+      }
+      break }
+
+    case 'placeholders':
+      if (args.action === 'paste') await mergeAndPaste() // should always be true
+      break
+
+    case 'unsynced':
+    // make sure it hasn't already been restored and we're not removing everything
+      if (
+        (await getStorageData(args.name, 'sync'))
+        || (!(await KeyStore.currentSpace.get())) // resolves race condition
+      ) break
+
+      // make it possible to keep local data or keep synchronizing on this machine just in case
+      args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))
+      // console.log(args);
+      if (args.synced === true || args.synced === false) {
+      // if not currently working on the same data, make do with saving the data
+        const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
+        // console.log(currentSpace);
+        if (args.name !== currentSpace.name) {
+          setStorageData(args.name, args.data, getStorageArea(args.synced))
+          break
+        }
+
+        // recover the data
+        try {
+          await space.init(args)
+          if (!(await saveSpace())) {
+            showAlert(i18n('error_data_corrupt'))
+            break
+          }
+          // console.log(space);
+          setCurrentSpace()
+          loadSniplets()
+        } catch (e) {
+          console.error(e)
+          showAlert(i18n('error_data_corrupt'))
+        }
+      } else {
+        showAlert(i18n('error_data_corrupt'))
+        break
+      }
+      break
+
+    default:
+      break
+  } // end switch(type)
+}
+
+// Listen for updates on the fly in case of multiple popout windows
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
+  console.log(message, sender, sendResponse)
+  /** @type {{ to: chrome.runtime.ExtensionContext, subject: string, body: * }} */
+  const { to, subject, body } = message
+  console.log(to, window, document, location)
+
+  if (subject === 'updateSpace') {
+    const { timestamp } = body
+    if (timestamp > space.data.timestamp) {
+      await space.loadCurrent()
+      loadSniplets()
+    }
+  } else if ((to.documentUrl === location.href) && (subject === 'followup')) {
+    handleFollowup(body)
+  }
+})
 
 // onDOMContentLoaded
 const loadPopup = async () => {
   // accessibility
-  document.documentElement.lang = uiLocale;
-  document.title = i18n('app_name');
+  document.documentElement.lang = locale
+  document.title = i18n('app_name')
 
   // load up settings with sanitation check for sideloaded versions
+  console.log(settings)
   if (!(await settings.load())) {
-    settings.init();
-    settings.save();
-    // console.log("Settings loaded...", settings);
+    settings.init()
+    settings.save()
+    console.log('Settings loaded...', settings)
   }
+  console.log(settings)
 
   // load parameters
-  window.params = Object.fromEntries(new URLSearchParams(location.search));
+  window.params = Object.fromEntries(new URLSearchParams(location.search))
 
   // check if opened as popup and set style accordingly
   if (window.params.view === 'popup') {
-    document.body.style.width = "360px"; // column flex collapses width unless set
-    document.body.style.height = "540px";
+    document.body.style.width = '360px' // column flex collapses width unless set
+    document.body.style.height = '540px'
   }
 
-  // set up listeners
-  document.addEventListener('mousedown', handleMouseDown, false);
-  document.addEventListener('dragstart', handleDragDrop, false);
-  document.addEventListener('click', handleClick, false);
-  document.addEventListener('mouseup', handleMouseUp, false);
-  document.addEventListener('keydown', handleKeydown, false);
-  document.addEventListener('keyup', handleKeyup, false);
-  document.addEventListener('change', handleChange, false);
-  document.addEventListener('focusout', handleFocusOut, false);
+  // set up listeners (some followups load modals which require these)
+  document.body.addEventListener('mousedown', handleMouseDown, false)
+  document.body.addEventListener('dragstart', handleDragDrop, false)
+  document.body.addEventListener('click', handleClick, false)
+  document.body.addEventListener('mouseup', handleMouseUp, false)
+  document.body.addEventListener('keydown', handleKeydown, false)
+  document.body.addEventListener('keyup', handleKeyup, false)
+  document.body.addEventListener('change', handleChange, false)
+  document.body.addEventListener('focusout', handleFocusOut, false)
 
-  await checkFollowup();
+  // Fetch requests from session storage set using the `setFollowup()` function
+  const followup = await KeyStore.followup.get()
+  if (followup) {
+    KeyStore.followup.clear()
+    handleFollowup(followup)
+  }
 
   // load up the current space
   if (!(await space.loadCurrent())) {
     // should hopefully never happen
     if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
       try {
-        await space.init(settings.defaultSpace);
-        saveSpace();
+        await space.init(settings.defaultSpace)
+        saveSpace()
       } catch (e) {
         // well and truly borked
-        console.error(e);
+        console.error(e)
       }
     } else {
-      window.close();
-      return;
+      window.close()
+      return
     }
   }
 
   // update path if needed
   if (window.params.path) {
-    space.path = window.params.path.split('-').map(v => +v).filter(v => v);
-    if (settings.view.rememberPath) setCurrentSpace();
+    space.path = window.params.path.split('-').map(v => +v).filter(v => v)
+    if (settings.view.rememberPath) setCurrentSpace()
   }
 
-  loadSniplets();
+  loadSniplets()
 
   // textarea adjustments
-  document.addEventListener('focusin', adjustTextArea, false);
-  document.addEventListener('input', adjustTextArea, false);
-  document.addEventListener('focusout', adjustTextArea, false);
+  document.addEventListener('focusin', adjustTextArea, false)
+  document.addEventListener('input', adjustTextArea, false)
+  document.addEventListener('focusout', adjustTextArea, false)
 
   // keep an eye on the path and hide path names as necessary
-  resizing.observe($('header'));
+  resizing.observe($('header'))
 
   // check and action URL parameters accordingly
-  if (window.params.action?.length) handleAction(window.params);
-};
-document.addEventListener('DOMContentLoaded', loadPopup, false);
+  if (window.params.action?.length) handleAction(window.params)
+}
+document.addEventListener('DOMContentLoaded', loadPopup, false)
 
 /**
  * Helper for grouping tree items by type
- * @param {(Folder|Sniplet)[]} list 
+ * @param {(Folder|Sniplet)[]} list
  * @param {'type'|'color'|'src'} by - accepts 'type' to group by class name, or a field name
  * @returns {{folder?:Folder[], sniplet?:Sniplet[], color?:(Folder|Sniplet)[], src?:(Folder|Sniplet)[]}}
  * @example
@@ -289,27 +268,27 @@ document.addEventListener('DOMContentLoaded', loadPopup, false);
  */
 const groupItems = (list, by = settings.sort.groupBy) => list.reduce((groups, item) => {
   if (!by) {
-    (groups.all ||= []).push(item);
+    (groups.all ||= []).push(item)
   }
   const group = by === 'type'
-  ? item.constructor.name.toLowerCase()
-  : item[by];
-  (groups[group] ||= []).push(item);
-  return groups;
-}, {});
+    ? item.constructor.name.toLowerCase()
+    : item[by];
+  (groups[group] ||= []).push(item)
+  return groups
+}, {})
 
 /**
  * Helper for only grabbing subfolders
- * @param {*[]} folder 
+ * @param {*[]} folder
  * @returns {Folder[]}
  */
-const getSubFolders = (folder) => groupItems(folder, 'type').folder;
+const getSubFolders = folder => groupItems(folder, 'type').folder
 
 function setHeaderPath() {
   // console.log(`Setting header path`);
   // get list of path names (should always include space name)
-  const pathNames = space.getPathNames();
-  const pathNode = $('path');
+  const pathNames = space.getPathNames()
+  const pathNode = $('path')
   // console.log(pathNames, pathNode.outerHTML);
   // add root
   pathNode.replaceChildren(
@@ -337,15 +316,15 @@ function setHeaderPath() {
         })],
       })],
     }),
-  );
+  )
   // console.log(`Adding additional path names`, pathNames);
-  const separator = buildSvg(i18n('path_separator'), 'path-separator');
-  separator.setAttribute('class', 'chevron');
+  const separator = buildSvg(i18n('path_separator'), 'path-separator')
+  separator.setAttribute('class', 'chevron')
   pathNames.forEach((name, i) => pathNode.append(buildNode('li', {
     classList: [`folder`],
     dataset: {
-      seq: space.path.slice(i,i+1),
-      path: space.path.slice(0,i).join('-'),
+      seq: space.path.slice(i, i + 1),
+      path: space.path.slice(0, i).join('-'),
     },
     children: [
       separator,
@@ -354,99 +333,102 @@ function setHeaderPath() {
         type: `button`,
         dataset: {
           action: `open-folder`,
-          target: space.path.slice(0,i+1).join('-'),
+          target: space.path.slice(0, i + 1).join('-'),
         },
         children: [buildNode('h1', {
           textContent: name,
         })],
       }),
     ],
-  })));
+  })))
   // console.log(`Done!`);
 }
 
 function buildMenu() {
-  const { startVal, ...counters } = space.data.counters;
-  const customStartVal = (startVal > 1 || startVal < 0);
+  const { startVal, ...counters } = space.data.counters
+  const customStartVal = (startVal > 1 || startVal < 0)
   // console.log(startVal, counters);
   return [
     buildSubMenu(i18n('menu_action'), 'settings-action', [
       buildMenuControl('radio', 'set-icon-action', 'popup', i18n('menu_set_view_action_popup'),
-        settings.view.action === 'popup', { id: "set-action-popup" }),
+        settings.view.action === 'popup', { id: 'set-action-popup' }),
       buildMenuControl('radio', 'set-icon-action', 'panel', i18n('menu_set_view_action_panel'),
-        settings.view.action === 'panel', { id: "set-action-panel" }),
+        settings.view.action === 'panel', { id: 'set-action-panel' }),
       buildMenuControl('radio', 'set-icon-action', 'panel-toggle', i18n('menu_set_view_action_panel_toggle'),
-        settings.view.action === 'panel-toggle', { id: "set-action-panel-toggle" }),
-      buildMenuControl('radio', 'set-icon-action', 'window', i18n('menu_set_view_action_window'),
-        settings.view.action === 'window', { id: "set-action-window" }),
+        settings.view.action === 'panel-toggle', { id: 'set-action-panel-toggle' }),
+      // It's not currently possible to look up settings inside the action listener, so only panel possible
+      // buildMenuControl('radio', 'set-icon-action', 'window', i18n('menu_set_view_action_window'),
+      //   settings.view.action === 'window', { id: "set-action-window" }),
     ]),
-    buildSubMenu(i18n("menu_view"), `settings-view`, [
+    buildSubMenu(i18n('menu_view'), `settings-view`, [
       buildMenuControl('checkbox', `toggle-remember-path`, !settings.view.rememberPath,
-        i18n("menu_remember_path"), settings.view.rememberPath),
+        i18n('menu_remember_path'), settings.view.rememberPath),
       buildMenuControl('checkbox', `toggle-folders-first`, !settings.sort.foldersOnTop,
-        i18n("menu_folders_first"), settings.sort.foldersOnTop),
+        i18n('menu_folders_first'), settings.sort.foldersOnTop),
       buildMenuControl('checkbox', `toggle-adjust-editors`, !settings.view.adjustTextArea,
-        i18n("menu_adjust_textarea"), settings.view.adjustTextArea),
+        i18n('menu_adjust_textarea'), settings.view.adjustTextArea),
       buildMenuControl('checkbox', `toggle-show-source`, !settings.view.sourceURL,
-        i18n("menu_show_src"), settings.view.sourceURL),
+        i18n('menu_show_src'), settings.view.sourceURL),
     ]),
-    buildSubMenu(i18n("menu_snip"), `settings-snip`, [
-      buildMenuControl('checkbox', `toggle-save-source`, !settings.control.saveSource,
-        i18n("menu_save_src"), settings.control.saveSource),
-      buildMenuControl('checkbox', `toggle-save-tags`, !settings.control.preserveTags,
-        i18n("menu_save_tags"), settings.control.preserveTags),
+    buildSubMenu(i18n('menu_snip'), `settings-snip`, [
+      buildMenuControl('checkbox', `toggle-save-source`, !settings.snipping.saveSource,
+        i18n('menu_save_src'), settings.snipping.saveSource),
+      buildMenuControl('checkbox', `toggle-save-tags`, !settings.snipping.preserveTags,
+        i18n('menu_save_tags'), settings.snipping.preserveTags),
     ]),
-    buildSubMenu(i18n("menu_paste"), `settings-paste`, [
-      buildMenuControl('checkbox', `toggle-rt-line-breaks`, !settings.control.rtLineBreaks,
-        i18n("menu_rt_br"), settings.control.rtLineBreaks),
-      buildMenuControl('checkbox', `toggle-rt-link-urls`, !settings.control.rtLinkURLs,
-        i18n("menu_rt_url"), settings.control.rtLinkURLs),
-      buildMenuControl('checkbox', `toggle-rt-link-emails`, !settings.control.rtLinkEmails,
-        i18n("menu_rt_email"), settings.control.rtLinkEmails),
+    buildSubMenu(i18n('menu_paste'), `settings-paste`, [
+      buildMenuControl('checkbox', `toggle-rt-line-breaks`, !settings.pasting.rtLineBreaks,
+        i18n('menu_rt_br'), settings.pasting.rtLineBreaks),
+      buildMenuControl('checkbox', `toggle-rt-link-urls`, !settings.pasting.rtLinkURLs,
+        i18n('menu_rt_url'), settings.pasting.rtLinkURLs),
+      buildMenuControl('checkbox', `toggle-rt-link-emails`, !settings.pasting.rtLinkEmails,
+        i18n('menu_rt_email'), settings.pasting.rtLinkEmails),
     ]),
-    buildSubMenu(i18n("menu_counters"), `settings-counters`, [
+    buildSubMenu(i18n('menu_counters'), `settings-counters`, [
       buildSubMenu(i18n('menu_count_init'), `counter-init`, [
         buildMenuControl('radio', `set-counter-init`, '0',
           i18nNum(0), startVal === 0, { id: `counter-init-0` }),
         buildMenuControl('radio', 'set-counter-init', '1',
           i18nNum(1), startVal === 1, { id: `counter-init-1` }),
         buildMenuControl('radio', 'set-counter-init', startVal,
-          `${i18n("menu_count_x")}${customStartVal ? ` (${i18nNum(startVal)})` : ''}…`, customStartVal, { id: `counter-init-x` }),
+          `${i18n('menu_count_x')}${customStartVal ? ` (${i18nNum(startVal)})` : ''}…`, customStartVal, { id: `counter-init-x` }),
       ]),
-      ...Object.keys(counters).length ? [
-        buildMenuItem(`${i18n("menu_count_manage")}…`, `manage-counters`),
-      ] : [],
-      ...Object.keys(counters).length ? [
-        buildMenuItem(`${i18n("menu_count_clear")}…`, `clear-counters`),
-      ] : [],
+      ...Object.keys(counters).length
+        ? [buildMenuItem(`${i18n('menu_count_manage')}…`, `manage-counters`)]
+        : [],
+      ...Object.keys(counters).length
+        ? [buildMenuItem(`${i18n('menu_count_clear')}…`, `clear-counters`)]
+        : [],
     ]),
-    buildSubMenu(i18n("menu_data"), `settings-data`, [
+    buildSubMenu(i18n('menu_data'), `settings-data`, [
       buildMenuControl('checkbox', `toggle-data-compression`, !settings.data.compress,
-        i18n("menu_data_compression"), settings.data.compress),
+        i18n('menu_data_compression'), settings.data.compress),
+      buildMenuControl('checkbox', `toggle-more-colors`, !settings.data.moreColors,
+        i18n('menu_more_colors'), settings.data.moreColors),
       buildMenuSeparator(),
-      buildMenuItem(i18n("menu_clear_src"), `clear-src-urls`),
+      buildMenuItem(i18n('menu_clear_src'), `clear-src-urls`),
       // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
-      buildMenuItem(i18n("menu_reinit"), `initialize`),
+      buildMenuItem(i18n('menu_reinit'), `initialize`),
     ]),
-    buildSubMenu(i18n("menu_backups"), `settings-backup`, [
-      buildMenuItem(i18n("menu_bak_data"), `backup-data`, `data`, { action: 'backup' }),
-      buildMenuItem(i18n("menu_bak_full"), `backup-full`, `full`, { action: 'backup' }),
-      buildMenuItem(i18n("menu_bak_clip"), `backup-clippings`, `clippings61`, { action: 'backup' }),
+    buildSubMenu(i18n('menu_backups'), `settings-backup`, [
+      buildMenuItem(i18n('menu_bak_data'), `backup-data`, `data`, { action: 'backup' }),
+      buildMenuItem(i18n('menu_bak_full'), `backup-full`, `full`, { action: 'backup' }),
+      buildMenuItem(i18n('menu_bak_clip'), `backup-clippings`, `clippings61`, { action: 'backup' }),
       buildMenuSeparator(),
-      buildMenuItem(i18n("menu_restore"), `restore`),
+      buildMenuItem(i18n('menu_restore'), `restore`),
     ]),
-    buildMenuItem(`${i18n("menu_about")}…`, `about`),
-  ];
+    buildMenuItem(`${i18n('menu_about')}…`, `about`),
+  ]
 }
 
 function buildHeader() {
   // popover settings menu
-  const settingsMenu = buildPopoverMenu('settings', i18n('menu_settings'), 'menu-settings', 'inherit', buildMenu());
+  const settingsMenu = buildPopoverMenu('settings', i18n('menu_settings'), 'menu-settings', 'inherit', buildMenu())
 
   // add path navigation element
   const path = buildNode('nav', {
     children: [buildNode('ul', { id: 'path' })],
-  });
+  })
 
   // quick actions
   const quickActionMenu = buildNode('div', {
@@ -456,66 +438,68 @@ function buildHeader() {
         space.synced ? i18n('action_stop_sync') : i18n('action_start_sync'),
         `icon-${getStorageArea(space.synced)}`,
         'inherit', {
-        action: 'toggle-sync',
-      }),
+          action: 'toggle-sync',
+        }),
       buildPopoverMenu('add-new', i18n('menu_add_item'), 'menu-add-new', 'inherit', [
         buildMenuItem(i18n('action_add_folder'), 'new-folder'),
         buildMenuItem(i18n('action_add_sniplet'), 'new-sniplet'),
       ]),
-      ...(window.params.view !== 'window') ? [
-        buildActionIcon(i18n('open_new_window'), 'menu-pop-out', 'inherit', {
-          action: 'open-window',
-        }),
-      ] : [],
+      ...(window.params.view !== 'window')
+        ? [
+            buildActionIcon(i18n('open_new_window'), 'menu-pop-out', 'inherit', {
+              action: 'open-window',
+            }),
+          ]
+        : [],
     ],
-  });
+  })
 
   // put header together
   $('header').replaceChildren(
     settingsMenu,
     path,
     quickActionMenu,
-  );
+  )
 
   // set path
-  setHeaderPath();
+  setHeaderPath()
 }
 
 /** Hide folder entries as needed */
 function adjustPath() {
-  const maxHeight = 33; // normal is 32, 33 allows for subpixels
-  const upIcon = $('folder-up');
-  if (!upIcon) return; // path not generated yet
-  const container = $('path');
+  const maxHeight = 33 // normal is 32, 33 allows for subpixels
+  const upIcon = $('folder-up')
+  if (!upIcon) return // path not generated yet
+  const container = $('path')
   /** @type {HTMLElement[]} */
-  const pathList = Array.from(container.getElementsByTagName('li'));
+  const pathList = Array.from(container.getElementsByTagName('li'))
   if (container.offsetHeight > maxHeight & container.childElementCount > 2) {
     // show up icon
-    upIcon.style.removeProperty('display');
+    upIcon.style.removeProperty('display')
     // hide parts of the folder path in case it's too long
-    const folderList = pathList.slice(1, -1); // always show current folder name
+    const folderList = pathList.slice(1, -1) // always show current folder name
     for (const folder of folderList) {
-      if (maxHeight > container.offsetHeight) break;
-      folder.style.display = 'none';
-      upIcon.dataset.path = folder.dataset.path;
-      upIcon.dataset.seq = folder.dataset.seq;
-      upIcon.querySelector('button').dataset.target = folder.querySelector('button').dataset.target;
+      if (maxHeight > container.offsetHeight) break
+      folder.style.display = 'none'
+      upIcon.dataset.path = folder.dataset.path
+      upIcon.dataset.seq = folder.dataset.seq
+      upIcon.querySelector('button').dataset.target = folder.querySelector('button').dataset.target
     }
   } else {
     // show parts of the folder path as space becomes available
     /** @type {HTMLElement[]} */
-    const hiddenFolders = pathList.filter(e => e.style.display === 'none').reverse();
-    if (hiddenFolders[0] === upIcon) return; // folder-up hidden, we're fine
-    let i = 1;
+    const hiddenFolders = pathList.filter(e => e.style.display === 'none').reverse()
+    if (hiddenFolders.at(0) === upIcon) return // folder-up hidden, we're fine
+    let i = 1
     for (const folder of hiddenFolders) {
-      folder.style.removeProperty('display');
-      const isRoot = (hiddenFolders.length === i++ && folder.textContent === space.name);
-      if (isRoot) upIcon.style.display = 'none';
+      folder.style.removeProperty('display')
+      const isRoot = (hiddenFolders.length === i++ && folder.textContent === space.name)
+      if (isRoot) upIcon.style.display = 'none'
       if (container.offsetHeight > maxHeight) {
         // revert last and stop unhiding folders when there's no more space
-        folder.style.display = 'none';
-        if (isRoot) upIcon.style.removeProperty('display');
-        break;
+        folder.style.display = 'none'
+        if (isRoot) upIcon.style.removeProperty('display')
+        break
       }
     }
   }
@@ -524,28 +508,30 @@ function adjustPath() {
 function buildTree() {
   /**
    * Build folder tree for pop-out window (recursive function)
-   * @param {Folder[]} folders 
-   * @param {int[]} level 
+   * @param {Folder[]} folders
+   * @param {int[]} level
    */
   function buildFolderList(folders, level) {
-    const isRoot = folders[0] instanceof DataBucket;
-    const path = level.join('-');
+    const isRoot = folders.at(0) instanceof DataBucket
+    const path = level.join('-')
 
     // list container with initial drop zone for reordering
     const folderList = buildNode('ul', {
       id: `folder-${path}`,
-      ...isRoot ? {} : { children: [
-        buildNode('li', {
-          dataset: { path: path, seq: '.5' },
-          classList: ['delimiter'],
-        }),
-      ] },
-    });
+      ...isRoot
+        ? {}
+        : { children: [
+            buildNode('li', {
+              dataset: { path: path, seq: '.5' },
+              classList: ['delimiter'],
+            }),
+          ] },
+    })
 
     // add each folder with a following drop-zone for reordering
     for (const folder of folders) {
       // check for subfolders
-      const subFolders = getSubFolders(folder.children);
+      const subFolders = getSubFolders(folder.children)
       // create folder list item
       const folderItem = buildNode('li', {
         classList: ['folder'],
@@ -553,45 +539,45 @@ function buildTree() {
           path: path,
           ...isRoot ? {} : { seq: folder.seq },
         },
-      });
+      })
       // add folder details
       folderItem.append(buildTreeWidget(
         !!subFolders,
-        getColor(folder.color).value,
+        Colors.get(folder.color).value,
         (isRoot) ? '' : level.concat([folder.seq]).join('-'),
         (isRoot) ? space.name : folder.name,
-      ));
+      ))
       // add sub-list if subfolders were found
       if (subFolders) folderItem.append(
         buildFolderList(subFolders, (isRoot) ? [] : level.concat([folder.seq])),
-      );
+      )
       // Add list item to list
-      folderList.append(folderItem);
+      folderList.append(folderItem)
       // Insert dropzone after for reordering
       if (!isRoot) {
         folderList.append(buildNode('li', {
-          dataset: { path: path, seq: String(folder.seq + .5) },
+          dataset: { path: path, seq: String(folder.seq + 0.5) },
           classList: ['delimiter'],
-        }));
+        }))
       }
     }
-    return folderList;
+    return folderList
   }
   // start building from the root
-  $('tree').replaceChildren(buildFolderList([space.data], ['root']));
+  $('tree').replaceChildren(buildFolderList([space.data], ['root']))
 }
 
 function buildList() {
   // shorthands
-  const container = $('sniplets');
-  const scroll = container.scrollTop;
-  const { path } = space;
-  const fot = settings.sort.foldersOnTop;
-  
+  const container = $('sniplets')
+  const scroll = container.scrollTop
+  const { path } = space
+  const fot = settings.sort.foldersOnTop
+
   // clear current list and get info
-  container.replaceChildren(buildNode('div', { classList: ['sizer'] }));
-  const folder = space.getItem(path).children || [];
-  const groupedItems = fot && groupItems(folder, 'type');
+  container.replaceChildren(buildNode('div', { classList: ['sizer'] }))
+  const folder = space.getItem(path).children || []
+  const groupedItems = fot && groupItems(folder, 'type')
 
   if (fot && groupedItems.folder) { // group folders at top if set
     container.append(buildNode('div', {
@@ -607,30 +593,30 @@ function buildList() {
             },
           }),
         ].concat(groupedItems.folder.flatMap((folder, i, a) => [
-            buildNode('li', { // folder item
-              classList: ['folder'],
-              dataset: {
-                seq: folder.seq,
-                path: path.join('-'),
-              },
-              children: buildItemWidget(folder, groupedItems.folder, path, settings),
-            }),
-            buildNode('li', { // trailing dropzone
-              classList: [(i < a.length - 1) ? 'separator' : 'delimiter'],
-              dataset: {
-                seq: String(folder.seq + .5),
-                path: path.join('-'),
-              },
-              children: (i < a.length - 1) && [buildNode('hr')],
-            }),
+          buildNode('li', { // folder item
+            classList: ['folder'],
+            dataset: {
+              seq: folder.seq,
+              path: path.join('-'),
+            },
+            children: buildItemWidget(folder, groupedItems.folder, path, settings),
+          }),
+          buildNode('li', { // trailing dropzone
+            classList: [(i < a.length - 1) ? 'separator' : 'delimiter'],
+            dataset: {
+              seq: String(folder.seq + 0.5),
+              path: path.join('-'),
+            },
+            children: (i < a.length - 1) && [buildNode('hr')],
+          }),
         ])),
       })],
-    }));
-    container.append(buildNode('hr'));
+    }))
+    container.append(buildNode('hr'))
   }
 
   // list sniplets, including folders if not grouped at top
-  const items = fot ? groupedItems.sniplet : folder;
+  const items = fot ? groupedItems.sniplet : folder
   if (items) {
     container.append(buildNode('ul', {
       id: 'sniplet-list',
@@ -638,11 +624,11 @@ function buildList() {
         buildNode('li', {
           classList: ['delimiter'],
           dataset: {
-            seq: .5,
+            seq: 0.5,
             path: path.join('-'),
           },
         }),
-      ].concat(items.flatMap((item) => [
+      ].concat(items.flatMap(item => [
         buildNode('li', {
           classList: [item.constructor.name.toLowerCase()],
           dataset: {
@@ -658,961 +644,955 @@ function buildList() {
         buildNode('li', {
           classList: ['delimiter'],
           dataset: {
-            seq: item.seq + .5,
+            seq: item.seq + 0.5,
             path: path.join('-'),
           },
         }),
       ])),
-    }));
+    }))
 
     // set textarea height as appropriate
     for (const textarea of container.getElementsByTagName('textarea')) {
-      adjustTextArea(textarea, 0);
+      adjustTextArea(textarea, 0)
     }
   }
 
   // maintain scroll position as much as possible
-  container.scrollTop = scroll;
+  container.scrollTop = scroll
 }
 
 function loadSniplets() {
-  buildHeader();
-  buildTree();
-  buildList();
+  buildHeader()
+  buildTree()
+  buildList()
 }
 
 /** auto-adjust the heights of input text areas
- * @param {Event|FocusEvent|HTMLTextAreaElement} target 
+ * @param {Event|FocusEvent|HTMLTextAreaElement} target
  * @param {number} [maxHeight] - pass 0 for default
  */
 function adjustTextArea(target, maxHeight) {
-  const padding = 2 * 5; // 5px top & bottom padding
-  const minHeight = 1 * 19; // 19px line height
-  const overflowHeight = (6 * 19) + 5; // Add bottom padding for scroll to max 7 lines
+  const padding = 2 * 5 // 5px top & bottom padding
+  const minHeight = 1 * 19 // 19px line height
+  const overflowHeight = (6 * 19) + 5 // Add bottom padding for scroll to max 7 lines
   // console.log(target, maxHeight, overflowHeight);
 
   /** @type {HTMLTextAreaElement} set target for events */
-  const textarea = target.target || target;
-  if (textarea.tagName !== 'TEXTAREA') return;
-  const focusout = target.type === 'focusout';
+  const textarea = target.target || target
+  if (textarea.tagName !== 'TEXTAREA') return
+  const focusout = target.type === 'focusout'
   // console.log(maxHeight);
-  if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight;
+  if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight
 
   // save current scroll position
-  const { scrollTop } = $('sniplets');
+  const { scrollTop } = $('sniplets')
 
   // disable animation while inputting
-  if (target.type === 'input') textarea.style.transition = 'none';
+  if (target.type === 'input') textarea.style.transition = 'none'
 
   // calculate current content height
-  let scrollHeight = textarea.scrollHeight - padding;
+  let scrollHeight = textarea.scrollHeight - padding
   // console.log(scrollHeight, textarea.scrollHeight, textarea.offsetHeight, textarea.style.height.replaceAll(/\D/g, ''));
   if (focusout || textarea.style.height.replaceAll(/\D/g, '') === scrollHeight) {
     // check and update actual scroll height to allow shrinking
-    textarea.style.height = 'auto';
-    scrollHeight = textarea.scrollHeight - padding;
+    textarea.style.height = 'auto'
+    scrollHeight = textarea.scrollHeight - padding
   }
-  if (scrollHeight < minHeight) scrollHeight = minHeight;
+  if (scrollHeight < minHeight) scrollHeight = minHeight
   // console.log(textarea.style.height, scrollHeight);
 
   // set max height to actual in case no limit set
-  if (!settings.view.adjustTextArea || !maxHeight) maxHeight = scrollHeight;
+  if (!settings.view.adjustTextArea || !maxHeight) maxHeight = scrollHeight
 
   // console.log(maxHeight, textarea.clientHeight);
   // update if needed
   if (maxHeight !== textarea.clientHeight) {
-    const targetHeight = scrollHeight > maxHeight ? maxHeight : scrollHeight;
-    textarea.style.height = `${targetHeight}px`;
+    const targetHeight = scrollHeight > maxHeight ? maxHeight : scrollHeight
+    textarea.style.height = `${targetHeight}px`
     if (focusout) {
-      textarea.style.removeProperty('transition'); // reenable animations
-      
+      textarea.style.removeProperty('transition') // reenable animations
+
       // preserve scroll position
-      $('sniplets').scrollTop = scrollTop + targetHeight - scrollHeight;
+      $('sniplets').scrollTop = scrollTop + targetHeight - scrollHeight
     }
   }
 }
 
 /**
  * MouseDown handler
- * @param {MouseEvent} event 
+ * @param {MouseEvent} event
  */
 function handleMouseDown(event) {
   // console.log(event);
   // prevent focus pull on buttons but handle & indicate action
-  const target = event.target.closest('[data-action]');
+  const target = event.target.closest('[data-action]')
   // console.log(target, target?.type, target.dataset?.action);
   if (target?.type === 'button' && target.dataset?.action !== 'open-folder') {
-    event.stopPropagation();
-    event.preventDefault();
-    target.style.boxShadow = 'none';
-    window.clicked = target; // for releasing click
+    event.stopPropagation()
+    event.preventDefault()
+    target.style.boxShadow = 'none'
+    window.clicked = target // for releasing click
   }
 }
 
 function handleMouseUp() {
   if (window.clicked) {
-    window.clicked.style.removeProperty('box-shadow');
-    delete window.clicked;
+    window.clicked.style.removeProperty('box-shadow')
+    delete window.clicked
   }
 }
 
 /** Click handler
- * @param {MouseEvent} event 
+ * @param {MouseEvent} event
  */
 function handleClick(event) {
   // Only handle buttons as other inputs will be handled with change event
   /** @type {HTMLButtonElement|HTMLInputElement} */
-  const button = event.target.closest('[type="button"]');
+  const button = event.target.closest('[type="button"]')
 
   // close menus & modals as needed
   for (const popover of document.querySelectorAll('.popover')) {
-    if ( false
-      || !button
+    if (
+      !button
       || !popover.parentElement.contains(button)
       || ![`open-popover`, `open-submenu`].includes(button.dataset.action)
     ) {
       // hide if no button, a different menu or a menu action was clicked
-      popover.classList.add(`hidden`);
+      popover.classList.add(`hidden`)
     }
   }
-  
-  if (button) handleAction(button);
+
+  if (button) handleAction(button)
 }
 
 /**
  * Keydown handler
- * @param {KeyboardEvent} event 
+ * @param {KeyboardEvent} event
  */
 function handleKeydown(event) {
   // console.log(event);
   if (event.target.tagName === 'LABEL' && event.key === ' ') {
     // prevent scroll behaviour when a label is 'clicked' with a spacebar
-    event.preventDefault();
+    event.preventDefault()
   } else if (event.target.name === 'name' && event.key === 'Enter') {
-    event.target.blur();
+    event.target.blur()
   }
 }
 
 /**
  * Keyup handler
- * @param {KeyboardEvent} event 
+ * @param {KeyboardEvent} event
  */
 function handleKeyup(event) {
   // console.log(event);
   if (event.target.tagName === 'LABEL' && event.key === ' ') {
     // accept spacebar input on label as if it was clicked
-    event.target.click();
+    event.target.click()
   }
 }
 
 /**
  * Input change handler
- * @param {Event} event 
+ * @param {Event} event
  */
 function handleChange(event) {
   // console.log(event);
   // helpers
-  const { target } = event;
-  const { dataset } = target;
-  dataset.action ||= target.name;
+  const { target } = event
+  const { dataset } = target
+  dataset.action ||= target.name
 
   // console.log(target, dataset);
-  handleAction(target);
-  
+  handleAction(target)
+
   // update menu if needed
   if (dataset.field === 'color') {
     setSvgFill(
       target.closest('.menu'),
-      getColor(dataset.value || target.value).value,
-    );
+      Colors.get(dataset.value || target.value).value,
+    )
   }
 }
 
 function handleFocusOut(event) {
   /** @type {Element} */
-  const { target } = event;
+  const { target } = event
   if (target.ariaLabel === i18n('label_folder_name')) {
     // set back as button
-    target.type = `button`;
-    target.dataset.action = `open-folder`;
+    target.type = `button`
+    target.dataset.action = `open-folder`
   }
 }
 
 /**
  * drag and drop reordering of sniplets so they can be put in folders
- * @param {DragEvent} event 
+ * @param {DragEvent} event
  */
 function handleDragDrop(event) {
   // ignore text drags
-  if ( true
-    && ['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
+  if (
+    ['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
     && event.target.dataset?.action !== 'open-folder'
   ) {
     // console.log('stopping');
-    event.stopPropagation();
-    event.preventDefault();
-    return;
+    event.stopPropagation()
+    event.preventDefault()
+    return
   }
   // only allow moves
-  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.effectAllowed = 'move'
   // picked up item
-  const item = event.target.closest('li');
-  const list = item.parentElement;
-  event.dataTransfer.setData("text/html", item.toString());
-  let dropTarget = item;
-  const dropClasses = [`folder-highlight`, `move-above`, `move-below`];
+  const item = event.target.closest('li')
+  const list = item.parentElement
+  event.dataTransfer.setData('text/html', item.toString())
+  let dropTarget = item
+  const dropClasses = [`folder-highlight`, `move-above`, `move-below`]
   // console.log(item, list, dropTarget);
 
   // wait for browser to pick up the item with a nice outline before hiding anything
   setTimeout(() => {
     // turned picked up item into a placeholder
     for (const child of item.children) {
-      child.style.display = `none`;
+      child.style.display = `none`
     }
-    item.classList.add(`placeholder`);
+    item.classList.add(`placeholder`)
 
     // remove textarea elements and hrs to facilitate reordering sniplets
     for (const element of list.getElementsByClassName('snip-content'))
-      element.style.display = `none`;
+      element.style.display = `none`
     for (const element of list.getElementsByTagName('HR'))
-      element.style.display = `none`;
+      element.style.display = `none`
 
     // enable drop targets around folders
     for (const element of list.getElementsByClassName('delimiter'))
-      element.style.display = `block`;
-  }, 0);
+      element.style.display = `block`
+  }, 0)
 
   const dragEnter = function (event) {
     // make sure there's another list item to drop on
-    let { target } = event;
+    let { target } = event
     while (target && target.tagName !== 'LI')
-      target = target.parentElement;
+      target = target.parentElement
     if (target)
-      event.preventDefault();
-  };
+      event.preventDefault()
+  }
 
   const dragOver = function (event) {
     // make sure there's another list item to drop on
-    let { target } = event;
+    let { target } = event
     while (target && target.tagName !== 'LI')
-      target = target.parentElement;
+      target = target.parentElement
     if (target) {
       // check if we're in a new place
       if (target !== dropTarget) {
-        // clear previous styling 
+        // clear previous styling
         if (dropTarget)
-          dropTarget.classList.remove(...dropClasses);
-        dropTarget = target;
+          dropTarget.classList.remove(...dropClasses)
+        dropTarget = target
         // highlight folders and mark drop positions
         if (target.classList.contains(`folder`)) {
-          target.classList.add('folder-highlight');
+          target.classList.add('folder-highlight')
         } else if (target.parentElement === list) {
           if ([...list.children].indexOf(target) > [...list.children].indexOf(item)) {
-            target.classList.add('move-below');
+            target.classList.add('move-below')
           } else if ([...list.children].indexOf(target) < [...list.children].indexOf(item)) {
-            target.classList.add('move-above');
+            target.classList.add('move-above')
           } else {
-            target.classList.add('folder-highlight');
+            target.classList.add('folder-highlight')
           }
         }
       }
       // console.log(event);
-      event.preventDefault();
+      event.preventDefault()
     } else if (dropTarget) {
-      dropTarget.classList.remove(...dropClasses);
-      dropTarget = null;
+      dropTarget.classList.remove(...dropClasses)
+      dropTarget = null
       // console.log(event);
-      event.preventDefault();
+      event.preventDefault()
     }
-  };
+  }
 
   const drop = async function (event) {
     // place the contents in a folder or swap positions
-    const target = event.target.closest('li');
+    const target = event.target.closest('li')
     if (target) {
       // make sure we went somewhere
       if (JSON.stringify(target.dataset) === JSON.stringify(item.dataset))
-        return dragEnd();
+        return dragEnd()
       // data for moving item
       const moveFrom = {
         path: item.dataset.path?.length ? item.dataset.path.split('-') : [],
         seq: item.dataset.seq,
-      };
+      }
       const moveTo = {
         path: target.dataset.path?.length ? target.dataset.path.split('-') : [],
         seq: target.dataset.seq,
-      };
+      }
       if (target.classList.contains('folder')) {
         // no need to push seq for root
-        if (moveTo.path.length && moveTo.path[0] === "root") {
-          moveTo.path = [];
+        if (moveTo.path.length && moveTo.path.at(0) === 'root') {
+          moveTo.path = []
         } else {
-          moveTo.path.push(moveTo.seq);
-          moveTo.seq = undefined;
+          moveTo.path.push(moveTo.seq)
+          moveTo.seq = undefined
         }
-        //make sure we're not trying to put a folder inside its child
-        if ( true
-          && moveTo.path.length > moveFrom.path.length
+        // make sure we're not trying to put a folder inside its child
+        if (
+          moveTo.path.length > moveFrom.path.length
           && moveTo.path.slice(0, moveFrom.path.length + 1).join('-') === moveFrom.path.concat([moveFrom.seq]).join('-')
         ) {
-          showAlert(i18n('error_folder_to_child'));
-          return dragEnd();
+          showAlert(i18n('error_folder_to_child'))
+          return dragEnd()
         }
       } else {
         // adjust resort based on position
         if ((moveTo.seq % 1) !== 0)
-          moveTo.seq = Math.trunc(moveTo.seq)
-                      + ((moveTo.seq > moveFrom.seq)
-                      ? 0
-                      : 1);
+          moveTo.seq = Math.trunc(moveTo.seq) + ((moveTo.seq > moveFrom.seq) ? 0 : 1)
         // make sure we're not sorting to self in a folder list
         if (moveFrom.seq === moveTo.seq)
-          return dragEnd();
+          return dragEnd()
       }
-      const movedItem = space.moveItem(moveFrom, moveTo);
-      space.sort(settings.sort);
-      await saveSpace();
+      const movedItem = space.moveItem(moveFrom, moveTo)
+      space.sort(settings.sort)
+      await saveSpace()
       // console.log(event);
-      event.preventDefault();
-      dragEnd();
-      buildList();
-      if (movedItem instanceof Folder) buildTree();
+      event.preventDefault()
+      dragEnd()
+      buildList()
+      if (movedItem instanceof Folder) buildTree()
     }
-  };
+  }
 
   function dragEnd() {
     // clean up styling
-    if (dropTarget) dropTarget.classList.remove(...dropClasses);
+    if (dropTarget) dropTarget.classList.remove(...dropClasses)
 
     // reenable textarea elements and hrs
     if (list) {
       for (const element of list.getElementsByClassName('snip-content'))
-        element.removeAttribute('style');
+        element.removeAttribute('style')
       for (const element of list.getElementsByTagName('HR'))
-        element.removeAttribute('style');
+        element.removeAttribute('style')
     }
 
     // disable drop targets around folders
     for (const element of list.getElementsByClassName('delimiter'))
-      element.removeAttribute('style');
+      element.removeAttribute('style')
 
     // put item text back if it still exists
     if (item) {
       for (const child of item.children) {
-        child.style.removeProperty('display');
+        child.style.removeProperty('display')
       }
-      item.classList.remove('placeholder');
+      item.classList.remove('placeholder')
     }
 
     // clean up listeners
-    document.removeEventListener('dragenter', dragEnter);
-    document.removeEventListener('dragover', dragOver);
-    document.removeEventListener('drop', drop);
-    document.removeEventListener('dragend', dragEnd);
+    document.removeEventListener('dragenter', dragEnter)
+    document.removeEventListener('dragover', dragOver)
+    document.removeEventListener('drop', drop)
+    document.removeEventListener('dragend', dragEnd)
   }
 
-  document.addEventListener('dragenter', dragEnter, false);
-  document.addEventListener('dragover', dragOver, false);
-  document.addEventListener('drop', drop, false);
-  document.addEventListener('dragend', dragEnd, false);
+  document.addEventListener('dragenter', dragEnter, false)
+  document.addEventListener('dragover', dragOver, false)
+  document.addEventListener('drop', drop, false)
+  document.addEventListener('dragend', dragEnd, false)
 }
 
 /** Action handler for various inputs
- * @param {HTMLElement|object} target 
+ * @param {HTMLElement|object} target
  */
 async function handleAction(target) {
   // console.log(target, target.dataset, target.action);
-  const dataset = target.dataset || target;
-  dataset.action ||= target.name;
+  const dataset = target.dataset || target
+  dataset.action ||= target.name
 
   // handle changes first if needed (buttons do not pull focus)
-  const ae = document.activeElement;
+  const ae = document.activeElement
   // console.log(ae, target, ae == target, ae === target);
-  if (target.tagName === `BUTTON` && [`INPUT`,`TEXTAREA`].includes(ae?.tagName)) {
+  if (target.tagName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.tagName)) {
     if (target.dataset.seq === ae.dataset.seq) {
-      await handleAction(ae);
+      await handleAction(ae)
     } else {
-      ae.blur();
+      ae.blur()
     }
   }
 
   switch (dataset.action) {
   // window open action
-  case 'focus':
-    dataset.field ||= 'content';
-    target = q$(`#sniplets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`);
-    // console.log("Focusing field", target, `#sniplets [data-field="${dataset.field || `content`}"][data-seq="${dataset.seq}"]`);
-    if (!target) break;
-    // scroll entire card into view
-    target.closest('li')?.scrollIntoView();
-    // check for folder renaming
-    if (target.type === 'button' && dataset.field === 'name') {
-      target.parentElement.querySelector('[action="rename"]').click();
-    } else {
-      target.focus();
-      // if editing content, set cursor at the end, otherwise select all
-      if ( true
-        && dataset.field === 'content'
-        && window.getSelection
-      ) {
-        target.selectionStart = target.selectionEnd = target.value.length;
+    case 'focus':
+      dataset.field ||= 'content'
+      target = q$(`#sniplets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`)
+      // console.log("Focusing field", target, `#sniplets [data-field="${dataset.field || `content`}"][data-seq="${dataset.seq}"]`);
+      if (!target) break
+      // scroll entire card into view
+      target.closest('li')?.scrollIntoView()
+      // check for folder renaming
+      if (target.type === 'button' && dataset.field === 'name') {
+        target.parentElement.querySelector('[action="rename"]').click()
       } else {
-        target.select();
-      }
-    }
-    break;
-
-  // open menus
-  case 'open-popover': 
-  case 'open-submenu': {
-    const t = $(dataset.target);
-    // clean up submenus
-    const topMenu = target.closest('.popover') || t;
-    for (const submenu of topMenu.querySelectorAll('.menu-list')) {
-      if (!(submenu === t || submenu.contains(t))) {
-        submenu.classList.add(`hidden`);
-      }
-    }
-    // open/close menu or submenu
-    if (t.classList.contains(`hidden`)) {
-      t.classList.remove(`hidden`);
-    } else {
-      t.classList.add(`hidden`);
-    }
-    break; }
-  
-  // backup/restore/clear data
-  case 'initialize':
-    if (!(await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data')))) break;
-    // deployed crx may cause service worker to run in parallel, delay doesn't help so recovery logic can't be done in backend
-    await chrome.storage.session.clear();
-    await chrome.storage.local.clear();
-    await chrome.storage.sync.clear();
-    // reinitialize
-    try {
-      settings.init();
-      await settings.save();
-      await space.init(settings.defaultSpace);
-      await saveSpace();
-      setCurrentSpace();
-      loadPopup();
-    } catch (e) {
-      // well and truly borked
-      console.error(e);
-    }
-    break;
-
-  case 'backup': {
-    const appName = i18n('app_name');
-    const now = new Date;
-    let backup = {};
-    let filename = `backup-${now.toISOString().slice(0,16)}.json`;
-    switch (target.value) {
-    case 'clippings61':
-      filename = `clippings-${filename}`;
-      backup = space.data.toClippings();
-      break;
-  
-    case 'data':
-      filename = `${space.name}-${filename}`;
-      backup.version = "1.0";
-      backup.createdBy = appName;
-      backup.data = structuredClone(space.data);
-      break;
-  
-    case 'full':
-      filename = `${appName}-${filename}`;
-      backup.version = "1.0";
-      backup.createdBy = appName;
-      backup.spaces = [structuredClone(space)];
-      delete backup.spaces[0].path;
-      backup.currentSpace = {
-        name: space.name,
-        synced: space.synced,
-        ...(settings.view.rememberPath ? { path: this.path } : {}),
-      };
-      backup.settings = settings;
-      break;
-  
-    case 'space':
-    default:
-      filename = `${space.name}-${filename}`;
-      backup.version = "1.0";
-      backup.createdBy = appName;
-      backup.space = structuredClone(space);
-      delete backup.space.path;
-      backup.currentSpace = {
-        name: space.name,
-        synced: space.synced,
-        ...(settings.view.rememberPath ? { path: this.path } : {}),
-      };
-      break;
-    }
-    try {
-      // console.log(backup);
-      const f = await window.showSaveFilePicker({
-        suggestedName: filename,
-        types: [{
-          description: i18n('file_save_type'),
-          accept: { "application/json": [".json"] },
-        }],
-      });
-      const ws = await f.createWritable();
-      await ws.write(JSON.stringify(backup, null, 2)); // pretty print
-      await ws.close();
-    } catch {/* assume cancelled */}
-    break; }
-  
-  case 'restore': {
-    // console.log("Checking current data", space.data);
-    if (space.data.children.length && !(await confirmAction(i18n('warning_restore_bak', i18n('action_restore')))))
-      break;
-    try {
-      // console.log("Getting file...");
-      const failAlert = () => showAlert(i18n('error_restore_failed'));
-
-      // get file
-      const [fileHandle] = await window.showOpenFilePicker({ types: [{
-        description: i18n('file_save_type'),
-        accept: { "application/json": ".json" },
-      }] });
-      // console.log('Grabbed file', fileHandle);
-      const fileData = await fileHandle.getFile();
-      // console.log('Grabbed data', fileData);
-      const fileContents = await fileData.text();
-      // console.log('Grabbed contents', fileContents);
-      const backup = JSON.parse(fileContents);
-      // console.log('Parsed data', backup);
-
-      // restore current space and settings if present
-      // console.log("Starting restore...");
-      if (backup.settings) {
-        settings.init(backup.settings);
-        settings.save();
-        // showAlert("Settings have been restored.");
-      }
-      space.path.length = 0;
-      if (backup.currentSpace) {
-        // console.log('updating current space', backup.currentSpace);
-        keyStore.currentSpace.set(backup.currentSpace);
-      }
-
-      // restore data
-      if (backup.userClippingsRoot) { // check for clippings data
-        // console.log("Creating new DataBucket...");
-        const newData = new DataBucket({ children: backup.userClippingsRoot });
-        // console.log("Parsing data...", structuredClone(newData), newData);
-        if (await newData.parse()) {
-          // console.log("Updated data", space.data);
-          space.data = newData;
-          space.sort();
-          saveSpace();
+        target.focus()
+        // if editing content, set cursor at the end, otherwise select all
+        if (dataset.field === 'content' && window.getSelection()) {
+          target.selectionStart = target.selectionEnd = target.value.length
         } else {
-          failAlert();
-          break;
+          target.select()
         }
-      } else if (backup.data) {
-        const data = new DataBucket(backup.data);
-        space.data = await data.parse();
-        saveSpace();
-      } else if (backup.space) {
-        try {
-          await space.init(backup.space);
-          space.sort();
-          await saveSpace();
-          await setCurrentSpace();
-        } catch (e) {
-          console.error(e);
-          failAlert();
-          break;
+      }
+      break
+
+      // open menus
+    case 'open-popover':
+    case 'open-submenu': {
+      const t = $(dataset.target)
+      // clean up submenus
+      const topMenu = target.closest('.popover') || t
+      for (const submenu of topMenu.querySelectorAll('.menu-list')) {
+        if (!(submenu === t || submenu.contains(t))) {
+          submenu.classList.add(`hidden`)
         }
-      } else if (backup.spaces) {
-        for (const backupSpace of backup.spaces) {
-          try {
-            const tempSpace = new Space();
-            await tempSpace.init(backupSpace);
-            await tempSpace.save(settings.data);
-          } catch (e) {
-            console.error(e);
+      }
+      // open/close menu or submenu
+      if (t.classList.contains(`hidden`)) {
+        t.classList.remove(`hidden`)
+      } else {
+        t.classList.add(`hidden`)
+      }
+      break }
+
+    // backup/restore/clear data
+    case 'initialize':
+      if (!(await confirmAction(i18n('warning_clear_data'), i18n('action_clear_all_data')))) break
+      // deployed crx may cause service worker to run in parallel, delay doesn't help so recovery logic can't be done in backend
+      await chrome.storage.session.clear()
+      await chrome.storage.local.clear()
+      await chrome.storage.sync.clear()
+      // reinitialize
+      try {
+        settings.init()
+        await settings.save()
+        await space.init(settings.defaultSpace)
+        await saveSpace()
+        setCurrentSpace()
+        loadPopup()
+      } catch (e) {
+      // well and truly borked
+        console.error(e)
+      }
+      break
+
+    case 'backup': {
+      const appName = i18n('app_name')
+      const now = new Date()
+      let backup = {}
+      let filename = `backup-${now.toISOString().slice(0, 16)}.json`
+      switch (target.value) {
+        case 'clippings61':
+          filename = `clippings-${filename}`
+          backup = space.data.toClippings()
+          break
+
+        case 'data':
+          filename = `${space.name}-${filename}`
+          backup.version = '1.0'
+          backup.createdBy = appName
+          backup.data = structuredClone(space.data)
+          break
+
+        case 'full':
+          filename = `${appName}-${filename}`
+          backup.version = '1.0'
+          backup.createdBy = appName
+          backup.spaces = [structuredClone(space)]
+          delete backup.spaces.at(0).path
+          backup.currentSpace = {
+            name: space.name,
+            synced: space.synced,
+            ...(settings.view.rememberPath ? { path: this.path } : {}),
           }
-        }
-        await space.load(backup.currentSpace || settings.defaultSpace);
-      } else {
-        failAlert();
-        break;
+          backup.settings = settings
+          break
+
+        case 'space':
+        default:
+          filename = `${space.name}-${filename}`
+          backup.version = '1.0'
+          backup.createdBy = appName
+          backup.space = structuredClone(space)
+          delete backup.space.path
+          backup.currentSpace = {
+            name: space.name,
+            synced: space.synced,
+            ...(settings.view.rememberPath ? { path: this.path } : {}),
+          }
+          break
       }
-      // console.log("Loading sniplets...");
-      loadSniplets();
-    } catch {
+      try {
+      // console.log(backup);
+        const f = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: i18n('file_save_type'),
+            accept: { 'application/json': ['.json'] },
+          }],
+        })
+        const ws = await f.createWritable()
+        await ws.write(JSON.stringify(backup, null, 2)) // pretty print
+        await ws.close()
+      } catch { /* assume cancelled */ }
+      break }
+
+    case 'restore': {
+    // console.log("Checking current data", space.data);
+      if (space.data.children.length && !(await confirmAction(i18n('warning_restore_bak', i18n('action_restore')))))
+        break
+      try {
+      // console.log("Getting file...");
+        const failAlert = () => showAlert(i18n('error_restore_failed'))
+
+        // get file
+        const [fileHandle] = await window.showOpenFilePicker({ types: [{
+          description: i18n('file_save_type'),
+          accept: { 'application/json': '.json' },
+        }] })
+        // console.log('Grabbed file', fileHandle);
+        const fileData = await fileHandle.getFile()
+        // console.log('Grabbed data', fileData);
+        const fileContents = await fileData.text()
+        // console.log('Grabbed contents', fileContents);
+        const backup = JSON.parse(fileContents)
+        // console.log('Parsed data', backup);
+
+        // restore current space and settings if present
+        // console.log("Starting restore...");
+        if (backup.settings) {
+          settings.init(backup.settings)
+          settings.save()
+        // showAlert("Settings have been restored.");
+        }
+        space.path.length = 0
+        if (backup.currentSpace) {
+        // console.log('updating current space', backup.currentSpace);
+          KeyStore.currentSpace.set(backup.currentSpace)
+        }
+
+        // restore data
+        if (backup.userClippingsRoot) { // check for clippings data
+        // console.log("Creating new DataBucket...");
+          const newData = new DataBucket({ children: backup.userClippingsRoot })
+          // console.log("Parsing data...", structuredClone(newData), newData);
+          if (await newData.parse()) {
+          // console.log("Updated data", space.data);
+            space.data = newData
+            space.sort()
+            saveSpace()
+          } else {
+            failAlert()
+            break
+          }
+        } else if (backup.data) {
+          const data = new DataBucket(backup.data)
+          space.data = await data.parse()
+          saveSpace()
+        } else if (backup.space) {
+          try {
+            await space.init(backup.space)
+            space.sort()
+            await saveSpace()
+            await setCurrentSpace()
+          } catch (e) {
+            console.error(e)
+            failAlert()
+            break
+          }
+        } else if (backup.spaces) {
+          for (const backupSpace of backup.spaces) {
+            try {
+              const tempSpace = new Space()
+              await tempSpace.init(backupSpace)
+              await tempSpace.save(settings.data)
+            } catch (e) {
+              console.error(e)
+            }
+          }
+          await space.load(backup.currentSpace || settings.defaultSpace)
+        } else {
+          failAlert()
+          break
+        }
+        // console.log("Loading sniplets...");
+        loadSniplets()
+      } catch {
       /* assume cancelled */
-    }
-    break; }
+      }
+      break }
 
-  // copy processed sniplet
-  case 'copy': {
+    // copy processed sniplet
+    case 'copy': {
     // get requested item
-    const { snip, customFields, counters } = await space.getProcessedSniplet(dataset.seq) || {};
-    // console.log(snip, customFields);
-    if (!snip) break;
-    // rebuild settings menu in case there was an update to counters
-    if (counters) $('settings').replaceChildren(...buildMenu());
-    // get custom fields if necessary
-    if (customFields) {
-      const content = await mergeCustomFields(snip.content, customFields);
-      if (!content) {
+      const { snip, customFields, counters } = await space.getProcessedSniplet(dataset.seq) || {}
+      // console.log(snip, customFields);
+      if (!snip) break
+      // rebuild settings menu in case there was an update to counters
+      if (counters) $('settings').replaceChildren(...buildMenu())
+      // get custom fields if necessary
+      if (customFields) {
+        const content = await mergeCustomFields(snip.content, customFields)
+        if (!content) {
         // modal cancelled, initiate rollback if needed
-        if (counters) space.setCounters(counters);
-        break;
-      }
-      snip.content = content;
-    }
-    // copy result text to clipboard
-    if (await setClipboard(snip)) {
-      showAlert(i18n('alert_copied'));
-    } else if (counters) {
-      // rollback in case of failure
-      space.setCounters(counters);
-    }
-    break; }
-
-  // paste processed sniplet
-  case 'paste': {
-    // attempt to paste into a selected field
-    const activeTab = await getCurrentTab();
-    pasteSnip({ tabId: activeTab.id }, dataset.seq, space, { pageUrl: activeTab.url });
-    break; }
-
-  // settings
-  // TODO: set various view options
-  case 'set-icon-action':
-    console.log(target, { ...settings.view });
-    
-    if (!['popup', 'panel', 'panel-toggle', 'window'].includes(target.value)) break;
-    settings.view.action = target.value;
-    await settings.save();
-    break;
-
-  case 'toggle-remember-path':
-    settings.view.rememberPath = !settings.view.rememberPath;
-    settings.save();
-    setCurrentSpace();
-    break;
-  
-  case 'toggle-folders-first':
-    // swap folders first or not
-    settings.sort.foldersOnTop = !settings.sort.foldersOnTop;
-    settings.save();
-    if (settings.sort.foldersOnTop)
-      space.sort(settings.sort);
-    saveSpace();
-    buildList();
-    break;
-
-  case 'toggle-adjust-editors':
-    settings.view.adjustTextArea = !settings.view.adjustTextArea;
-    settings.save();
-    buildList();
-    break;
-
-  case 'toggle-show-source':
-    settings.view.sourceURL = !settings.view.sourceURL;
-    settings.save();
-    buildList();
-    break;
-
-  case 'toggle-data-compression':
-    settings.data.compress = !settings.data.compress;
-    settings.save();
-    saveSpace();
-    break;
-
-  case 'toggle-sync': {
-    // check for sync size constraints
-    if (!space.synced && !(await space.isSyncable(settings.data))) {
-      alert(i18n('error_sync_full'));
-      return false;
-    }
-
-    // check if data already exists
-    const targetData = await getStorageData(space.name, getStorageArea(!space.synced));
-    if (targetData) {
-      // confirm what to do with existing data
-      const response = await confirmSelection(i18n('warning_sync_overwrite'), [
-        { title: i18n('action_keep_local'), value: 'local' },
-        { title: i18n('action_keep_sync'), value: 'sync' },
-      ], i18n('action_start_sync'));
-      if (response === 'sync') {
-        // replace live with sync data before moving, set to false since it'll be reset after
-        try {
-          await space.init({ name: space.name, synced: false, data: targetData });
-        } catch (e) {
-          console.error(e);
-          alert(i18n('error_shift_failed'));
-          return;
+          if (counters) space.setCounters(counters)
+          break
         }
-      } else if (response === 'local') {
-        // do nothing (ignore the synced data)
-      } else {
-        // action cancelled
-        return;
+        snip.content = content
       }
-    }
-    
-    // attempt to move the space
-    space.synced = !space.synced;
-    if (await saveSpace()) {
-      setCurrentSpace();
-      removeStorageData(space.name, getStorageArea(!space.synced));
-      buildHeader();
-      loadSniplets();
-    } else {
+      // copy result text to clipboard
+      if (await setClipboard(snip)) {
+        showAlert(i18n('alert_copied'))
+      } else if (counters) {
+      // rollback in case of failure
+        space.setCounters(counters)
+      }
+      break }
+
+    // paste processed sniplet
+    case 'paste': {
+    // attempt to paste into a selected field
+      const activeTab = await getCurrentTab()
+      pasteSnip({ tabId: activeTab.id }, dataset.seq, space, { pageUrl: activeTab.url })
+      break }
+
+    // settings
+    // TODO: set various view options
+    case 'set-icon-action':
+      console.log(target, { ...settings.view })
+
+      if (!['popup', 'panel', 'panel-toggle', 'window'].includes(target.value)) break
+      settings.view.action = target.value
+      await settings.save()
+      break
+
+    case 'toggle-remember-path':
+      settings.view.rememberPath = !settings.view.rememberPath
+      settings.save()
+      setCurrentSpace()
+      break
+
+    case 'toggle-folders-first':
+    // swap folders first or not
+      settings.sort.foldersOnTop = !settings.sort.foldersOnTop
+      settings.save()
+      if (settings.sort.foldersOnTop)
+        space.sort(settings.sort)
+      saveSpace()
+      buildList()
+      break
+
+    case 'toggle-adjust-editors':
+      settings.view.adjustTextArea = !settings.view.adjustTextArea
+      settings.save()
+      buildList()
+      break
+
+    case 'toggle-show-source':
+      settings.view.sourceURL = !settings.view.sourceURL
+      settings.save()
+      buildList()
+      break
+
+    case 'toggle-more-colors':
+      settings.data.moreColors = !settings.data.moreColors
+      settings.save()
+      buildList()
+      break
+
+    case 'toggle-data-compression':
+      settings.data.compress = !settings.data.compress
+      settings.save()
+      saveSpace()
+      break
+
+    case 'toggle-sync': {
+    // check for sync size constraints
+      if (!space.synced && !(await space.isSyncable(settings.data))) {
+        alert(i18n('error_sync_full'))
+        return false
+      }
+
+      // check if data already exists
+      const targetData = await getStorageData(space.name, getStorageArea(!space.synced))
+      if (targetData) {
+      // confirm what to do with existing data
+        const response = await confirmSelection(i18n('warning_sync_overwrite'), [
+          { title: i18n('action_keep_local'), value: 'local' },
+          { title: i18n('action_keep_sync'), value: 'sync' },
+        ], i18n('action_start_sync'))
+        if (response === 'sync') {
+        // replace live with sync data before moving, set to false since it'll be reset after
+          try {
+            await space.init({ name: space.name, synced: false, data: targetData })
+          } catch (e) {
+            console.error(e)
+            alert(i18n('error_shift_failed'))
+            return
+          }
+        } else if (response === 'local') {
+        // do nothing (ignore the synced data)
+        } else {
+        // action cancelled
+          return
+        }
+      }
+
+      // attempt to move the space
+      space.synced = !space.synced
+      if (await saveSpace()) {
+        setCurrentSpace()
+        removeStorageData(space.name, getStorageArea(!space.synced))
+        buildHeader()
+        loadSniplets()
+      } else {
       // revert change
-      space.synced = !space.synced;
-      alert(i18n('error_shift_failed'));
-      return;
-    }
-    break; }
+        space.synced = !space.synced
+        alert(i18n('error_shift_failed'))
+        return
+      }
+      break }
 
-  case 'clear-src-urls':
-    if (await confirmAction(i18n('warning_clear_src'), i18n('action_clear_srcs'))) {
-      space.data.removeSources();
-      saveSpace();
-      if (settings.view.sourceURL) buildList();
-    }
-    break;
-  
-  case 'toggle-save-source':
-    settings.control.saveSource = !settings.control.saveSource;
-    settings.save();
-    if ( true
-      && (!settings.control.saveSource)
-      && (await confirmAction(i18n('option_clear_srcs'), i18n('action_clear_srcs'), i18n('action_leave_srcs')))
-    ) {
-      space.data.removeSources();
-      saveSpace();
-      if (settings.view.sourceURL) buildList();
-    }
-    break;
-  
-  case 'toggle-save-tags':
-    settings.control.preserveTags = !settings.control.preserveTags;
-    settings.save();
-    break;
-  
-  case 'toggle-rt-line-breaks':
-    settings.control.rtLineBreaks = !settings.control.rtLineBreaks;
-    settings.save();
-    break;
-  
-  case 'toggle-rt-link-urls':
-    settings.control.rtLinkURLs = !settings.control.rtLinkURLs;
-    settings.save();
-    break;
-  
-  case 'toggle-rt-link-emails':
-    settings.control.rtLinkEmails = !settings.control.rtLinkEmails;
-    settings.save();
-    break;
+    case 'clear-src-urls':
+      if (await confirmAction(i18n('warning_clear_src'), i18n('action_clear_srcs'))) {
+        space.data.removeSources()
+        saveSpace()
+        if (settings.view.sourceURL) buildList()
+      }
+      break
 
-  // counters
-  case 'set-counter-init': {
+    case 'toggle-save-source':
+      settings.control.saveSource = !settings.control.saveSource
+      settings.save()
+      if (
+        (!settings.control.saveSource)
+        && (await confirmAction(i18n('option_clear_srcs'), i18n('action_clear_srcs'), i18n('action_leave_srcs')))
+      ) {
+        space.data.removeSources()
+        saveSpace()
+        if (settings.view.sourceURL) buildList()
+      }
+      break
+
+    case 'toggle-save-tags':
+      settings.control.preserveTags = !settings.control.preserveTags
+      settings.save()
+      break
+
+    case 'toggle-rt-line-breaks':
+      settings.control.rtLineBreaks = !settings.control.rtLineBreaks
+      settings.save()
+      break
+
+    case 'toggle-rt-link-urls':
+      settings.control.rtLinkURLs = !settings.control.rtLinkURLs
+      settings.save()
+      break
+
+    case 'toggle-rt-link-emails':
+      settings.control.rtLinkEmails = !settings.control.rtLinkEmails
+      settings.save()
+      break
+
+      // counters
+    case 'set-counter-init': {
     // console.log(target.value);
-    let startVal = +target.value;
-    if (target.id === `counter-init-x`) {
+      let startVal = +target.value
+      if (target.id === `counter-init-x`) {
       // custom starting value, show modal
-      const val = await showModal({
-        title: i18n('title_counter_init'),
-        fields: [{
-          type: `number`,
-          name: `start-val`,
-          label: i18n('label_counter_init_val'),
-          value: startVal,
-        }],
-        buttons: [{
-          title: i18n('submit'),
-          value: startVal,
-          id: `submitCounterDefaults`,
-        }],
-      }, ({ target }) => {
-        const submitButton = target.closest('dialog').querySelector('#submitCounterDefaults');
-        submitButton.value = target.value;
-      });
-      if (!val) break; // modal cancelled
-      if (!isNaN(val) && (parseInt(val) === Math.abs(+val))) startVal = +val;
-    }
-    space.data.counters.startVal = startVal;
-    saveSpace();
-    $('settings').replaceChildren(...buildMenu());
-    break; }
+        const val = await showModal({
+          title: i18n('title_counter_init'),
+          fields: [{
+            type: `number`,
+            name: `start-val`,
+            label: i18n('label_counter_init_val'),
+            value: startVal,
+          }],
+          buttons: [{
+            title: i18n('submit'),
+            value: startVal,
+            id: `submitCounterDefaults`,
+          }],
+        }, ({ target }) => {
+          const submitButton = target.closest('dialog').querySelector('#submitCounterDefaults')
+          submitButton.value = target.value
+        })
+        if (!val) break // modal cancelled
+        if (!isNaN(val) && (parseInt(val) === Math.abs(+val))) startVal = +val
+      }
+      space.data.counters.startVal = startVal
+      saveSpace()
+      $('settings').replaceChildren(...buildMenu())
+      break }
 
-  case 'manage-counters': {
+    case 'manage-counters': {
     // eslint-disable-next-line no-unused-vars
-    const { startVal, ...counters } = space.data.counters;
-    const values = await showModal({
-      title: i18n('title_counter_manage'),
-      fields: Object.entries(counters).sort((a, b) => a - b).map(([key, value], i) => ({
+      const { startVal, ...counters } = space.data.counters
+      const values = await showModal({
+        title: i18n('title_counter_manage'),
+        fields: Object.entries(counters).sort((a, b) => a - b).map(([key, value], i) => ({
           type: `number`,
           name: i,
           label: key,
           value: value,
         })),
-      buttons: [{
-        title: i18n('submit'),
-        value: `{}`,
-        id: `submitCounters`,
-      }],
-    }, ({ target }) => {
-      const button = target.closest('dialog').querySelector('#submitCounters');
-      const changes = JSON.parse(button.value);
-      const val = +target.value;
-      if (!isNaN(val) && (parseInt(val) === Math.abs(val))) changes[target.title] = val;
-      button.value = JSON.stringify(changes);
-    });
-    if (!values) break; // modal cancelled
-    const changes = JSON.parse(values);
-    for (const key in changes) space.data.counters[key] = changes[key];
-    saveSpace();
-    break; }
+        buttons: [{
+          title: i18n('submit'),
+          value: `{}`,
+          id: `submitCounters`,
+        }],
+      }, ({ target }) => {
+        const button = target.closest('dialog').querySelector('#submitCounters')
+        const changes = JSON.parse(button.value)
+        const val = +target.value
+        if (!isNaN(val) && (parseInt(val) === Math.abs(val))) changes[target.title] = val
+        button.value = JSON.stringify(changes)
+      })
+      if (!values) break // modal cancelled
+      const changes = JSON.parse(values)
+      for (const key in changes) space.data.counters[key] = changes[key]
+      saveSpace()
+      break }
 
-  case 'clear-counters': {
-    const { startVal } = space.data.counters;
-    space.data.counters = { startVal: startVal };
-    saveSpace();
-    $('settings').replaceChildren(...buildMenu());
-    break; }
-  
-  // add/edit/delete items
-  case 'new-sniplet': {
-    const newSniplet = space.addItem(new Sniplet());
-    space.sort(settings.sort);
-    saveSpace();
-    buildList();
-    handleAction({ action: 'focus', seq: newSniplet.seq, field: 'name' });
-    break; }
-  
-  case 'new-folder': {
-    const newFolder = space.addItem(new Folder());
-    space.sort(settings.sort);
-    saveSpace();
-    buildList();
-    buildTree();
-    setHeaderPath();
-    handleAction({ action: 'rename', seq: newFolder.seq, field: 'name' });
-    break; }
-  
-  case 'delete':
-    if(await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
-      const deletedItem = space.deleteItem(dataset.seq);
-      // console.log(deletedItem, deletedItem instanceof Folder);
-      saveSpace();
-      buildList();
-      // console.log("should I build the tree");
-      if (deletedItem instanceof Folder) {
+    case 'clear-counters': {
+      const { startVal } = space.data.counters
+      space.data.counters = { startVal: startVal }
+      saveSpace()
+      $('settings').replaceChildren(...buildMenu())
+      break }
+
+    // add/edit/delete items
+    case 'new-sniplet': {
+      const newSniplet = space.addItem(new Sniplet())
+      space.sort(settings.sort)
+      saveSpace()
+      buildList()
+      handleAction({ action: 'focus', seq: newSniplet.seq, field: 'name' })
+      break }
+
+    case 'new-folder': {
+      const newFolder = space.addItem(new Folder())
+      space.sort(settings.sort)
+      saveSpace()
+      buildList()
+      buildTree()
+      setHeaderPath()
+      handleAction({ action: 'rename', seq: newFolder.seq, field: 'name' })
+      break }
+
+    case 'delete':
+      if (await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
+        const deletedItem = space.deleteItem(dataset.seq)
+        // console.log(deletedItem, deletedItem instanceof Folder);
+        saveSpace()
+        buildList()
+        // console.log("should I build the tree");
+        if (deletedItem instanceof Folder) {
         // console.log("Yes, build the tree.");
-        buildTree();
+          buildTree()
+        }
       }
-    }
-    break;
-  
-  case 'rename': {
+      break
+
+    case 'rename': {
     // change input type to text if needed and enable+focus
-    const input = q$(`input[data-seq="${dataset.seq}"][data-field="name"]`);
-    input.type = `text`;
-    input.dataset.action = `edit`;
-    input.focus();
-    input.select();
-    break; }
+      const input = q$(`input[data-seq="${dataset.seq}"][data-field="name"]`)
+      input.type = `text`
+      input.dataset.action = `edit`
+      input.focus()
+      input.select()
+      break }
 
-  case 'edit': {
-    const field = dataset.field || target.name;
-    const value = dataset.value || target.value;
-    const item = space.editItem(
-      dataset.seq,
-      field,
-      ((!value || value === 'Default') && ['color', 'shortcut', 'sourceURL'].includes(field))
-      ? void 0 : value,
-    );
-    // console.log(item, dataset);
-    saveSpace();
-    // update tree if changes were made to a folder
-    if (item instanceof Folder) buildTree();
-    break; }
+    case 'edit': {
+      const field = dataset.field || target.name
+      const value = dataset.value || target.value
+      const item = space.editItem(
+        dataset.seq,
+        field,
+        ((!value || value === 'Default') && ['color', 'shortcut', 'sourceURL'].includes(field))
+          ? void 0
+          : value,
+      )
+      // console.log(item, dataset);
+      saveSpace()
+      // update tree if changes were made to a folder
+      if (item instanceof Folder) buildTree()
+      break }
 
-  case 'move':
+    case 'move':
     // console.log(dataset);
-    if (target.value) {
-      const movedItem = space.moveItem(
-        { seq: dataset.seq },
-        { seq: target.value },
-      );
-      saveSpace();
-      buildList();
-      if (movedItem instanceof Folder) buildTree();
-    }
-    break;
-  
-  // interface controls
-  case 'open-window': {
-    const url = new URL(location.href);
-    await openWindow(url.searchParams);
-    window.close();
-    break; }
-  
-  case 'open-panel': {
-    const url = new URL(location.href);
-    await openPanel(null, url.searchParams);
-    window.close();
-    break; }
-  
-  case 'open-folder': {
+      if (target.value) {
+        const movedItem = space.moveItem(
+          { seq: dataset.seq },
+          { seq: target.value },
+        )
+        saveSpace()
+        buildList()
+        if (movedItem instanceof Folder) buildTree()
+      }
+      break
+
+      // interface controls
+    case 'open-window': {
+      openWindow(new URL(location.href))
+      window.close()
+      break }
+
+    case 'open-folder': {
     // update url for ease of navigating
-    const url = new URL(location.href);
-    // console.log(`Setting path...`, url, dataset, dataset.target.length);
-    if (dataset.target.length) {
-      url.searchParams.set('path', dataset.target);
-    } else {
-      url.searchParams.delete('path');
-    }
-    // clear any action info
-    url.searchParams.delete('action');
-    url.searchParams.delete('field');
-    url.searchParams.delete('seq');
-    url.searchParams.delete('reason');
-    // push new url location to history
-    history.pushState(null, '', url.href);
-    // console.log(`Updating path...`, space, dataset.target);
-    space.path.length = 0;
-    if (dataset.target.length) {
+      const url = new URL(location.href)
+      // console.log(`Setting path...`, url, dataset, dataset.target.length);
+      if (dataset.target.length) {
+        url.searchParams.set('path', dataset.target)
+      } else {
+        url.searchParams.delete('path')
+      }
+      // clear any action info
+      url.searchParams.delete('action')
+      url.searchParams.delete('field')
+      url.searchParams.delete('seq')
+      url.searchParams.delete('reason')
+      // push new url location to history
+      history.pushState(null, '', url.href)
+      // console.log(`Updating path...`, space, dataset.target);
+      space.path.length = 0
+      if (dataset.target.length) {
       // console.log(structuredClone(space.path));
-      space.path.push(...dataset.target.split('-').map(v => +v));
+        space.path.push(...dataset.target.split('-').map(v => +v))
       // console.log(structuredClone(space.path));
-    }
-    // console.log(`setting space`, space, settings);
-    if (settings.view.rememberPath) setCurrentSpace();
-    // console.log(`setting path`);
-    setHeaderPath();
-    // console.log(`building list`);
-    buildList();
-    // console.log(`Done!`);
-    break; }
-  
-  case 'collapse':
-    target.closest('li').querySelector('ul').classList.add(`hidden`);
-    setSvgSprite(target, 'icon-folder-expand');
-    dataset.action = 'expand';
-    break;
-  
-  case 'expand':
-    target.closest('li').querySelector('ul').classList.remove(`hidden`);
-    setSvgSprite(target, 'icon-folder-collapse');
-    dataset.action = 'collapse';
-    break;
+      }
+      // console.log(`setting space`, space, settings);
+      if (settings.view.rememberPath) setCurrentSpace()
+      // console.log(`setting path`);
+      setHeaderPath()
+      // console.log(`building list`);
+      buildList()
+      // console.log(`Done!`);
+      break }
 
-  case 'about':
-    showAbout();
-    break;
+    case 'collapse':
+      target.closest('li').querySelector('ul').classList.add(`hidden`)
+      setSvgSprite(target, 'icon-folder-expand')
+      dataset.action = 'expand'
+      break
 
-  default:
-    break;
+    case 'expand':
+      target.closest('li').querySelector('ul').classList.remove(`hidden`)
+      setSvgSprite(target, 'icon-folder-collapse')
+      dataset.action = 'collapse'
+      break
+
+    case 'about':
+      showAbout()
+      break
+
+    default:
+      break
   }
 }

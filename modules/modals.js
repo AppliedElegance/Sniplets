@@ -1,6 +1,5 @@
-import { i18n, getColor } from "./refs.js";
-import { buildNode, buildActionIcon, buildMenuControl } from "./dom.js";
-
+import { i18n, Colors } from '/modules/refs.js'
+import { buildNode, buildActionIcon, buildMenuControl } from '/modules/dom.js'
 
 /** Builder for modal dialogue.
  * Buttons with the value `esc` return undefined and `true` & `false` return as boolean rather than string.
@@ -13,143 +12,143 @@ import { buildNode, buildActionIcon, buildMenuControl } from "./dom.js";
  * }} options Model elements to include
  * @param {Function=} onChange Event handler for form updates
  */
-function showModal({ title, message, content, fields, buttons }, onChange) {  
- // console.log("Setting up container...");
- const form = buildNode('form', {
-   method: `dialog`,
- });
+function showModal({ title, message, content, fields, buttons }, onChange) {
+  // console.log("Setting up container...");
+  const form = buildNode('form', {
+    method: `dialog`,
+  })
 
- // console.log("Adding title...", title, !!title);
- if (title) form.append(buildNode('h1', { textContent: title }));
+  // console.log("Adding title...", title, !!title);
+  if (title) form.append(buildNode('h1', { textContent: title }))
 
- // console.log("Adding message...", message, !!message);
- if (message) form.append(buildNode('p', { textContent: message }));
+  // console.log("Adding message...", message, !!message);
+  if (message) form.append(buildNode('p', { textContent: message }))
 
- // console.log("Adding custom content...", content, !!content);
- if (content) form.append(...content);
+  // console.log("Adding custom content...", content, !!content);
+  if (content) form.append(...content)
 
- // console.log("Adding fields...", fields, !!fields);
- if (fields) {
-   const formFields = buildNode('div', {
-     classList: [`fields`],
-   });
-   fields.forEach((field, i) => {
-     // console.log(field);
-     field.id ||= field.name;
-     if (i > 0) {
-       formFields.append(buildNode('div', {
-         classList: [`divider`],
-       }));
-     }
+  // console.log("Adding fields...", fields, !!fields);
+  if (fields) {
+    const formFields = buildNode('div', {
+      classList: [`fields`],
+    })
+    fields.forEach((field, i) => {
+      // console.log(field);
+      field.id ||= field.name
+      if (i > 0) {
+        formFields.append(buildNode('div', {
+          classList: [`divider`],
+        }))
+      }
 
-     if (field.type === 'radio') {
-       formFields.append(buildNode('fieldset', {
-         children: field.options.map((option, i) => buildMenuControl(
-           field.type,
-           field.name,
-           option.value,
-           option.label,
-           i === 0,
-           { id: option.id },
-         )),
-       }));
-     } else if (field.type === 'checkbox') {
-       formFields.append(buildNode('fieldset', {
-         children: [buildMenuControl(
-           field.type,
-           field.name,
-           field.value,
-           field.label,
-           i === 0,
-         )],
-       }));
-     } else {
-       const isSelect = (field.type === 'select');
-       formFields.append(buildNode('div', {
-         classList: [`field`],
-         children: [
-           buildNode('label', {
-             for: field.id,
-             textContent: field.label,
-           }),
-           buildNode(isSelect ? 'select' : 'input', {
-             type: field.type,
-             name: field.name,
-             id: field.id,
-             title: field.label,
-             value: field.value,
-             checked: field.checked,
-             children: isSelect && field.options.map(option => buildNode('option', {
-               value: option,
-               textContent: option,
-             })),
-           }),
-         ],
-       }));
-     }
-   });
-   form.append(formFields);
- }
+      if (field.type === 'radio') {
+        formFields.append(buildNode('fieldset', {
+          children: field.options.map((option, i) => buildMenuControl(
+            field.type,
+            field.name,
+            option.value,
+            option.label,
+            i === 0,
+            { id: option.id },
+          )),
+        }))
+      } else if (field.type === 'checkbox') {
+        formFields.append(buildNode('fieldset', {
+          children: [buildMenuControl(
+            field.type,
+            field.name,
+            field.value,
+            field.label,
+            i === 0,
+          )],
+        }))
+      } else {
+        const isSelect = (field.type === 'select')
+        formFields.append(buildNode('div', {
+          classList: [`field`],
+          children: [
+            buildNode('label', {
+              for: field.id,
+              textContent: field.label,
+            }),
+            buildNode(isSelect ? 'select' : 'input', {
+              type: field.type,
+              name: field.name,
+              id: field.id,
+              title: field.label,
+              value: field.value,
+              checked: field.checked,
+              children: isSelect && field.options.map(option => buildNode('option', {
+                value: option,
+                textContent: option,
+              })),
+            }),
+          ],
+        }))
+      }
+    })
+    form.append(formFields)
+  }
 
- // console.log("Adding buttons...", buttons, !!buttons);
- if (buttons) {
-   const formButtons = buildNode('div', {
-     classList: [`buttons`],
-   });
-   for (const button of buttons) {
-     formButtons.append(buildNode('button', {
-       type: `submit`,
-       value: button.value,
-       id: button.id,
-       children: [buildNode('h2', {
-         textContent: button.title,
-       })],
-     }));
-   }
-   form.append(formButtons);
- }
+  // console.log("Adding buttons...", buttons, !!buttons);
+  if (buttons) {
+    const formButtons = buildNode('div', {
+      classList: [`buttons`],
+    })
+    for (const button of buttons) {
+      formButtons.append(buildNode('button', {
+        type: `submit`,
+        value: button.value,
+        id: button.id,
+        children: [buildNode('h2', {
+          textContent: button.title,
+        })],
+      }))
+    }
+    form.append(formButtons)
+  }
 
- // console.log("Adding cancel button...");
- const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, getColor('red').value);
- cancelButton.type = `submit`;
- cancelButton.value = `esc`;
- form.append(buildNode('div', {
-   classList: [`x`],
-   children: [cancelButton],
- }));
+  // console.log("Adding cancel button...");
+  const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, Colors.RED)
+  cancelButton.type = `submit`
+  cancelButton.value = `esc`
+  form.append(buildNode('div', {
+    classList: [`x`],
+    children: [cancelButton],
+  }))
 
- /** @type {HTMLDialogElement} */
- const modal = buildNode('dialog', {
-   children: [form],
- });
- document.body.append(modal);
+  /** @type {HTMLDialogElement} */
+  const modal = buildNode('dialog', {
+    children: [form],
+  })
+  document.body.append(modal)
 
- if (onChange) modal.addEventListener('change', onChange);
+  if (onChange) modal.addEventListener('change', onChange)
 
- return new Promise((resolve) => {
-   modal.addEventListener('close', () => {
-     switch (modal.returnValue) {
-     case 'esc':
-       resolve();
-       break;
-       
-     case 'true':
-       resolve(true);
-       break;
+  return new Promise((resolve) => {
+    modal.addEventListener('close', () => {
+      switch (modal.returnValue) {
+        case 'esc':
+          resolve()
+          break
 
-     case 'false':
-       resolve(false);
-       break;
-   
-     default:
-       resolve(modal.returnValue);
-       break;
-     }
-     modal.remove();
-   });
+        case 'true':
+          resolve(true)
+          break
 
-   modal.showModal();
- });
+        case 'false':
+          resolve(false)
+          break
+
+        default:
+          resolve(modal.returnValue)
+          break
+      }
+      modal.remove()
+    })
+
+    modal.showModal()
+  })
 }
 
 /** Show an 'alert' in a modal box
@@ -158,11 +157,11 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
  * @returns {Promise<void>} Always returns `void`
  */
 function showAlert(message, title) {
- return showModal({
-   ...title ? { title: title } : {},
-   message: message,
-   buttons: [{ title: i18n('ok'), value: 'esc' }],
- });
+  return showModal({
+    ...title ? { title: title } : {},
+    message: message,
+    buttons: [{ title: i18n('ok'), value: 'esc' }],
+  })
 }
 
 /** Modal confirmation, returns `true` for the OK action, `false` if cancelled, or undefined if escaped
@@ -171,13 +170,13 @@ function showAlert(message, title) {
  * @param {string} [cancelLabel] - cancel button text
  */
 function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
- return showModal({
-   message: message,
-   buttons: [
-     { title: okLabel, value: `true` },
-     { title: cancelLabel, value: `false` },
-   ],
- });
+  return showModal({
+    message: message,
+    buttons: [
+      { title: okLabel, value: `true` },
+      { title: cancelLabel, value: `false` },
+    ],
+  })
 }
 
 /** Modal confirmation, returns `true` for the action, `false` if cancelled, or undefined if escaped
@@ -187,67 +186,67 @@ function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel
  * @param {string} [cancelLabel] - cancel button text
  */
 function confirmSelection(message, selections, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
- return showModal({
-   message: message,
-   fields: [{
-     type: 'radio',
-     name: 'selection',
-     options: selections.map((option, i) => ({
-       id: `selection-${i+1}`,
-       label: option.title,
-       value: option.value,
-     })),
-   }],
-   buttons: [
-     { title: okLabel, value: selections[0].value, id: 'submit-request' },
-     { title: cancelLabel, value: 'esc' },
-   ],
- }, ({ target }) => {
-   const button = target.closest('dialog').querySelector('#submit-request');
-   button.value = target.value;
- });
+  return showModal({
+    message: message,
+    fields: [{
+      type: 'radio',
+      name: 'selection',
+      options: selections.map((option, i) => ({
+        id: `selection-${i + 1}`,
+        label: option.title,
+        value: option.value,
+      })),
+    }],
+    buttons: [
+      { title: okLabel, value: selections.at(0).value, id: 'submit-request' },
+      { title: cancelLabel, value: 'esc' },
+    ],
+  }, ({ target }) => {
+    const button = target.closest('dialog').querySelector('#submit-request')
+    button.value = target.value
+  })
 }
 
 /** Show the About page as a modal */
 function showAbout() {
- return showModal({
-   content: [
-     buildNode('div', {
-       classList: [`title`],
-       children: [
-         buildNode('img', {
-           src: `../icons/snip128.png`,
-           classList: [`logo`],
-         }),
-         buildNode('h1', {
-           innerHTML: `${i18n('app_name')} <span class="tinytype">v${chrome.runtime.getManifest().version}</span>`,
-         }),
-       ],
-     }),
-     buildNode('p', {
-       textContent: i18n('app_description'),
-     }),
-     buildNode('hr'),
-     buildNode('a', {
-       href: `https://github.com/AppliedElegance/Sniplets/issues/`,
-       target: '_blank',
-       textContent: i18n('app_report_issue'),
-     }),
-     document.createTextNode(` | `),
-     buildNode('a', {
-       href: `https://crowdin.com/project/sniplets`,
-       target: '_blank',
-       textContent: i18n('app_translate'),
-     }),
-     document.createTextNode(` | `),
-     buildNode('a', {
-       href: `https://github.com/sponsors/jpc-ae`,
-       target: '_blank',
-       textContent: i18n('app_donate'),
-     }),
-   ],
-   buttons: [{ title: i18n('ok'), value: `esc` }],
- });
+  return showModal({
+    content: [
+      buildNode('div', {
+        classList: [`title`],
+        children: [
+          buildNode('img', {
+            src: `../icons/snip128.png`,
+            classList: [`logo`],
+          }),
+          buildNode('h1', {
+            innerHTML: `${i18n('app_name')} <span class="tinytype">v${chrome.runtime.getManifest().version}</span>`,
+          }),
+        ],
+      }),
+      buildNode('p', {
+        textContent: i18n('app_description'),
+      }),
+      buildNode('hr'),
+      buildNode('a', {
+        href: `https://github.com/AppliedElegance/Sniplets/issues/`,
+        target: '_blank',
+        textContent: i18n('app_report_issue'),
+      }),
+      document.createTextNode(` | `),
+      buildNode('a', {
+        href: `https://crowdin.com/project/sniplets`,
+        target: '_blank',
+        textContent: i18n('app_translate'),
+      }),
+      document.createTextNode(` | `),
+      buildNode('a', {
+        href: `https://github.com/sponsors/jpc-ae`,
+        target: '_blank',
+        textContent: i18n('app_donate'),
+      }),
+    ],
+    buttons: [{ title: i18n('ok'), value: `esc` }],
+  })
 }
 
 /** Request and update values for custom fields
@@ -256,69 +255,75 @@ function showAbout() {
  * @returns {string} Updated string with placeholders replaced by confirmed field values
  */
 async function mergeCustomFields(content, fields) {
- // console.log(content, fields, fields instanceof Map);
- if (!fields?.size) return content;
- //build modal
- const submission = await showModal({
-   title: i18n('title_custom_placeholders'),
-   fields: Array.from(fields.entries(), ([placeholder, field], i) => ({
-       type: field.type,
-       name: `placeholder-${i}`,
-       label: placeholder,
-       value: field.value,
-       options: field.options,
-     })),
-   buttons: [
-     {
-       title: i18n('confirm'),
-       value: JSON.stringify(Array.from(fields.entries())),
-       id: 'confirmFields',
-     },
-   ],
- }, (event) => {
-   // console.log(event);
-   /** @type {HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement} */
-   const input = event.target;
-   const modal = input.closest('dialog');
-   /** @type {HTMLButtonElement} */
-   const button = modal.querySelector('#confirmFields');
-   /** @type {Map} */
-   const fields = new Map(JSON.parse(button.value));
-   // console.log(button.value, fields, input.title, input.value);
-   const field = fields.get(input.title);
-   field.value = input.value;
-   fields.set(input.title, field);
-   button.value = JSON.stringify(Array.from(fields.entries()));
-   // console.log(button.value, fields);
- });
- const confirmedFields = submission && new Map(JSON.parse(submission));
- if (!confirmedFields) return content;
- return content.replaceAll(
-   /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
-   (match, placeholder) => {
-     const value = confirmedFields.get(placeholder)?.value;
-     return (typeof value === 'string') ? value : match;
-   },
- );
+  // console.log(content, fields, fields instanceof Map);
+  if (!fields?.size) return content
+  // build modal
+  const submission = await showModal({
+    title: i18n('title_custom_placeholders'),
+    fields: Array.from(fields.entries(), ([placeholder, field], i) => ({
+      type: field.type,
+      name: `placeholder-${i}`,
+      label: placeholder,
+      value: field.value,
+      options: field.options,
+    })),
+    buttons: [
+      {
+        title: i18n('confirm'),
+        value: JSON.stringify(Array.from(fields.entries())),
+        id: 'confirmFields',
+      },
+    ],
+  }, (event) => {
+    // console.log(event);
+    /** @type {HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement} */
+    const input = event.target
+    const modal = input.closest('dialog')
+    /** @type {HTMLButtonElement} */
+    const button = modal.querySelector('#confirmFields')
+    /** @type {Map} */
+    const fields = new Map(JSON.parse(button.value))
+    // console.log(button.value, fields, input.title, input.value);
+    const field = fields.get(input.title)
+    field.value = input.value
+    fields.set(input.title, field)
+    button.value = JSON.stringify(Array.from(fields.entries()))
+    // console.log(button.value, fields);
+  })
+  const confirmedFields = submission && new Map(JSON.parse(submission))
+  if (!confirmedFields) return content
+  return content.replaceAll(
+    /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
+    (match, placeholder) => {
+      const value = confirmedFields.get(placeholder)?.value
+      return (typeof value === 'string') ? value : match
+    },
+  )
 }
 
 /** Request optional permissions to access specific or all host site urls
  * @param {string[]} origins list of origin matching strings
  */
 async function requestOrigins(origins) {
- const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || []);
- const request = await confirmSelection(i18n('request_origins'), [
-   { title: i18n('request_all_site_permissions'), value: allUrls },
-   { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
- ], i18n('action_permit'));
- if (request) {
-   return chrome.permissions.request({
-     origins: JSON.parse(request),
-   }).catch((e) => (console.error(e), false));
- }
- return false;
+  const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
+  const request = await confirmSelection(i18n('request_origins'), [
+    { title: i18n('request_all_site_permissions'), value: allUrls },
+    { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
+  ], i18n('action_permit'))
+  if (request) {
+    return chrome.permissions.request({
+      origins: JSON.parse(request),
+    }).catch(e => (console.error(e), false))
+  }
+  return false
 }
 
+/** Reports if a url is completely blocked at the top level (permissions won't help)
+ * @param {string|URL} url The requested FQDN for scripting
+ */
+function reportBlockedURL(url) {
+  showAlert(i18n('error_scripting_blocked', new URL(url).hostname), i18n('title_scripting_blocked'))
+}
 
 export {
   showModal,
@@ -328,4 +333,5 @@ export {
   showAbout,
   mergeCustomFields,
   requestOrigins,
-};
+  reportBlockedURL,
+}

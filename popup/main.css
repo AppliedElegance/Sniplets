@@ -1,8 +1,8 @@
 body {
   margin: 0;
   padding: 0;
-  color: rgb(41, 41, 41);
-  background: rgb(231, 227, 224);
+  color: oklch(22.64% 0 0);
+  background: oklch(97.02% 0 0);
   text-align: left;
   min-width: 300px;
   min-height: 200px;
@@ -14,8 +14,8 @@ body {
 header {
   display: flex;
   padding: 2px 8px;
-  background-color: rgb(243, 184, 35);
-  box-shadow: 0 0 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  background-color: oklch(0.82 0.16 83.95);
+  box-shadow: 0 0 3px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.24);
 }
 
 #path {
@@ -63,14 +63,14 @@ hr {
   margin: 3px 0;
   border: 0;
   height: .1em;
-  background-image: linear-gradient(to right, #ccc, #333, #ccc);
+  background-image: linear-gradient(to right, oklch(85% 0 0), oklch(32% 0 0), oklch(85% 0 0));
 }
 
 hr.vr {
   margin: 0;
   height: auto;
   width: 1.5px;
-  background-image: linear-gradient(to bottom, #ccc, #333, #ccc);
+  background-image: linear-gradient(to bottom, oklch(85% 0 0), oklch(32% 0 0), oklch(85% 0 0));
 }
 
 #sniplets {
@@ -138,7 +138,7 @@ button {
 button:not([disabled]):hover,
 [type="button"]:not([disabled]):hover {
   border-radius: 3px;
-  box-shadow: 0 0 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  box-shadow: 0 0 3px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.24);
 }
 
 button:active,
@@ -147,7 +147,7 @@ button:active,
 }
 
 [type="button"]:not([disabled]):focus:hover {
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.24));
+  filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.24));
 }
 
 [type="button"]:not([disabled]):focus:active {
@@ -214,8 +214,8 @@ header {
   margin: 8px 9px 10px;
   border-radius: 3px;
   padding: 3px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+  background: oklch(1 0 0);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px oklch(0 0 0 / 0.24);
   transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
@@ -230,7 +230,7 @@ header {
   border: 3px dashed;
   border-radius: 4px;
   height: 20px;
-  background: #edc;
+  background: oklch(0.91 0.03 67.44);
 }
 
 input, select {
@@ -336,7 +336,7 @@ label .icon svg {
 
 input:focus + label,
 .menu-item:hover {
-  box-shadow: 0 1px 3px rgba(200,200,150,0.8), 0 3px 5px rgba(200,200,150,0.8)
+  box-shadow: 0 1px 3px oklch(89% 0.08 107.94 / 0.8), 0 3px 5px oklch(82% 0.07 107.78 / 0.8)
 }
 
 .menu-item > .menu-list {
@@ -360,7 +360,7 @@ input:focus + label,
   scrollbar-gutter: stable;
   font-size: 15px;
   line-height: 19px;
-  background: #fff;
+  background: oklch(100% 0 0);
   transition: height 125ms;
 }
 
@@ -475,10 +475,10 @@ figure {
   box-shadow: 1px 3px rgba(200,200,150,0.8), 0 3px 5px rgba(200,200,150,0.8)
 }
 .move-above {
-  border-top: 3px solid rgba(0,0,0,0.24);
+  border-top: 3px solid oklch(0% 0 0 / 0.24);
 }
 .move-below {
-  border-bottom: 3px solid rgba(0,0,0,0.24);
+  border-bottom: 3px solid oklch(0% 0 0 / 0.24);
 }
 
 .hidden {

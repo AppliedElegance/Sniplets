@@ -540,5 +540,23 @@
   },
   "test": {
     "message": "test"
+  },
+  "color_black": {
+    "message": "Black"
+  },
+  "color_white": {
+    "message": "White"
+  },
+  "color_pink": {
+    "message": "Pink"
+  },
+  "color_lightblue": {
+    "message": "Light Blue"
+  },
+  "color_brown": {
+    "message": "Brown"
+  },
+  "menu_more_colors": {
+    "message": "Allow more colour categories"
   }
 }
