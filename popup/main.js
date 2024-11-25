@@ -16,6 +16,7 @@ import {
   buildMenuControl,
   buildItemWidget,
   buildTreeWidget,
+  buildColorMenu,
 } from '/modules/dom.js'
 import {
   showModal,
@@ -24,9 +25,8 @@ import {
   confirmSelection,
   showAbout,
   mergeCustomFields,
-  requestOrigins,
 } from '/modules/modals.js'
-import { snipSelection, insertSnip, pasteSnip } from '/modules/actions.js'
+import { pasteSnip, runCommand } from '/modules/commands.js'
 
 /**
  * Shorthand for document.getElementById(id)
@@ -45,7 +45,7 @@ const q$ = query => document.querySelector(query)
 // globals for settings and keeping track of the current folder
 const space = new Space()
 const saveSpace = async () => space.save(settings.data)
-const setCurrentSpace = () => space.setAsCurrent(settings.view.rememberPath)
+const setCurrentSpace = async () => space.setAsCurrent(settings.view.rememberPath)
 
 // observer for resizing the header path, debounce may cause flashing but prevents loop errors
 const debounce = function setDelay(f, delay) {
@@ -57,7 +57,45 @@ const debounce = function setDelay(f, delay) {
 }
 const resizing = new ResizeObserver(debounce(adjustPath, 0))
 
-const handleFollowup = async ({ type, args }) => {
+async function handleFollowup({ action, args }) {
+  console.log(action, args)
+
+  async function handleUnsync(args) {
+    // make sure it hasn't already been restored and we're not removing everything
+    if ((await getStorageData(args.name, 'sync'))
+      || !(await KeyStore.currentSpace.get()) // resolves race condition
+    ) return
+
+    // make it possible to keep local data or keep synchronizing on this machine just in case
+    args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))
+    // console.log(args);
+    if (args.synced === true || args.synced === false) {
+      // if not currently working on the same data, make do with saving the data
+      const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
+      // console.log(currentSpace);
+      if (args.name !== currentSpace.name) {
+        setStorageData(args.name, args.data, getStorageArea(args.synced))
+        return
+      }
+
+      // recover the data
+      try {
+        await space.init(args)
+        if (!(await saveSpace())) {
+          showAlert(i18n('error_data_corrupt'))
+          return
+        }
+        setCurrentSpace()
+        loadSniplets()
+      } catch (e) {
+        console.error(e)
+        showAlert(i18n('error_data_corrupt'))
+      }
+    } else {
+      showAlert(i18n('error_data_corrupt'))
+    }
+  }
+
   /** Set counters to match provided argument */
   async function rollBackCounters() {
     const counters = new Map(args?.counters || [])
@@ -81,77 +119,125 @@ const handleFollowup = async ({ type, args }) => {
       }
       snip.content = text
     }
-    if ((await insertSnip(target, snip)).error) {
+    if ((await pasteSnip({ target: target, snip: snip })).error) {
       await rollBackCounters()
     }
   }
 
-  switch (type) {
-    case 'alert':
-      await showAlert(args.message, args.title)
-      break
+  async function handleError(error) {
+    async function handleScriptingBlockedError({ cause }) {
+      console.log(cause)
+      const { url } = cause
+      await showAlert(
+        i18n('alert_message_scripting_blocked', url),
+        i18n('alert_title_scripting_blocked'),
+      )
+    }
 
-    case 'permissions': {
-      if (await requestOrigins(args.origins)) {
-        switch (args.action) {
-          case 'snip':
-            snipSelection(args.target, args.actionSpace)
-            window.close() // in popup, happens automatically after this function completes
-            return
+    async function handleCrossOriginError({ cause }) {
+      const { task, pageSrc, frameSrc } = cause
+      await showAlert(
+        i18n('error_cross_origin_message', [i18n(`error_action_${task}`), pageSrc, frameSrc]),
+        i18n('error_cross_origin_title'),
+      )
+    }
 
-          case 'paste':
-            await mergeAndPaste()
-            window.close() // in popup, happens automatically after this function completes
-            return
+    async function handleMissingPermissionsError({ cause }) {
+      const { origins, task, args } = cause
 
-          default:
-            window.close() // in popup, happens automatically after this function completes
-            return
+      const requestOrigins = async (origins) => {
+        const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
+        const request = await confirmSelection(i18n('request_origins', origins.at(0)), [
+          { title: i18n('request_all_site_permissions'), value: allUrls },
+          { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
+        ], i18n('action_permit'))
+        if (request) {
+          return chrome.permissions.request({
+            origins: JSON.parse(request),
+          }).catch(e => (console.error(e), false))
+        }
+        return false
+      }
+
+      if (origins && await requestOrigins(origins)) {
+        console.log('Granted', origins)
+        const result = await runCommand(task, args)
+        console.log(result)
+        if (result) {
+          await space.load()
+          loadSniplets()
+          handleFollowup({ action: task, args: result })
         }
       }
-      break }
+    }
+
+    const errorMap = new Map([
+      ['ScriptingBlockedError', handleScriptingBlockedError],
+      ['MissingPermissionsError', handleMissingPermissionsError],
+      ['CrossOriginError', handleCrossOriginError],
+    ])
+
+    const errorFunc = errorMap.get(error.name)
+    if (typeof errorFunc === 'function') await errorFunc(error)
+
+    // check if sniplets are loaded, otherwise assume popup and close
+    if (!$('path')) {
+      console.log($('path'), error, action, args)
+      // window.close()
+    }
+  }
+
+  async function handleSnipResult(result) {
+    console.log(result)
+    if (result.error) return handleError(result.error)
+    if (!(result.space.key === space.storageKey.key && result.space.area === space.storageKey.area)) return
+
+    // load space in case this happens before update is called
+    if (Array.isArray(result.path)) space.path = result.path
+    await space.load()
+    loadSniplets()
+
+    // focus the new sniplet's name field
+    // (note that side panel doesn't switch focus automatically)
+    q$(`input[name="name"][data-seq="${result.seq}"]`)?.focus()
+  }
+
+  const followupMap = new Map([
+    ['alert', showAlert],
+    ['snip', handleSnipResult],
+    ['unsynced', handleUnsync],
+  ])
+
+  const followupFunc = followupMap.get(action)
+  if (typeof followupFunc === 'function') {
+    followupFunc(args)
+    return
+  }
+
+  switch (action) {
+    // case 'permissions': {
+    //   if (await requestOrigins(args.origins)) {
+    //     switch (args.action) {
+    //       case 'snip':
+    //         snipSelection(args.target, args.actionSpace)
+    //         window.close() // in popup, happens automatically after this function completes
+    //         return
+
+    //       case 'paste':
+    //         await mergeAndPaste()
+    //         window.close() // in popup, happens automatically after this function completes
+    //         return
+
+    //       default:
+    //         window.close() // in popup, happens automatically after this function completes
+    //         return
+    //     }
+    //   }
+    //   break
+    // }
 
     case 'placeholders':
       if (args.action === 'paste') await mergeAndPaste() // should always be true
-      break
-
-    case 'unsynced':
-    // make sure it hasn't already been restored and we're not removing everything
-      if (
-        (await getStorageData(args.name, 'sync'))
-        || (!(await KeyStore.currentSpace.get())) // resolves race condition
-      ) break
-
-      // make it possible to keep local data or keep synchronizing on this machine just in case
-      args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))
-      // console.log(args);
-      if (args.synced === true || args.synced === false) {
-      // if not currently working on the same data, make do with saving the data
-        const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
-        // console.log(currentSpace);
-        if (args.name !== currentSpace.name) {
-          setStorageData(args.name, args.data, getStorageArea(args.synced))
-          break
-        }
-
-        // recover the data
-        try {
-          await space.init(args)
-          if (!(await saveSpace())) {
-            showAlert(i18n('error_data_corrupt'))
-            break
-          }
-          // console.log(space);
-          setCurrentSpace()
-          loadSniplets()
-        } catch (e) {
-          console.error(e)
-          showAlert(i18n('error_data_corrupt'))
-        }
-      } else {
-        showAlert(i18n('error_data_corrupt'))
-        break
-      }
       break
 
     default:
@@ -160,16 +246,15 @@ const handleFollowup = async ({ type, args }) => {
 }
 
 // Listen for updates on the fly in case of multiple popout windows
-chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
-  console.log(message, sender, sendResponse)
+chrome.runtime.onMessage.addListener(async (message, sender) => {
+  console.log('Receiving message...', message, sender)
   /** @type {{ to: chrome.runtime.ExtensionContext, subject: string, body: * }} */
   const { to, subject, body } = message
-  console.log(to, window, document, location)
 
   if (subject === 'updateSpace') {
-    const { timestamp } = body
-    if (timestamp > space.data.timestamp) {
-      await space.loadCurrent()
+    const { name, synced, timestamp } = body
+    if (name === space.name && synced === space.synced && timestamp > space.data.timestamp) {
+      await space.load()
       loadSniplets()
     }
   } else if ((to.documentUrl === location.href) && (subject === 'followup')) {
@@ -184,13 +269,10 @@ const loadPopup = async () => {
   document.title = i18n('app_name')
 
   // load up settings with sanitation check for sideloaded versions
-  console.log(settings)
   if (!(await settings.load())) {
     settings.init()
     settings.save()
-    console.log('Settings loaded...', settings)
   }
-  console.log(settings)
 
   // load parameters
   window.params = Object.fromEntries(new URLSearchParams(location.search))
@@ -211,12 +293,13 @@ const loadPopup = async () => {
   document.body.addEventListener('change', handleChange, false)
   document.body.addEventListener('focusout', handleFocusOut, false)
 
-  // Fetch requests from session storage set using the `setFollowup()` function
-  const followup = await KeyStore.followup.get()
-  if (followup) {
-    KeyStore.followup.clear()
-    handleFollowup(followup)
-  }
+  // textarea adjustments
+  document.body.addEventListener('focusin', adjustTextArea, false)
+  document.body.addEventListener('input', adjustTextArea, false)
+  document.body.addEventListener('focusout', adjustTextArea, false)
+
+  // keep an eye on the path and hide path names as necessary
+  resizing.observe($('header'))
 
   // load up the current space
   if (!(await space.loadCurrent())) {
@@ -241,17 +324,19 @@ const loadPopup = async () => {
     if (settings.view.rememberPath) setCurrentSpace()
   }
 
+  // Fetch requests from session storage set using the `setFollowup()` function
+  const followup = await KeyStore.followup.get()
+  console.log(followup)
+  if (followup) {
+    KeyStore.followup.clear()
+    handleFollowup(followup)
+    // stop here to avoid clashes with followups expecting to handle sniplet loading themselves
+    return
+  }
+
   loadSniplets()
 
-  // textarea adjustments
-  document.addEventListener('focusin', adjustTextArea, false)
-  document.addEventListener('input', adjustTextArea, false)
-  document.addEventListener('focusout', adjustTextArea, false)
-
-  // keep an eye on the path and hide path names as necessary
-  resizing.observe($('header'))
-
-  // check and action URL parameters accordingly
+  // check and action URL parameters accordingly (okay to ignore in case of followups)
   if (window.params.action?.length) handleAction(window.params)
 }
 document.addEventListener('DOMContentLoaded', loadPopup, false)
@@ -361,27 +446,30 @@ function buildMenu() {
       //   settings.view.action === 'window', { id: "set-action-window" }),
     ]),
     buildSubMenu(i18n('menu_view'), `settings-view`, [
-      buildMenuControl('checkbox', `toggle-remember-path`, !settings.view.rememberPath,
+      buildMenuControl('checkbox', `toggle-remember-path`, settings.view.rememberPath,
         i18n('menu_remember_path'), settings.view.rememberPath),
-      buildMenuControl('checkbox', `toggle-folders-first`, !settings.sort.foldersOnTop,
+      buildMenuControl('checkbox', `toggle-folders-first`, settings.sort.foldersOnTop,
         i18n('menu_folders_first'), settings.sort.foldersOnTop),
-      buildMenuControl('checkbox', `toggle-adjust-editors`, !settings.view.adjustTextArea,
-        i18n('menu_adjust_textarea'), settings.view.adjustTextArea),
-      buildMenuControl('checkbox', `toggle-show-source`, !settings.view.sourceURL,
+      buildMenuControl('checkbox', `toggle-show-source`, settings.view.sourceURL,
         i18n('menu_show_src'), settings.view.sourceURL),
+      buildMenuSeparator(),
+      buildMenuControl('checkbox', `toggle-collapse-editors`, settings.view.collapseEditors,
+        i18n('menu_collapse_editors'), settings.view.collapseEditors),
+      buildMenuControl('checkbox', `toggle-adjust-editors`, settings.view.adjustTextArea,
+        i18n('menu_adjust_textarea'), settings.view.adjustTextArea),
     ]),
     buildSubMenu(i18n('menu_snip'), `settings-snip`, [
-      buildMenuControl('checkbox', `toggle-save-source`, !settings.snipping.saveSource,
+      buildMenuControl('checkbox', `toggle-save-source`, settings.snipping.saveSource,
         i18n('menu_save_src'), settings.snipping.saveSource),
-      buildMenuControl('checkbox', `toggle-save-tags`, !settings.snipping.preserveTags,
+      buildMenuControl('checkbox', `toggle-save-tags`, settings.snipping.preserveTags,
         i18n('menu_save_tags'), settings.snipping.preserveTags),
     ]),
     buildSubMenu(i18n('menu_paste'), `settings-paste`, [
-      buildMenuControl('checkbox', `toggle-rt-line-breaks`, !settings.pasting.rtLineBreaks,
+      buildMenuControl('checkbox', `toggle-rt-line-breaks`, settings.pasting.rtLineBreaks,
         i18n('menu_rt_br'), settings.pasting.rtLineBreaks),
-      buildMenuControl('checkbox', `toggle-rt-link-urls`, !settings.pasting.rtLinkURLs,
+      buildMenuControl('checkbox', `toggle-rt-link-urls`, settings.pasting.rtLinkURLs,
         i18n('menu_rt_url'), settings.pasting.rtLinkURLs),
-      buildMenuControl('checkbox', `toggle-rt-link-emails`, !settings.pasting.rtLinkEmails,
+      buildMenuControl('checkbox', `toggle-rt-link-emails`, settings.pasting.rtLinkEmails,
         i18n('menu_rt_email'), settings.pasting.rtLinkEmails),
     ]),
     buildSubMenu(i18n('menu_counters'), `settings-counters`, [
@@ -401,10 +489,8 @@ function buildMenu() {
         : [],
     ]),
     buildSubMenu(i18n('menu_data'), `settings-data`, [
-      buildMenuControl('checkbox', `toggle-data-compression`, !settings.data.compress,
+      buildMenuControl('checkbox', `toggle-data-compression`, settings.data.compress,
         i18n('menu_data_compression'), settings.data.compress),
-      buildMenuControl('checkbox', `toggle-more-colors`, !settings.data.moreColors,
-        i18n('menu_more_colors'), settings.data.moreColors),
       buildMenuSeparator(),
       buildMenuItem(i18n('menu_clear_src'), `clear-src-urls`),
       // buildMenuItem(i18n("menu_clear_sync"), `clear-sync`),
@@ -746,22 +832,27 @@ function handleMouseUp() {
  * @param {MouseEvent} event
  */
 function handleClick(event) {
-  // Only handle buttons as other inputs will be handled with change event
+  // console.log(event, event.target)
   /** @type {HTMLButtonElement|HTMLInputElement} */
   const button = event.target.closest('[type="button"]')
 
+  // ignore hidden input clicks as handled by labels and changes
+  if (!button && event.target.tagName === 'INPUT') return
+
+  // Don't close menu if an input control label in it was clicked
+  /** @type {HTMLInputElement} */
+  const input = event.target.closest('label')?.control
+
   // close menus & modals as needed
   for (const popover of document.querySelectorAll('.popover')) {
-    if (
-      !button
-      || !popover.parentElement.contains(button)
-      || ![`open-popover`, `open-submenu`].includes(button.dataset.action)
-    ) {
-      // hide if no button, a different menu or a menu action was clicked
-      popover.classList.add(`hidden`)
+    if (!(button || input)
+      || !(popover.contains(input) || ['open-popover', 'open-submenu'].includes(button?.dataset.action))) {
+      // hide if no button/input, or a different menu was clicked
+      popover.classList.add('hidden')
     }
   }
 
+  // Only handle buttons as other inputs will be handled with change event
   if (button) handleAction(button)
 }
 
@@ -796,21 +887,30 @@ function handleKeyup(event) {
  * @param {Event} event
  */
 function handleChange(event) {
-  // console.log(event);
+  // console.log(event)
   // helpers
   const { target } = event
   const { dataset } = target
   dataset.action ||= target.name
 
-  // console.log(target, dataset);
+  // console.log(target, dataset)
   handleAction(target)
 
   // update menu if needed
   if (dataset.field === 'color') {
+    // update svg color
+    const color = dataset.value || target.value
+    const { value } = Colors.get(color)
     setSvgFill(
       target.closest('.menu'),
-      Colors.get(dataset.value || target.value).value,
+      value,
     )
+    // update moreColors target color (with safety check)
+    target.closest('.menu-list')?.querySelector('[name="toggle-more-colors"]')
+      ?.setAttribute('data-color', color)
+    // update color of underline for widgets
+    target.closest('.sniplet')?.querySelector('hr')
+      ?.setAttribute('class', color)
   }
 }
 
@@ -1004,7 +1104,7 @@ function handleDragDrop(event) {
  * @param {HTMLElement|object} target
  */
 async function handleAction(target) {
-  // console.log(target, target.dataset, target.action);
+  // console.log('Handling action...', target, target.dataset, target.action)
   const dataset = target.dataset || target
   dataset.action ||= target.name
 
@@ -1015,12 +1115,13 @@ async function handleAction(target) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae)
     } else {
+      console.log('Blurring...', ae)
       ae.blur()
     }
   }
 
   switch (dataset.action) {
-  // window open action
+    // window open action
     case 'focus':
       dataset.field ||= 'content'
       target = q$(`#sniplets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`)
@@ -1042,22 +1143,26 @@ async function handleAction(target) {
       }
       break
 
-      // open menus
+    // open menus
     case 'open-popover':
     case 'open-submenu': {
       const t = $(dataset.target)
       // clean up submenus
       const topMenu = target.closest('.popover') || t
+      // console.log(t, topMenu)
       for (const submenu of topMenu.querySelectorAll('.menu-list')) {
-        if (!(submenu === t || submenu.contains(t))) {
-          submenu.classList.add(`hidden`)
+        if (!(submenu.contains(t) || submenu === t)) {
+          // console.log('Hiding submenu...', submenu, submenu === t)
+          submenu.classList.add('hidden')
         }
       }
-      // open/close menu or submenu
-      if (t.classList.contains(`hidden`)) {
-        t.classList.remove(`hidden`)
+      // open menu or submenu
+      if (t.classList.contains('hidden')) {
+        // console.log('Showing menu...', t)
+        t.classList.remove('hidden')
       } else {
-        t.classList.add(`hidden`)
+        // console.log('Hiding menu...', t)
+        t.classList.add('hidden')
       }
       break }
 
@@ -1263,10 +1368,7 @@ async function handleAction(target) {
       break }
 
     // settings
-    // TODO: set various view options
     case 'set-icon-action':
-      console.log(target, { ...settings.view })
-
       if (!['popup', 'panel', 'panel-toggle', 'window'].includes(target.value)) break
       settings.view.action = target.value
       await settings.save()
@@ -1288,6 +1390,12 @@ async function handleAction(target) {
       buildList()
       break
 
+    case 'toggle-collapse-editors':
+      settings.view.collapseEditors = !settings.view.collapseEditors
+      settings.save()
+      buildList()
+      break
+
     case 'toggle-adjust-editors':
       settings.view.adjustTextArea = !settings.view.adjustTextArea
       settings.save()
@@ -1300,11 +1408,16 @@ async function handleAction(target) {
       buildList()
       break
 
-    case 'toggle-more-colors':
+    case 'toggle-more-colors': {
       settings.data.moreColors = !settings.data.moreColors
       settings.save()
-      buildList()
-      break
+      // Update color menu
+      const colorMenu = target.closest('fieldset')
+      const newColorMenu = buildColorMenu({ seq: dataset.seq, color: dataset.color }, settings.data.moreColors)
+      colorMenu.replaceWith(newColorMenu)
+      // keep the menu open (mimics keyboard navigation)
+      newColorMenu.querySelector('.menu-list')?.classList.remove('hidden')
+      break }
 
     case 'toggle-data-compression':
       settings.data.compress = !settings.data.compress
@@ -1313,7 +1426,7 @@ async function handleAction(target) {
       break
 
     case 'toggle-sync': {
-    // check for sync size constraints
+      // check for sync size constraints
       if (!space.synced && !(await space.isSyncable(settings.data))) {
         alert(i18n('error_sync_full'))
         return false
@@ -1368,10 +1481,10 @@ async function handleAction(target) {
       break
 
     case 'toggle-save-source':
-      settings.control.saveSource = !settings.control.saveSource
+      settings.snipping.saveSource = !settings.snipping.saveSource
       settings.save()
       if (
-        (!settings.control.saveSource)
+        (!settings.snipping.saveSource)
         && (await confirmAction(i18n('option_clear_srcs'), i18n('action_clear_srcs'), i18n('action_leave_srcs')))
       ) {
         space.data.removeSources()
@@ -1381,22 +1494,22 @@ async function handleAction(target) {
       break
 
     case 'toggle-save-tags':
-      settings.control.preserveTags = !settings.control.preserveTags
+      settings.snipping.preserveTags = !settings.snipping.preserveTags
       settings.save()
       break
 
     case 'toggle-rt-line-breaks':
-      settings.control.rtLineBreaks = !settings.control.rtLineBreaks
+      settings.pasting.rtLineBreaks = !settings.pasting.rtLineBreaks
       settings.save()
       break
 
     case 'toggle-rt-link-urls':
-      settings.control.rtLinkURLs = !settings.control.rtLinkURLs
+      settings.pasting.rtLinkURLs = !settings.pasting.rtLinkURLs
       settings.save()
       break
 
     case 'toggle-rt-link-emails':
-      settings.control.rtLinkEmails = !settings.control.rtLinkEmails
+      settings.pasting.rtLinkEmails = !settings.pasting.rtLinkEmails
       settings.save()
       break
 
@@ -1512,12 +1625,11 @@ async function handleAction(target) {
     case 'edit': {
       const field = dataset.field || target.name
       const value = dataset.value || target.value
+      // console.log('Editing field...', field, value, dataset, target, typeof target.value)
       const item = space.editItem(
         dataset.seq,
         field,
-        ((!value || value === 'Default') && ['color', 'shortcut', 'sourceURL'].includes(field))
-          ? void 0
-          : value,
+        value,
       )
       // console.log(item, dataset);
       saveSpace()
@@ -1577,13 +1689,13 @@ async function handleAction(target) {
       break }
 
     case 'collapse':
-      target.closest('li').querySelector('ul').classList.add(`hidden`)
+      target.closest('li').querySelector('ul').classList.add('hidden')
       setSvgSprite(target, 'icon-folder-expand')
       dataset.action = 'expand'
       break
 
     case 'expand':
-      target.closest('li').querySelector('ul').classList.remove(`hidden`)
+      target.closest('li').querySelector('ul').classList.remove('hidden')
       setSvgSprite(target, 'icon-folder-collapse')
       dataset.action = 'collapse'
       break

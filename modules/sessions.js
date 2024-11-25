@@ -1,4 +1,4 @@
-import { ContextTypes } from '/modules/refs.js'
+import { Contexts } from '/modules/refs.js'
 
 /** generate clean full URL to main popup page */
 const getMainUrl = () => new URL(chrome.runtime.getURL('popup/main.html'))
@@ -60,19 +60,19 @@ async function openWindow(url) {
  * @param {string} view The type of session to open
  * @param {Array} params An array of search parameters to add to the main url
  */
-async function openSession(view, params) {
+async function openSession(view, params = []) {
   const src = getMainUrl()
   // go through params
   for (const [name, value] of params) {
     src.searchParams.set(name, value)
   }
 
-  switch (ContextTypes.get(view)) {
-    case ContextTypes.POPUP:
+  switch (Contexts.get(view)) {
+    case Contexts.POPUP:
       if (!(await openPopup())) openWindow(src)
       break
 
-    case ContextTypes.SIDE_PANEL:
+    case Contexts.SIDE_PANEL:
       openPanel(src)
       break
 

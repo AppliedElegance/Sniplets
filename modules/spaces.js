@@ -1,6 +1,7 @@
-import { i18n, locale, i18nOrd } from '/modules/refs.js'
-import { StorageKey, KeyStore, getStorageData } from '/modules/storage.js'
+import { i18n, locale, i18nOrd, Colors } from '/modules/refs.js'
+import { StorageKey, KeyStore } from '/modules/storage.js'
 import settings from '/modules/settings.js'
+import { ParseError } from '/modules/errors.js'
 
 /** Converts a boolean value (`synced`) to a `chrome.storage` area name
  * @param {boolean} synced `true` for `'sync'` and `false` for `'local'`
@@ -155,12 +156,12 @@ class DataBucket {
         .stream().pipeThrough(new DecompressionStream('gzip'))
       // read the decompressed stream
       const dataBlob = await new Response(stream).blob()
+      const dataText = await dataBlob.text()
       // return decompressed and deserialized text
-      this.children = this.restructure(JSON.parse(await dataBlob.text()))
+      this.children = this.restructure(JSON.parse(dataText))
       return this
     } catch (e) {
-      console.error(e)
-      return
+      throw new ParseError(this.children, e)
     }
   }
 
@@ -220,7 +221,7 @@ class Space {
     this.path = path
   }
 
-  get storage() {
+  get storageKey() {
     return new StorageKey(this.name, getStorageArea(this.synced))
   }
 
@@ -247,12 +248,11 @@ class Space {
     const currentSpace = await KeyStore.currentSpace.get()
     if (!(await this.load(currentSpace))) {
       await settings.load()
-      if (await this.load(settings.defaultSpace)) {
-        this.setAsCurrent(settings.view.rememberPath)
-        return true
-      } else {
+      if (!(await this.load(settings.defaultSpace))) {
         // should never happen unless memory is corrupt
         return
+      } else {
+        this.setAsCurrent(settings.view.rememberPath)
       }
     }
     return true
@@ -275,7 +275,7 @@ class Space {
     // update local timestamp and store data
     this.data.timestamp = dataBucket.timestamp
 
-    return this.storage.set(dataBucket)
+    return this.storageKey.set(dataBucket)
   }
 
   /** Load a stored DataBucket into the space
@@ -286,10 +286,10 @@ class Space {
    * }} args - Name & storage bucket location (reloads current space if empty)
    */
   async load({ name = this.name, synced = this.synced, path = [] } = {}) {
+    // console.log('Loading space...', name, synced, path)
     if (!name) return false
-    // console.log("Loading space...", name, synced, typeof synced, path, getStorageArea(synced));
-    const data = await getStorageData(name, getStorageArea(synced))
-    // console.log("Confirming data...", data);
+    const data = await (new StorageKey(name, synced)).get()
+    // console.log('Confirming data...', data)
     if (!data) return
     await this.init({
       name: name,
@@ -352,7 +352,33 @@ class Space {
    */
   editItem(seq, field, value, folderPath = this.path) {
     const item = this.getItem(folderPath.concat([seq]))
-    item[field] = value
+    // console.log('Editing item...', seq, field, value, folderPath, structuredClone(item))
+
+    // validations for optional fields
+    switch (field) {
+      case 'color':
+        item.color = Colors.list.includes(value)
+          ? value
+          : void 0
+        break
+
+      case 'shortcut':
+        item.shortcut = (value.length === 1)
+          ? value
+          : void 0
+        break
+
+      case 'sourceURL':
+        item.sourceURL = (value.length > 0)
+          ? value
+          : void 0
+        break
+
+      default:
+        item[field] = value
+        break
+    }
+
     return item
   }
 
@@ -403,7 +429,7 @@ class Space {
   /** Process placeholders and rich text options of a sniplet and return the result
    * @param {number} seq
    * @param {number[]} path
-   * @returns {Promise<{snip:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}>}
+   * @returns {Promise<{sniplet:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}>}
    */
   async getProcessedSniplet(seq, path = this.path) {
     // console.log("Getting item...");
@@ -411,23 +437,21 @@ class Space {
     // console.log(item);
     if (!item) return
     // avoid touching space
-    const snip = new Sniplet(item)
-    if (!snip.content) return {
-      // nothing to process
-      snip: snip,
-    }
+    const sniplet = new Sniplet(item)
+    // Skip if there's nothing to process
+    if (!sniplet.content) return { sniplet: sniplet }
 
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
-    if (snip.name.slice(0, 9).toUpperCase() === '[NOSUBST]') {
-      snip.nosubst = true
+    if (sniplet.name.slice(0, 9).toUpperCase() === '[NOSUBST]') {
+      sniplet.nosubst = true
       return {
-        snip: snip,
+        sniplet: sniplet,
       }
     }
 
     // process counters, kept track internally to allow use across multiple sniplets
     const counters = new Map()
-    snip.content = snip.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
+    sniplet.content = sniplet.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
       // add new counters to DataBucket
       if (!(p1 in this.data.counters)) {
         this.data.counters[p1] = this.data.counters.startVal
@@ -445,7 +469,7 @@ class Space {
     // placeholders
     // console.log("Processing placeholders...");
     const customFields = new Map()
-    snip.content = snip.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, placeholder, format, defaultValue) => {
+    sniplet.content = sniplet.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, placeholder, format, defaultValue) => {
       if (defaultValue?.includes('|')) defaultValue = defaultValue.split('|')
       const now = new Date()
 
@@ -644,7 +668,7 @@ class Space {
           return UA
 
         case 'NAME':
-          return snip.name
+          return sniplet.name
 
         case 'FOLDER':
           return this.getPathNames(path).pop()
@@ -674,7 +698,7 @@ class Space {
 
     // console.log(snip, customFields);
     return {
-      snip: snip,
+      sniplet: sniplet,
       ...customFields.size ? { customFields: customFields } : {},
       ...counters.size ? { counters: counters } : {},
     }
@@ -746,16 +770,14 @@ class Space {
    * }} details
    */
   async init({ name, synced, data, path } = {}) {
-    // console.log(name, synced, data, path);
+    // console.log('Initializing space...', name, synced, data, path)
     // check defaults if either name or synced are blank
     if (!name || !synced) await settings.load()
 
     // make sure data is parsed correctly
     if (!(data instanceof DataBucket)) {
       data = new DataBucket(data)
-      if (!(await data.parse())) {
-        throw new Error(`Unable to parse data, cancelling initialization...\n${data}`)
-      }
+      await data.parse()
     }
 
     // make sure path is correct or reset otherwise
@@ -772,10 +794,66 @@ class Space {
   }
 }
 
+/** Add HTML line break tags where appropriate and remove newlines to avoid unwanted spaces
+ * @param {string} text
+ */
+const tagNewlines = text => text.replaceAll(
+  /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\r|\n)/g,
+  () => '<br>',
+).replaceAll(
+  /\r\n|\r|\n/g,
+  '',
+)
+
+/** Place anchor tags around emails if not already linked
+ * @param {string} text
+ */
+const linkEmails = text => text.replaceAll(
+  /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
+  match => `<a href="mailto:${match}">${match}</a>`,
+)
+
+/** Place anchor tags around urls if not already linked
+ * @param {string} text
+ */
+const linkURLs = text => text.replaceAll(
+  /<a.+?\/a>|<[^>]*?>|((?<![.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file):\/+)?(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?)/gi,
+  (match, p1, p2) => {
+    // console.log(match, p1, p2);
+    // skip anchors and tag attributes
+    if (!p1) return match
+    // skip IP addresses with no protocol
+    if (match.match(/^\d+\.\d+\.\d+\.\d+$/)) return match
+    // ensure what was picked up evaluates to a proper url (just in case)
+    const matchURL = new URL(((!p2) ? `http://${match}` : match))
+    // console.log(matchURL);
+    return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match
+  },
+)
+
+/** Process and return snip contents according to rich text settings
+ * @param {{content:string,nosubst:boolean}} snip
+ */
+const getRichText = async (snip) => {
+  // don't process flagged sniplets
+  if (snip.nosubst) return snip.content
+  // work on string copy
+  let text = snip.content
+  // check what processing has been enabled
+  await settings.load()
+  const { rtLineBreaks, rtLinkEmails, rtLinkURLs } = settings.pasting
+  // process according to settings
+  if (rtLineBreaks) text = tagNewlines(text)
+  if (rtLinkEmails) text = linkEmails(text)
+  if (rtLinkURLs) text = linkURLs(text)
+  return text
+}
+
 export {
   getStorageArea,
   DataBucket,
   Folder,
   Sniplet,
   Space,
+  getRichText,
 }

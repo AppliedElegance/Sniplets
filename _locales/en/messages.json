@@ -28,11 +28,11 @@
     "description": "Warning displayed to the user when additional site permissions are needed for context menus."
   },
   "request_site_permissions": {
-    "message": "Permit access only on the selected site",
+    "message": "Permit access to the current selection",
     "description": "Button text for requesting full permissions on a specific domain."
   },
   "request_all_site_permissions": {
-    "message": "Permit access on all sites",
+    "message": "Permit access on all sites (recommended)",
     "description": "Button text for requesting full permissions on all allowed domains."
   },
   "error_paste_failed": {
@@ -374,7 +374,12 @@
     "message": "Remember my choice"
   },
   "request_origins": {
-    "message": "Additional site permissions are required to use menus and shortcuts within the embedded page you’ve selected. Please select how you would like to proceed:"
+    "message": "Additional site permissions are required to use the context menu within the embedded page you’ve selected.\n\nOrigin: $framesrc$\n\nPlease select how you would like to proceed:",
+    "placeholders": {
+      "framesrc": {
+        "content": "$1"
+      }
+    }
   },
   "action_request": {
     "message": "Request"
@@ -557,6 +562,46 @@
     "message": "Brown"
   },
   "menu_more_colors": {
-    "message": "Allow more colour categories"
+    "message": "Show more…"
+  },
+  "menu_less_colors": {
+    "message": "Show less…"
+  },
+  "menu_collapse_editors": {
+    "message": "Collapse editors"
+  },
+  "alert_title_scripting_blocked": {
+    "message": "Scripting Blocked"
+  },
+  "alert_message_scripting_blocked": {
+    "message": "Editing on this page is disallowed by the browser. Please copy and paste manually using the sniplets manager.\n\nURL: $url$",
+    "placeholders": {
+      "URL": {
+        "content": "$1"
+      }
+    }
+  },
+  "error_cross_origin_title": {
+    "message": "Action Blocked by Cross-Origin Policy"
+  },
+  "error_cross_origin_message": {
+    "message": "It was not possible to $action$ because the cursor is in a sandboxed frame with a different origin and the browser blocked it. If you used a keyboard shortcut, try using the context menu instead or $action$ manually using the Sniplets manager window.\n\nPage URL: $pagesrc$\n\nFrame URL: $framesrc$",
+    "placeholders": {
+      "action": {
+        "content": "$1"
+      },
+      "pagesrc": {
+        "content": "$2"
+      },
+      "framesrc": {
+        "content": "$3"
+      }
+    }
+  },
+  "error_action_snip": {
+    "message": "snip the selection"
+  },
+  "error_action_paste": {
+    "message": "paste the sniplet"
   }
 }

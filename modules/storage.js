@@ -1,4 +1,5 @@
-import { getRichText, i18n } from '/modules/refs.js'
+import { i18n } from '/modules/refs.js'
+import { getRichText } from '/modules/spaces.js'
 
 /** Safely stores data in a chrome.storage bucket
  * @param {string} key The name of the storage bucket
@@ -6,6 +7,7 @@ import { getRichText, i18n } from '/modules/refs.js'
  * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to use (defaults to local)
  */
 async function setStorageData(key, data, area = 'local') {
+  // console.log('Storing data...', key, data)
   /** @type {chrome.storage.StorageArea} */
   const bucket = chrome.storage[area]
   if (!bucket) return
@@ -78,9 +80,9 @@ class StorageKey {
       : (area === true ? 'sync' : 'local'))
   }
 
-  synced() {
-    return this.area === 'sync'
-  }
+  // pseudonyms for spaces
+  get name() { return this.key }
+  get synced() { return this.area === 'sync' }
 
   async set(data) {
     return setStorageData(this.key, data, this.area)

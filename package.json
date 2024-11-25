@@ -15,9 +15,9 @@
   "homepage": "https://github.com/AppliedElegance/Sniplets#readme",
   "devDependencies": {
     "@eslint/js": "^9.14.0",
-    "@stylistic/eslint-plugin": "^2.10.1",
-    "@types/chrome": "^0.0.280",
-    "eslint": "^9.14.0",
+    "@stylistic/eslint-plugin": "^2.11.0",
+    "chrome-types": "^0.1.321",
+    "eslint": "^9.15.0",
     "eslint-plugin-jsdoc": "^50.5.0",
     "globals": "^15.12.0"
   }

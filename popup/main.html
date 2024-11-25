@@ -10,16 +10,24 @@
 </head>
 
 <body>
+<!-- Template Widgets -->
+<template id="t-icon-menu"></template>
+<template id="t-icon-action"></template>
 
 <!-- Sniplets menu -->
 <header id="header">
+  <template id="t-path-folder"></template>
 </header>
 
 <!-- Sniplets builder -->
 <main id="main">
-  <div id="tree" class="card tree"></div>
+  <div id="tree" class="card tree">
+    <template id="t-tree-folder"></template>
+  </div>
   <hr class="vr tree">
-  <div id="sniplets"></div>
+  <div id="sniplets">
+    <template id="t-widget"></template>
+  </div>
 </main>
 
 <script src="main.js" type="module"></script>

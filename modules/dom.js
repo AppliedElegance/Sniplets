@@ -38,9 +38,14 @@ function buildNode(tagName, attributes) {
         }
         break
 
-      case 'textContent': // add text content within tag (should not be used along with children)
-        element.textContent = attributes.textContent
-        break
+      case 'textContent': { // add text content within tag (should not be used along with children)
+        const lines = attributes.textContent.split(/\n/)
+        element.textContent = lines.at(0)
+        for (let i = 1; i < lines.length; i++) {
+          element.appendChild(document.createElement('br'))
+          element.appendChild(document.createTextNode(lines.at(i)))
+        }
+        break }
 
       case 'innerHTML': // add template content within tag (should not be used along with children)
         element.innerHTML = attributes.innerHTML
@@ -78,16 +83,21 @@ function buildSvg(title, sprite, fill) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   svg.setAttribute('role', 'img')
   svg.setAttribute('focusable', false)
+
   // Add an accessible title field for screen readers
   const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title')
   svgTitle.textContent = title
+
   // Add a use element referencing the spritesheet
   const svgUse = document.createElementNS('http://www.w3.org/2000/svg', 'use')
   svgUse.setAttribute('href', `/icons/sprites.svg#${sprite}`)
-  // Set the sprite colour if requested
-  if (fill) svgUse.setAttribute('fill', fill)
+
   // Append the title and sprite to the SVG element
   svg.append(svgTitle, svgUse)
+
+  // Set the sprite colour if requested
+  if (fill) setSvgFill(svg, fill)
+
   // return the completed SVG element
   return svg
 }
@@ -107,7 +117,18 @@ function setSvgSprite(target, sprite) {
  * @param {string} fill - color to use for the icon
  */
 function setSvgFill(target, fill) {
-  target.querySelector('use').setAttribute('fill', fill)
+  const useTag = target.querySelector('use')
+  useTag.setAttribute('fill', fill)
+
+  // add outline to black and white icons
+  const svgTag = useTag.closest('svg')
+  if (fill === Colors.WHITE) {
+    svgTag.style.filter = `drop-shadow(${Colors.BLACK} 0 0 1px)`
+  } else if (fill === Colors.BLACK) {
+    svgTag.style.filter = `drop-shadow(${Colors.WHITE} 0 0 1px)`
+  } else {
+    svgTag.style.removeProperty('filter')
+  }
 }
 
 /**
@@ -217,18 +238,18 @@ function buildSubMenu(label, id, items) {
 
 /**
  * Menu item builder for checkbox and radio controls
- * @param {string} type - Input type (`checkbox`|`radio`)
+ * @param {'checkbox'|'radio'} type - Input type (`checkbox`|`radio`)
  * @param {string} name - Name of the form input (must be unique if id not present)
  * @param {string} value - Value sent when checked
  * @param {string} label - The text to show with the control
  * @param {boolean} checked - Whether the control is in a checked state
- * @param {{id: string, dataset: object}} attributes - id is required for radio options
+ * @param {{id: string, dataset: object, classList: string[], hideIcon:boolean}} attributes - id is required for radio options
  */
-function buildMenuControl(type, name, value, label, checked, { id, dataset } = {}) {
+function buildMenuControl(type, name, value, label, checked, { id, dataset, classList = [], hideIcon = false } = {}) {
   if (!['checkbox', 'radio'].includes(type)) return
   id ||= name
   return buildNode('p', {
-    classList: ['menu-item', 'control'],
+    classList: ['menu-item', 'control', ...classList],
     children: [
       buildNode('input', {
         type: type,
@@ -242,25 +263,59 @@ function buildMenuControl(type, name, value, label, checked, { id, dataset } = {
         for: id,
         tabindex: '0',
         children: [
-          buildNode('div', {
-            classList: ['icon'],
-            children: [buildSvg(
-              label,
-              `control-${type}`,
-            )],
-          }),
-          buildNode('div', {
-            classList: ['icon', 'checked'],
-            children: [buildSvg(
-              label,
-              `control-${type}-checked`,
-            )],
-          }),
+          ...(hideIcon
+            ? []
+            : [
+                buildNode('div', {
+                  classList: ['icon'],
+                  children: [buildSvg(
+                    label,
+                    `control-${type}`,
+                  )],
+                }),
+                buildNode('div', {
+                  classList: ['icon', 'checked'],
+                  children: [buildSvg(
+                    label,
+                    `control-${type}-checked`,
+                  )],
+                }),
+              ]
+          ),
           buildNode('h3', { textContent: label }),
         ],
       }),
     ],
   })
+}
+
+/** Build the list of color options available, with an expand button
+ * @param {{seq:number, color:string}} item The seq and color of the sniplet the menu is for
+ * @param {boolean} moreColors Whether to show the full list of available colors or just clippings compatible ones
+ */
+function buildColorMenu(item, moreColors) {
+  const colorList = moreColors ? Colors.list : Colors.clippingsList
+  return buildSubMenu(i18n('color'), `item-${item.seq}-color-menu`, [
+    buildMenuControl('radio',
+      `item-${item.seq}-color`, 'default', Colors.get().label, !item.color, {
+        id: `item-${item.seq}-color-default`,
+        dataset: { action: 'edit', field: 'color', seq: item.seq },
+      },
+    ),
+    ...colorList.map((color, i) => buildMenuControl('radio',
+      `item-${item.seq}-color`, color, Colors.get(color).label, color === item.color, {
+        id: `item-${item.seq}-color-${i}`,
+        dataset: { action: 'edit', field: 'color', seq: item.seq },
+      },
+    )),
+    buildMenuControl('checkbox', 'toggle-more-colors', moreColors,
+      moreColors ? i18n('menu_less_colors') : i18n('menu_more_colors'), moreColors, {
+        id: `toggle-more-colors-${item.seq}`,
+        dataset: { seq: item.seq, color: item.color },
+        hideIcon: true,
+      },
+    ),
+  ])
 }
 
 /**
@@ -278,27 +333,13 @@ function buildItemWidget(item, list, path, { view, data }) {
   const isSniplet = item instanceof Sniplet
 
   // widget menu
-  const colorList = data.moreColors ? Colors.list : Colors.clippingsList
   const widgetMenu = buildPopoverMenu(
     `item-menu-${item.seq}`,
     i18n('menu_item'),
     `icon-${item.constructor.name.toLowerCase()}`,
     Colors.get(item.color).value,
     [
-      buildSubMenu(i18n('color'), `item-${item.seq}-color-menu`, [
-        buildMenuControl('radio',
-          `item-${item.seq}-color`, '', Colors.get().label, !item.color, {
-            id: `item-${item.seq}-color-default`,
-            dataset: { action: 'edit', field: 'color', seq: item.seq },
-          },
-        ),
-        ...colorList.map((value, i) => buildMenuControl('radio',
-          `item-${item.seq}-color`, value, Colors.get(value).label, value === item.color, {
-            id: `item-${item.seq}-color-${i}`,
-            dataset: { action: 'edit', field: 'color', seq: item.seq },
-          },
-        )),
-      ]),
+      buildColorMenu(item, data.moreColors),
       buildSubMenu(i18n('action_move'), `item-${item.seq}-move-menu`, list.reduce((a, o, i) => {
         const l = list.length - 1
         const b = (title, direction) => buildMenuItem(title, `move-${direction}`,
@@ -373,7 +414,7 @@ function buildItemWidget(item, list, path, { view, data }) {
   widget.push(widgetHead)
 
   // Separate widget contents from title
-  if (!isFolder) widget.push(buildNode('hr'))
+  if (!isFolder) widget.push(buildNode('hr', { class: item.color }))
 
   if (isSniplet) {
     const widgetBody = buildNode('div', {
@@ -474,6 +515,7 @@ export {
   buildMenuSeparator,
   buildSubMenu,
   buildMenuControl,
+  buildColorMenu,
   buildItemWidget,
   buildTreeWidget,
 }

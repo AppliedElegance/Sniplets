@@ -1,18 +1,20 @@
 import { StorageKey, KeyStore } from '/modules/storage.js'
 
-/** Settings object for persisting as window global */
-class Settings {
+/** Settings object for persisting as session global */
+export default class Settings {
   static View = class View {
     constructor({
       adjustTextArea = true,
       sourceURL = false,
       rememberPath = false,
       action = 'popup',
+      collapseEditors = false,
     } = {}) {
       this.adjustTextArea = adjustTextArea
       this.sourceURL = sourceURL
       this.rememberPath = rememberPath
       this.action = action
+      this.collapseEditors = collapseEditors
     }
   }
 
@@ -46,7 +48,7 @@ class Settings {
     } = {}) {
       this.rtLineBreaks = rtLineBreaks
       this.rtLinkEmails = rtLinkEmails
-      this.rtLinkUrls = rtLinkURLs
+      this.rtLinkURLs = rtLinkURLs
     }
   }
 
@@ -61,56 +63,55 @@ class Settings {
   }
 
   constructor() {
-    this.init()
   }
 
-  #defaultSpace = KeyStore.defaultSpace
-  get defaultSpace() { return this.#defaultSpace }
-  set defaultSpace({ key, area, name, synced } = KeyStore.defaultSpace) {
-    this.#defaultSpace = new StorageKey(key || name, area || synced)
+  static #defaultSpace = KeyStore.defaultSpace
+  static get defaultSpace() { return Settings.#defaultSpace }
+  static set defaultSpace({ key, area, name, synced } = KeyStore.defaultSpace) {
+    Settings.#defaultSpace = new StorageKey(key || name, area || synced)
   }
 
-  #view = new Settings.View()
-  get view() { return this.#view }
-  set view(settings) {
-    this.#view = new Settings.View({
-      ...this.#view,
+  static #view = new Settings.View()
+  static get view() { return Settings.#view }
+  static set view(settings) {
+    Settings.#view = new Settings.View({
+      ...Settings.#view,
       ...settings,
     })
   }
 
-  #sort = new Settings.Sort()
-  get sort() { return this.#sort }
-  set sort(settings) {
-    this.#sort = new Settings.Sort({
-      ...this.#sort,
+  static #sort = new Settings.Sort()
+  static get sort() { return Settings.#sort }
+  static set sort(settings) {
+    Settings.#sort = new Settings.Sort({
+      ...Settings.#sort,
       ...settings,
     })
   }
 
-  #snipping = new Settings.Snipping()
-  get snipping() { return this.#snipping }
-  set snipping(settings) {
-    this.#snipping = new Settings.Snipping({
-      ...this.#snipping,
+  static #snipping = new Settings.Snipping()
+  static get snipping() { return Settings.#snipping }
+  static set snipping(settings) {
+    Settings.#snipping = new Settings.Snipping({
+      ...Settings.#snipping,
       ...settings,
     })
   }
 
-  #pasting = new Settings.Pasting()
-  get pasting() { return this.#pasting }
-  set pasting(settings) {
-    this.#pasting = new Settings.Pasting({
-      ...this.#pasting,
+  static #pasting = new Settings.Pasting()
+  static get pasting() { return Settings.#pasting }
+  static set pasting(settings) {
+    Settings.#pasting = new Settings.Pasting({
+      ...Settings.#pasting,
       ...settings,
     })
   }
 
-  #data = new Settings.Data()
-  get data() { return this.#data }
-  set data(settings) {
-    this.#data = new Settings.Data({
-      ...this.#data,
+  static #data = new Settings.Data()
+  static get data() { return Settings.#data }
+  static set data(settings) {
+    Settings.#data = new Settings.Data({
+      ...Settings.#data,
       ...settings,
     })
   }
@@ -118,30 +119,28 @@ class Settings {
   /** Optionally take provided settings and initialize the remaining settings
    * @param {Settings} [settings] Settings object with legacy checks
    */
-  init({ defaultSpace, view, sort, snipping, pasting, data, control, foldersOnTop } = {}) {
-    // console.log(defaultSpace, sort, view, control, data);
-
-    this.defaultSpace = defaultSpace
-    this.view = view
-    this.sort = {
+  static init({ defaultSpace, view, sort, snipping, pasting, data, control, foldersOnTop } = {}) {
+    Settings.defaultSpace = defaultSpace
+    Settings.view = view
+    Settings.sort = {
       foldersOnTop: foldersOnTop, // legacy check
       ...(sort || {}),
     }
-    this.snipping = {
+    Settings.snipping = {
       ...(control || {}), // legacy
       ...(snipping || {}),
     }
-    this.pasting = {
+    Settings.pasting = {
       ...(control || {}), // legacy
       ...(pasting || {}),
     }
-    this.data = data
+    Settings.data = data
 
     return this
   }
 
   /** Load settings from sync storage */
-  async load() {
+  static async load() {
     const legacyKey = new StorageKey('settings', 'sync')
     const settings = await KeyStore.settings.get() || await legacyKey.get()
     if (!settings) return
@@ -150,10 +149,17 @@ class Settings {
     return this.init(settings)
   }
 
+  /** Retrieve a serializable object */
+  static get entries() {
+    const entries = {}
+    for (const [key, descriptors] of Object.entries(Object.getOwnPropertyDescriptors(Settings))) {
+      if (descriptors.get && key !== 'entries') entries[key] = descriptors.get()
+    }
+    return entries
+  }
+
   /** Save settings to sync storage */
-  async save() {
-    return KeyStore.settings.set(this)
+  static async save() {
+    return KeyStore.settings.set(this.entries)
   }
 }
-
-export default new Settings()

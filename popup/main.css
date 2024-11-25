@@ -62,8 +62,53 @@ main {
 hr {
   margin: 3px 0;
   border: 0;
-  height: .1em;
+  height: 1.5px;
   background-image: linear-gradient(to right, oklch(85% 0 0), oklch(32% 0 0), oklch(85% 0 0));
+}
+
+.sniplet hr {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.12), 0 0 3px oklch(0 0 0 / 0.24);
+}
+
+hr.red {
+  background-image: linear-gradient(to right, oklch(63.38% 0.2310 27.51 / 0.3), oklch(63.38% 0.2310 27.51), oklch(63.38% 0.2310 27.51 / 0.3));
+}
+
+hr.pink {
+  background-image: linear-gradient(to right, oklch(72.46% 0.1866 0.08 / 0.3), oklch(72.46% 0.1866 0.08), oklch(72.46% 0.1866 0.08 / 0.3));
+}
+
+hr.orange {
+  background-image: linear-gradient(to right, oklch(70.08% 0.1978 41.49 / 0.3), oklch(70.08% 0.1978 41.49), oklch(70.08% 0.1978 41.49 / 0.3));
+}
+
+hr.yellow {
+  background-image: linear-gradient(to right, oklch(88.59% 0.1641 94.67 / 0.3), oklch(88.59% 0.1641 94.67), oklch(88.59% 0.1641 94.67 / 0.3));
+}
+
+hr.green {
+  background-image: linear-gradient(to right, oklch(75.34% 0.2006 151.44 / 0.3), oklch(75.34% 0.2006 151.44), oklch(75.34% 0.2006 151.44 / 0.3));
+}
+hr.blue {
+  background-image: linear-gradient(to right, oklch(53.93% 0.1398 246.4 / 0.3), oklch(53.93% 0.1398 246.4), oklch(53.93% 0.1398 246.4 / 0.3));
+}
+hr.lightblue {
+  background-image: linear-gradient(to right, oklch(81.37% 0.1038 240.72 / 0.3), oklch(81.37% 0.1038 240.72), oklch(81.37% 0.1038 240.72 / 0.3));
+}
+hr.purple {
+  background-image: linear-gradient(to right, oklch(58.64% 0.1462 301.27 / 0.3), oklch(58.64% 0.1462 301.27), oklch(58.64% 0.1462 301.27 / 0.3));
+}
+hr.brown {
+  background-image: linear-gradient(to right, oklch(43.57% 0.0616 43.74 / 0.3), oklch(43.57% 0.0616 43.74), oklch(43.57% 0.0616 43.74 / 0.3));
+}
+hr.black {
+  background-image: linear-gradient(to right, oklch(22.64% 0 0 / 0.3), oklch(22.64% 0 0), oklch(22.64% 0 0 / 0.3));
+}
+hr.white {
+  background-image: linear-gradient(to right, oklch(97.02% 0 0 / 0.3), oklch(97.02% 0 0), oklch(97.02% 0 0 / 0.3));
+}
+hr.gray {
+  background-image: linear-gradient(to right, oklch(69.27% 0 0 / 0.3), oklch(69.27% 0 0), oklch(69.27% 0 0 / 0.3));
 }
 
 hr.vr {
@@ -320,12 +365,11 @@ legend {
 }
 
 .control label h3 {
-  padding-left: 0;
   flex-grow: 1;
 }
 
 label .icon {
-  margin: 0;
+  margin: 0 -12px 0 0;
   padding: 8px 5px 8px 11px;
 }
 
@@ -347,10 +391,6 @@ input:focus + label,
 
 .menu-item:hover > .menu-list {
   display: block;
-}
-
-.title {
-  padding: 0 4px;
 }
 
 .snip-content textarea {
@@ -377,6 +417,7 @@ dialog {
   font-size: larger;
   width: fit-content;
   max-width: 600px;
+  word-break: break-word;
 }
 
 dialog.narrow {

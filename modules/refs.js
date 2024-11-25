@@ -1,5 +1,3 @@
-import settings from '/modules/settings.js'
-
 /** chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} messageName
  * @param {string|string[]} substitutions
@@ -33,12 +31,12 @@ class Contexts {
   static get(view) { return Contexts.#views.get(view) }
 }
 
-class Color {
-  /** @type {string} */
-  #folder
-  /** @type {string} */
-  #sniplet
+class Tasks {
+  static get SNIP() { return 'snip' }
+  static get PASTE() { return 'paste' }
+}
 
+class Color {
   /**
    * @param {string} label An internationalized name for the color
    * @param {string} value A valid css color
@@ -51,12 +49,16 @@ class Color {
   }
 
   // special handling for folder icons
-  set folder(folder) { this.#folder = folder }
+  /** @type {string} */
+  #folder
   get folder() { return this.#folder || this.book || this.square || this.heart }
+  set folder(folder) { this.#folder = folder }
 
   // special handling for sniplet icons
-  set sniplet(sniplet) { this.#sniplet = sniplet }
+  /** @type {string} */
+  #sniplet
   get sniplet() { return this.#sniplet || this.circle || this.heart }
+  set sniplet(sniplet) { this.#sniplet = sniplet }
 }
 
 /** Available colours based on the Windows heart emoji spectrum rather than named css colors */
@@ -125,6 +127,15 @@ class Colors {
     })
   }
 
+  /** Retrieve a color with a given translucency value
+   * @param {string=} color The internal name of the color.
+   * @param {number} alpha The opacity level between 0 and 1
+   */
+  static getWithAlpha(color, alpha) {
+    const { value } = this.get(color)
+    return `${value.slice(0, -1)} / ${alpha})`
+  }
+
   // full list of selectable colours
   static get list() {
     return Array.from(Colors.#map.keys())
@@ -136,90 +147,12 @@ class Colors {
   }
 }
 
-/** Add HTML line break tags where appropriate and remove newlines to avoid unwanted spaces
- * @param {string} text
- */
-const tagNewlines = text => text.replaceAll(
-  /(?<!<\/(?!a|span|strong|em|b|i|q|mark|input|button)[a-zA-Z0-9]+?>\s*?)(?:\r\n|\r|\n)/g,
-  () => '<br>',
-).replaceAll(
-  /\r\n|\r|\n/g,
-  '',
-)
-
-/** Place anchor tags around emails if not already linked
- * @param {string} text
- */
-const linkEmails = text => text.replaceAll(
-  /(?<!<[^>]*)(?:[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~][a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~.]*[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~]|[a-zA-Z0-9!#$%&'*+\-/=?^_`{|}~])@(?:(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]+)(?!(?!<a).*?<\/a>)/ig,
-  match => `<a href="mailto:${match}">${match}</a>`,
-)
-
-/** Place anchor tags around urls if not already linked
- * @param {string} text
- */
-const linkURLs = text => text.replaceAll(
-  /<a.+?\/a>|<[^>]*?>|((?<![.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file):\/+)?(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?)/gi,
-  (match, p1, p2) => {
-    // console.log(match, p1, p2);
-    // skip anchors and tag attributes
-    if (!p1) return match
-    // skip IP addresses with no protocol
-    if (match.match(/^\d+\.\d+\.\d+\.\d+$/)) return match
-    // ensure what was picked up evaluates to a proper url (just in case)
-    const matchURL = new URL(((!p2) ? `http://${match}` : match))
-    // console.log(matchURL);
-    return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match
-  },
-)
-
-/** Process and return snip contents according to rich text settings
- * @param {{content:string,nosubst:boolean}} snip
- */
-const getRichText = async (snip) => {
-  // don't process flagged sniplets
-  if (snip.nosubst) return snip.content
-  // work on string copy
-  let text = snip.content
-  // check what processing has been enabled
-  await settings.load()
-  const { rtLineBreaks, rtLinkEmails, rtLinkURLs } = settings.control
-  // process according to settings
-  if (rtLineBreaks) text = tagNewlines(text)
-  if (rtLinkEmails) text = linkEmails(text)
-  if (rtLinkURLs) text = linkURLs(text)
-  return text
-}
-
-/** Checks if a url is for a known blocked page where scripting doesn't work
- * @param {string|URL} url
- */
-const isBlockedURL = (url) => {
-  if (!url) return
-
-  const submission = new URL(url)
-
-  const isBlockedProtocol = [
-    'chrome:',
-    'edge:',
-  ].includes(submission.protocol)
-
-  const isBlockedOrigin = [
-    'https://chromewebstore.google.com',
-    'https://microsoftedge.microsoft.com',
-  ].includes(submission.origin)
-
-  if (isBlockedProtocol || isBlockedOrigin) return true
-  return false
-}
-
 export {
   i18n,
   locale,
   i18nNum,
   i18nOrd,
-  Contexts as ContextTypes,
+  Contexts,
+  Tasks,
   Colors,
-  getRichText,
-  isBlockedURL,
 }

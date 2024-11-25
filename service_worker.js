@@ -1,36 +1,40 @@
-import { i18n, ContextTypes } from '/modules/refs.js'
+import { i18n, Contexts } from '/modules/refs.js'
 import settings from '/modules/settings.js'
-import { Space, DataBucket, getStorageArea } from '/modules/spaces.js'
-import { getStorageData, removeStorageData, KeyStore } from '/modules/storage.js'
-import { sendMessage, buildContextMenus, snipSelection, pasteSnip, parseContextMenuData } from '/modules/actions.js'
+import { Space, DataBucket } from '/modules/spaces.js'
+import { getStorageData, KeyStore, StorageKey } from '/modules/storage.js'
+import { sendMessage, buildContextMenus, parseContextMenuData, commandMap, runCommand } from '/modules/commands.js'
 import { getMainUrl, openSession } from '/modules/sessions.js'
 
 /** Sends a followup action to a main page.
  * If no extension pages are open, the followup will be stored in session
  * and a new window opened to action it.
- * @param {string} type Action which needs handling in a popup window
- * @param {object=} args Properties needed by the followup function
+ * @param {string} action Action which needs handling in a popup window
+ * @param {object} [args] Properties needed by the followup function
  */
-async function setFollowup(type, args = {}) {
-  console.log(type, args)
+async function setFollowup(action, args = {}) {
+  console.log('Setting followup...', action, args)
 
   const followup = {
-    type: type,
-    args: args || {}, // default value for destructuring
+    action: action,
+    args: args,
   }
 
-  // check for open sessions (only in case of POPUP or SIDE_PANEL)
+  // check for visible open sessions (only in case of POPUP or SIDE_PANEL)
   const sessions = await chrome.runtime.getContexts({
     contextTypes: [
-      ContextTypes.SIDE_PANEL,
-      ContextTypes.POPUP,
+      Contexts.SIDE_PANEL,
+      Contexts.POPUP,
     ],
   })
+  console.log(sessions)
 
-  // alert any contexts associated with a tab that they should check for follow-ups
-  const sidePanel = sessions.find(o => o.contextType === ContextTypes.SIDE_PANEL)
-  const popup = sessions.find(o => o.contextType === ContextTypes.POPUP)
-  const session = sidePanel || popup
+  // send followup to any found contexts available to the current tab if possible
+  const session = sessions.find(o =>
+    (+(new URL(o.documentUrl).searchParams.get('tabId')) === args.target?.tabId),
+  ) || sessions.find(o =>
+    !(new URL(o.documentUrl).searchParams.get('tabId')),
+  )
+  console.log(session)
   if (session) {
     sendMessage('followup', followup, session)
       .catch(e => (console.error(e, followup)))
@@ -38,7 +42,7 @@ async function setFollowup(type, args = {}) {
     // save followup as session data and open a new session to action it
     await KeyStore.followup.set(followup)
     await settings.load()
-    openSession(ContextTypes.get(settings.view.action))
+    openSession(Contexts.get(settings.view.action))
   }
 
   return
@@ -91,11 +95,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     // settings init in case of corrupt data
     settings.init()
     // bug check if the default space is in the wrong area
-    const { name, synced } = settings.defaultSpace
-    if (!(await getStorageData(name, getStorageArea(synced)))) {
-      if (await getStorageData(name, getStorageArea(!synced))) {
-        settings.defaultSpace.synced = !synced
-      }
+    if (!settings.defaultSpace.get()) {
+      const testSpace = new StorageKey(settings.defaultSpace.key, !settings.defaultSpace.synced)
+      if (await testSpace.get()) settings.defaultSpace.area = testSpace.area
     }
     settings.save()
   }
@@ -107,56 +109,36 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const space = new Space()
 
   // check for current space in case of reinstall
-  // TODO: make legacy check explicit
-  const currentSpace = (await KeyStore.currentSpace.get()) || (await getStorageData('currentSpace', 'local'))
+  const legacyCurrentSpace = new StorageKey('currentSpace', 'local')
+  const currentSpace = await KeyStore.currentSpace.get() || await legacyCurrentSpace.get()
   if (!(await space.load(currentSpace || settings.defaultSpace))) {
-    // legacy check for existing sniplets
-    const legacySpace = { name: 'snippets', synced: true }
-    if (await space.load(legacySpace)) {
-      // confirm that legacy space is indeed legacy and shift
-      const lastVersion = space.data.version.split('.')
-      if ((+lastVersion.at(0) === 0) && (+lastVersion.at(1) < 9)) {
-        space.name = settings.defaultSpace.name
-        if (await space.save(settings.data)) await removeStorageData(legacySpace.name, getStorageArea(legacySpace.synced))
-      } else {
-        // update default space... (should never happen as this value was not set in legacy versions)
-        settings.defaultSpace = legacySpace
-        settings.save()
-      }
-    } else {
-      // no space data found, create new space and, if initial install add tutorial
-      try {
-        await space.init(currentSpace || settings.defaultSpace)
-      } catch (e) {
-        console.error('It looks like some corrupt data is left over. initializing from scratch', e)
-        settings.init()
-        await settings.save()
-        await space.init() // if it still throws the extension is borked
-      }
+    // no space data found, create new space
+    await space.init(currentSpace || settings.defaultSpace)
 
-      if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
-        // load tutorial data
-        const starterPath = `/_locales/${i18n('locale')}/starter.json`
-        try {
-          const starterFile = await fetch(starterPath)
-          const starterContent = await starterFile.json()
-          const starterData = new DataBucket(starterContent.data)
-          space.data = await starterData.parse()
-        } catch (e) {
-          console.error(`Starter data could not be loaded at ${starterPath}`, e)
-        }
+    // if initial install add tutorial
+    if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+      const starterPath = `/_locales/${i18n('locale')}/starter.json`
+      try {
+        const starterFile = await fetch(starterPath)
+        const starterContent = await starterFile.json()
+        const starterData = new DataBucket(starterContent.data)
+        space.data = await starterData.parse()
+      } catch (e) {
+        console.error(`Starter data could not be loaded at ${starterPath}`, e)
       }
-      await space.save(settings.data)
     }
-  } else {
-    buildContextMenus(space)
+
+    // save new space
+    await space.save(settings.data)
   }
-  await space.setAsCurrent(settings.control.saveSource)
+  await space.setAsCurrent(settings.view.rememberPath)
+  buildContextMenus(space)
 })
 
 chrome.runtime.onStartup.addListener(async () => {
   // rebuild context menus in case of crash or CCleaner deletion
   const space = new Space()
+  console.log(space)
   if (await space.loadCurrent()) buildContextMenus(space)
 })
 
@@ -166,6 +148,7 @@ chrome.action.onClicked.addListener((tab) => {
 
   const src = getMainUrl()
   src.searchParams.append('view', 'panel')
+  src.searchParams.append('tabId', tab.id)
 
   // use callback only to avoid losing gesture
   chrome.sidePanel.setOptions({
@@ -180,21 +163,21 @@ chrome.action.onClicked.addListener((tab) => {
 
   // It's currently not possible to check settings storage when inactive on this gesture
   // if (settings.view.action === 'window') {
-  //   src.searchParams.append('view', 'window');
+  //   src.searchParams.append('view', 'window')
   //   chrome.windows.create({
   //     url: src.href,
   //     type: "popup",
   //     width: 700, // 867 for screenshots
   //     height: 460, // 540 for screenshots
-  //   });
+  //   })
   // }
 })
 
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // get details from menu item and ignore "empty" ones (sanity check)
-  const { action, ...data } = parseContextMenuData(info.menuItemId)
-  if (!action) return
+  const { command, ...args } = parseContextMenuData(info.menuItemId)
+  if (!commandMap.has(command)) return
 
   // set up injection target
   const target = {
@@ -202,53 +185,43 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
     ...info.frameId ? { frameIds: [info.frameId] } : {},
   }
 
-  // TODO: add followups
-  // get menu action and perform accordingly
-  switch (action) {
-    case 'snip': {
-      const result = await snipSelection(target, data).catch(e => e)
-      console.log(result)
-      break
-    }
+  // Get result and convert caught errors to serializable object
+  const result = await runCommand(command, {
+    target: target,
+    ...info,
+    ...args,
+  }).catch(e => ({ error: {
+    name: e.name,
+    message: e.message,
+    cause: e.cause,
+  } }))
 
-    case 'paste': {
-      const result = await pasteSnip(target, data).catch(e => e)
-      console.log(result)
-      break
-    }
-
-    default:
-      break
-  } // end switch(action)
+  // set followup if anything was returned
+  if (result) setFollowup(command, { target: target, ...result })
 })
 
-chrome.commands.onCommand.addListener((command, tab) => {
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  console.log(command, tab)
+  if (!commandMap.has(command)) return
+
+  // Get result and convert caught errors to serializable object
   const target = { tabId: tab.id }
-  const data = { pageUrl: tab.url }
+  const result = await runCommand(command, {
+    target: target,
+    pageUrl: tab.url,
+  }).catch(e => ({ error: {
+    name: e.name,
+    message: e.message,
+    cause: e.cause,
+  } }))
 
-  setFollowup('check', { command: command, target: target, data: data })
-
-  // switch (command) {
-  //   case 'snip':
-  //     snipSelection(target, data)
-  //     break
-
-  //   case 'paste':
-  //     setFollowup('paste', {
-  //       target: target,
-  //       data: data,
-  //     })
-  //     break
-
-  //   default:
-  //     break
-  // }
-  return
+  // set followup if anything was returned
+  if (result) setFollowup(command, { target: target, ...result })
 })
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  // console.log(changes, areaName);
+  // console.log(changes, areaName)
   const synced = (areaName === 'sync')
 
   for (const [key, change] of Object.entries(changes)) {
@@ -280,6 +253,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
             synced: synced,
             data: change.newValue,
           })
+          console.log(space)
           buildContextMenus(space)
         } catch (e) {
           console.error(e)

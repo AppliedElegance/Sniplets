@@ -15,7 +15,7 @@ import { buildNode, buildActionIcon, buildMenuControl } from '/modules/dom.js'
 function showModal({ title, message, content, fields, buttons }, onChange) {
   // console.log("Setting up container...");
   const form = buildNode('form', {
-    method: `dialog`,
+    method: 'dialog',
   })
 
   // console.log("Adding title...", title, !!title);
@@ -30,14 +30,14 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
   // console.log("Adding fields...", fields, !!fields);
   if (fields) {
     const formFields = buildNode('div', {
-      classList: [`fields`],
+      classList: ['fields'],
     })
     fields.forEach((field, i) => {
       // console.log(field);
       field.id ||= field.name
       if (i > 0) {
         formFields.append(buildNode('div', {
-          classList: [`divider`],
+          classList: ['divider'],
         }))
       }
 
@@ -65,7 +65,7 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
       } else {
         const isSelect = (field.type === 'select')
         formFields.append(buildNode('div', {
-          classList: [`field`],
+          classList: ['field'],
           children: [
             buildNode('label', {
               for: field.id,
@@ -93,11 +93,11 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
   // console.log("Adding buttons...", buttons, !!buttons);
   if (buttons) {
     const formButtons = buildNode('div', {
-      classList: [`buttons`],
+      classList: ['buttons'],
     })
     for (const button of buttons) {
       formButtons.append(buildNode('button', {
-        type: `submit`,
+        type: 'submit',
         value: button.value,
         id: button.id,
         children: [buildNode('h2', {
@@ -109,11 +109,11 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
   }
 
   // console.log("Adding cancel button...");
-  const cancelButton = buildActionIcon(i18n('cancel'), `icon-close`, Colors.RED)
-  cancelButton.type = `submit`
-  cancelButton.value = `esc`
+  const cancelButton = buildActionIcon(i18n('cancel'), 'icon-close', Colors.RED)
+  cancelButton.type = 'submit'
+  cancelButton.value = 'esc'
   form.append(buildNode('div', {
-    classList: [`x`],
+    classList: ['x'],
     children: [cancelButton],
   }))
 
@@ -173,8 +173,8 @@ function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel
   return showModal({
     message: message,
     buttons: [
-      { title: okLabel, value: `true` },
-      { title: cancelLabel, value: `false` },
+      { title: okLabel, value: 'true' },
+      { title: cancelLabel, value: 'false' },
     ],
   })
 }
@@ -212,11 +212,11 @@ function showAbout() {
   return showModal({
     content: [
       buildNode('div', {
-        classList: [`title`],
+        classList: ['title'],
         children: [
           buildNode('img', {
-            src: `../icons/snip128.png`,
-            classList: [`logo`],
+            src: '/icons/app/snip128.png',
+            classList: ['logo'],
           }),
           buildNode('h1', {
             innerHTML: `${i18n('app_name')} <span class="tinytype">v${chrome.runtime.getManifest().version}</span>`,
@@ -228,31 +228,31 @@ function showAbout() {
       }),
       buildNode('hr'),
       buildNode('a', {
-        href: `https://github.com/AppliedElegance/Sniplets/issues/`,
+        href: 'https://github.com/AppliedElegance/Sniplets/issues/',
         target: '_blank',
         textContent: i18n('app_report_issue'),
       }),
-      document.createTextNode(` | `),
+      document.createTextNode(' | '),
       buildNode('a', {
-        href: `https://crowdin.com/project/sniplets`,
+        href: 'https://crowdin.com/project/sniplets',
         target: '_blank',
         textContent: i18n('app_translate'),
       }),
-      document.createTextNode(` | `),
+      document.createTextNode(' | '),
       buildNode('a', {
-        href: `https://github.com/sponsors/jpc-ae`,
+        href: 'https://github.com/sponsors/jpc-ae',
         target: '_blank',
         textContent: i18n('app_donate'),
       }),
     ],
-    buttons: [{ title: i18n('ok'), value: `esc` }],
+    buttons: [{ title: i18n('ok'), value: 'esc' }],
   })
 }
 
 /** Request and update values for custom fields
  * @param {string} content text content with placeholders
  * @param {Map<string,{type:string,value:string,options:string[]}>} fields Custom fields taken from placeholders for replacement matching
- * @returns {string} Updated string with placeholders replaced by confirmed field values
+ * @returns {Promise<string>} Updated string with placeholders replaced by confirmed field values
  */
 async function mergeCustomFields(content, fields) {
   // console.log(content, fields, fields instanceof Map);
@@ -301,23 +301,6 @@ async function mergeCustomFields(content, fields) {
   )
 }
 
-/** Request optional permissions to access specific or all host site urls
- * @param {string[]} origins list of origin matching strings
- */
-async function requestOrigins(origins) {
-  const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
-  const request = await confirmSelection(i18n('request_origins'), [
-    { title: i18n('request_all_site_permissions'), value: allUrls },
-    { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
-  ], i18n('action_permit'))
-  if (request) {
-    return chrome.permissions.request({
-      origins: JSON.parse(request),
-    }).catch(e => (console.error(e), false))
-  }
-  return false
-}
-
 /** Reports if a url is completely blocked at the top level (permissions won't help)
  * @param {string|URL} url The requested FQDN for scripting
  */
@@ -332,6 +315,5 @@ export {
   confirmSelection,
   showAbout,
   mergeCustomFields,
-  requestOrigins,
   reportBlockedURL,
 }
