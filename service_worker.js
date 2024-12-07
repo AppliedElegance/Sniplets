@@ -176,28 +176,28 @@ chrome.action.onClicked.addListener((tab) => {
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // get details from menu item and ignore "empty" ones (sanity check)
-  const { command, ...args } = parseContextMenuData(info.menuItemId)
+  const { command, ...data } = parseContextMenuData(info.menuItemId)
   if (!commandMap.has(command)) return
 
-  // set up injection target
-  const target = {
-    tabId: tab.id,
-    ...info.frameId ? { frameIds: [info.frameId] } : {},
+  // set up command injection
+  const args = {
+    target: {
+      tabId: tab.id,
+      ...info.frameId ? { frameIds: [info.frameId] } : {},
+    },
+    ...info,
+    ...data,
   }
 
   // Get result and convert caught errors to serializable object
-  const result = await runCommand(command, {
-    target: target,
-    ...info,
-    ...args,
-  }).catch(e => ({ error: {
+  const result = await runCommand(command, args).catch(e => ({ error: {
     name: e.name,
     message: e.message,
     cause: e.cause,
   } }))
 
   // set followup if anything was returned
-  if (result) setFollowup(command, { target: target, ...result })
+  if (result) setFollowup(command, { ...args, space: new StorageKey(data.menuSpace.name, data.menuSpace.synced), ...result })
 })
 
 chrome.commands.onCommand.addListener(async (command, tab) => {

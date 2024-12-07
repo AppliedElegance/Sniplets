@@ -1,5 +1,4 @@
 import { i18n } from '/modules/refs.js'
-import { getRichText } from '/modules/spaces.js'
 
 /** Safely stores data in a chrome.storage bucket
  * @param {string} key The name of the storage bucket
@@ -105,14 +104,16 @@ class KeyStore {
 }
 
 /** Send text to clipboard
- * @param {{content:string,nosubst:boolean}} snip The content of a snippet and whether to skip substitutions
+ * @param {{content:string,richText:string}} snip a processed sniplet (use `getProcessedSniplet`)
  */
 async function setClipboard(snip) {
-  if (!snip.content) return
+  console.log({ ...snip })
+  if (!snip?.content) return
   const items = {
     'text/plain': new Blob([snip.content], { type: 'text/plain' }),
+    'text/html': new Blob([snip.richText || snip.content], { type: 'text/html' }),
   }
-  if (!snip.nosubst) items['text/html'] = new Blob([await getRichText(snip)], { type: 'text/html' })
+  console.log({ ...items })
   // console.log(`Copying to clipboard...`);
   return navigator.clipboard.write([new ClipboardItem(items)])
     .then(() => true)

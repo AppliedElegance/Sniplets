@@ -1,7 +1,7 @@
 import { i18n, locale, i18nOrd, Colors } from '/modules/refs.js'
 import { StorageKey, KeyStore } from '/modules/storage.js'
 import settings from '/modules/settings.js'
-import { ParseError } from '/modules/errors.js'
+import { CustomPlaceholderError, ParseError } from '/modules/errors.js'
 
 /** Converts a boolean value (`synced`) to a `chrome.storage` area name
  * @param {boolean} synced `true` for `'sync'` and `false` for `'local'`
@@ -352,7 +352,7 @@ class Space {
    */
   editItem(seq, field, value, folderPath = this.path) {
     const item = this.getItem(folderPath.concat([seq]))
-    // console.log('Editing item...', seq, field, value, folderPath, structuredClone(item))
+    console.log('Editing item...', seq, field, value, folderPath, structuredClone(item))
 
     // validations for optional fields
     switch (field) {
@@ -432,12 +432,13 @@ class Space {
    * @returns {Promise<{sniplet:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}>}
    */
   async getProcessedSniplet(seq, path = this.path) {
-    // console.log("Getting item...");
+    console.log('Getting item...', seq, path)
     const item = this.getItem(path.concat(seq))
-    // console.log(item);
+    console.log({ ...item })
     if (!item) return
     // avoid touching space
     const sniplet = new Sniplet(item)
+    console.log({ ...sniplet })
     // Skip if there's nothing to process
     if (!sniplet.content) return { sniplet: sniplet }
 
@@ -449,22 +450,14 @@ class Space {
       }
     }
 
-    // process counters, kept track internally to allow use across multiple sniplets
+    // process counters and keep track of difference in case update is needed
     const counters = new Map()
-    sniplet.content = sniplet.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, p1, p2) => {
-      // add new counters to DataBucket
-      if (!(p1 in this.data.counters)) {
-        this.data.counters[p1] = this.data.counters.startVal
-      }
-      // allow for rollback in case paste fails
-      const val = this.data.counters[p1]
-      if (!counters.has(p1)) counters.set(p1, val)
-      // replace and increment
-      this.data.counters[p1] += isNaN(p2) ? 1 : +p2
-      return val
+    sniplet.content = sniplet.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, counter, increment) => {
+      // add the increment to the counters tracker so it can be updated when successfully used
+      counters.set(counters.has(counter) ? counters.get(counter) + increment : increment)
+      return counter in this.data.counters ? this.data.counters[counter] : this.data.counters.startVal
     })
-    // save space if counters were used and thus incremented
-    if (counters.size) await this.save()
+    console.log('Processed counters', { ...sniplet })
 
     // placeholders
     // console.log("Processing placeholders...");
@@ -513,67 +506,27 @@ class Space {
         if (numericDate.hour.length === 2) numericDate.hour = numericDate.hour.replace(/^0/, '')
 
         // replace each part of format string
+        const datetimeMap = new Map([
+          ['h', shortDate.hour],
+          ['hh', longDate.hour],
+          ['H', numericDate.hour],
+          ['HH', paddedDate.hour],
+          ['m', numericDate.minute],
+          ['mm', paddedDate.minute],
+          ['s', numericDate.second],
+          ['ss', paddedDate.second],
+          ['.s', `.${shortDate.fractionalSecond}`],
+          ['.ss', `.${paddedDate.fractionalSecond}`],
+          ['.sss', `.${longDate.fractionalSecond}`],
+          ['a', shortDate.dayPeriod],
+          ['A', shortDate.dayPeriod.toUpperCase()],
+        ])
         dateString = dateString.replaceAll(/([a-zA-Z]*)(\.s+)?/g, (match, p1, p2) => {
           // split seconds
-          if (p2) {
-            let seconds = ''
-            switch (p1) {
-              case 's':
-                seconds += numericDate.second
-                break
+          if (p2) return (datetimeMap.get(p1) || p1) + (datetimeMap.get(p2) || p2)
 
-              case 'ss':
-                seconds += paddedDate.second
-                break
-
-              default:
-                seconds += p1
-                break
-            }
-            switch (p2) {
-              case '.s':
-                seconds += `.${shortDate.fractionalSecond}`
-                break
-
-              case '.ss':
-                seconds += `.${paddedDate.fractionalSecond}`
-                break
-
-              case '.sss':
-                seconds += `.${longDate.fractionalSecond}`
-                break
-
-              default:
-                seconds += p2
-                break
-            }
-            return seconds
-          }
           // case sensitive matches
-          switch (match) {
-            case 'm':
-              return numericDate.minute
-            case 'mm':
-              return paddedDate.minute
-            case 'M':
-              return numericDate.month
-            case 'MM':
-              return paddedDate.month
-            case 'h':
-              return shortDate.hour
-            case 'hh':
-              return longDate.hour
-            case 'H':
-              return numericDate.hour
-            case 'HH':
-              return paddedDate.hour
-            case 'a':
-              return shortDate.dayPeriod
-            case 'A':
-              return shortDate.dayPeriod.toUpperCase()
-            default:
-              break
-          }
+          if (datetimeMap.has(match)) return datetimeMap.get(match)
           // case insensitive matches required for clippings compatibility
           switch (match.toUpperCase()) {
             case 'D':
@@ -695,22 +648,35 @@ class Space {
           return match
       }
     })
+    console.log('Content replaced', { ...sniplet })
 
-    // console.log(snip, customFields);
-    return {
-      sniplet: sniplet,
-      ...customFields.size ? { customFields: customFields } : {},
-      ...counters.size ? { counters: counters } : {},
+    sniplet.richText = await getRichText(sniplet)
+    console.log('Added richText', { ...sniplet })
+
+    const snip = {
+      ...sniplet,
+      ...customFields.size ? { placeholders: Array.from(customFields) } : {},
+      ...counters.size ? { counters: Array.from(counters) } : {},
     }
+    console.log(snip, sniplet, typeof sniplet, customFields, counters)
+    if (customFields.size) throw new CustomPlaceholderError(snip)
+
+    return snip
   }
 
   /** Update the value of several counters at once
-   * @param {Map<string,number>} counters
+   * @param {[string,number][]} counters - new counter values
+   * @param {boolean} deltas - whether to treat the values as deltas and increment rather than set
    */
-  setCounters(counters) {
-    if (!counters?.size) return
-    for (const [counter, value] of counters) {
-      this.data.counters[counter] = value
+  setCounters(counters, deltas = false) {
+    for (const [key, value] in counters) {
+      if (deltas) {
+        // add new counters to DataBucket before incrementing
+        if (!(key in this.data.counters)) {
+          this.data.counters[key] = this.data.counters.startVal
+        }
+        this.data.counters[key] += value
+      } else this.data.counters[key] = value
     }
   }
 
@@ -817,13 +783,11 @@ const linkEmails = text => text.replaceAll(
  * @param {string} text
  */
 const linkURLs = text => text.replaceAll(
-  /<a.+?\/a>|<[^>]*?>|((?<![.+@a-zA-Z0-9])(?:(https?|ftp|chrome|edge|about|file):\/+)?(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?)/gi,
+  /<a.+?\/a>|<[^>]*?>|((?:\b(https?|ftp|chrome|edge|about|file):\/+)(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?|www.?\.(?:[a-zA-Z0-9]+\.)+[a-z]+|(?<=\s|^|[>])(?:[a-zA-Z0-9]+\.)+(?:com|org|net|int|edu|gov|biz|io|co(?:\.[a-z]+)?|us|jp|eu|nu))/gi,
   (match, p1, p2) => {
-    // console.log(match, p1, p2);
+    console.log(match, p1, p2)
     // skip anchors and tag attributes
     if (!p1) return match
-    // skip IP addresses with no protocol
-    if (match.match(/^\d+\.\d+\.\d+\.\d+$/)) return match
     // ensure what was picked up evaluates to a proper url (just in case)
     const matchURL = new URL(((!p2) ? `http://${match}` : match))
     // console.log(matchURL);

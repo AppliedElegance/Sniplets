@@ -8,7 +8,7 @@ class NotImplementedError extends Error {
 
 class MissingPermissionsError extends Error {
   name = 'MissingPermissionsError'
-  constructor({ permissions, origins }, injection, info, lastError) {
+  constructor({ permissions, origins }, lastError) {
     super(`The following ${
       permissions ? `permissions are missing:${permissions.map(permission => `\n${permission}`)}` : ''
     }${permissions && origins ? '\nand the following ' : ''}${
@@ -16,8 +16,6 @@ class MissingPermissionsError extends Error {
     }`, { cause: {
       permissions: permissions,
       origins: origins,
-      injection: injection,
-      info: info,
       lastError: lastError,
     } })
     Error.captureStackTrace(this, this.constructor)

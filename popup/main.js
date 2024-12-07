@@ -2,7 +2,7 @@ import settings from '/modules/settings.js'
 import { getCurrentTab, openWindow } from '/modules/sessions.js'
 import { i18n, locale, i18nNum, Colors } from '/modules/refs.js'
 import { setStorageData, getStorageData, removeStorageData, KeyStore, setClipboard } from '/modules/storage.js'
-import { Folder, Sniplet, DataBucket, Space, getStorageArea } from '/modules/spaces.js'
+import { Folder, Sniplet, DataBucket, Space, getStorageArea, getRichText } from '/modules/spaces.js'
 import {
   buildNode,
   buildSvg,
@@ -24,9 +24,9 @@ import {
   confirmAction,
   confirmSelection,
   showAbout,
-  mergeCustomFields,
+  toast,
 } from '/modules/modals.js'
-import { pasteSnip, runCommand } from '/modules/commands.js'
+import { pasteItem, runCommand } from '/modules/commands.js'
 
 /**
  * Shorthand for document.getElementById(id)
@@ -56,6 +56,142 @@ const debounce = function setDelay(f, delay) {
   }
 }
 const resizing = new ResizeObserver(debounce(adjustPath, 0))
+
+async function handleError({ error, ...args }) {
+  async function handleScriptingBlockedError({ cause }) {
+    console.log(cause)
+    const { url } = cause
+
+    await showAlert(
+      i18n('alert_message_scripting_blocked', url),
+      i18n('alert_title_scripting_blocked'),
+    )
+  }
+
+  async function handleCrossOriginError({ cause }) {
+    console.log(cause)
+    const { task, pageSrc, frameSrc } = cause
+
+    await showAlert(
+      i18n('error_cross_origin_message', [i18n(`error_action_${task}`), pageSrc, frameSrc]),
+      i18n('error_cross_origin_title'),
+    )
+  }
+
+  async function handleMissingPermissionsError({ cause }) {
+    console.log(cause)
+    const { origins } = cause
+
+    const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
+    const request = await confirmSelection(i18n('request_origins', origins.at(0)), [
+      { title: i18n('request_all_site_permissions'), value: allUrls },
+      { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
+    ], i18n('action_permit'))
+    if (request) {
+      // empty object is truthy signifying the request can be retried
+      if (chrome.permissions.request({
+        origins: JSON.parse(request),
+      }).catch(e => (console.error(e), false))) return {}
+    }
+    return
+  }
+
+  async function handleSnipNotFoundError({ cause }) {
+    console.log(cause)
+    const { name, synced, path, seq } = cause
+    showAlert(
+      i18n('warning_snip_not_found', [name, synced, path, seq]),
+      i18n('title_snip_not_found'),
+    )
+  }
+
+  async function handleCustomPlaceholderError({ cause }) {
+    console.log(cause)
+    const { content, placeholders } = cause
+
+    const confirmedFields = await showModal({
+      title: i18n('title_custom_placeholders'),
+      fields: placeholders.map(([placeholder, field], i) => ({
+        type: field.type,
+        name: `placeholder-${i}`,
+        label: placeholder,
+        value: field.value,
+        options: field.options,
+      })),
+      buttons: [
+        {
+          title: i18n('confirm'),
+          value: JSON.stringify(placeholders),
+          id: 'confirmFields',
+        },
+      ],
+    }, (event) => {
+      // console.log(event)
+      /** @type {HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement} */
+      const input = event.target
+      const modal = input.closest('dialog')
+      /** @type {HTMLButtonElement} */
+      const button = modal.querySelector('#confirmFields')
+      const fields = new Map(JSON.parse(button.value))
+      const field = fields.get(input.title)
+      field.value = input.value
+      fields.set(input.title, field)
+      button.value = JSON.stringify(Array.from(fields.entries()))
+    })
+    const fieldMap = confirmedFields && new Map(JSON.parse(confirmedFields))
+    if (!fieldMap) return // assume cancelled
+    const confirmedContent = content.replaceAll(
+      /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
+      (match, placeholder) => {
+        const value = fieldMap.get(placeholder)?.value
+        return (typeof value === 'string') ? value : match
+      },
+    )
+    return {
+      snip: {
+        content: confirmedContent,
+        richText: await getRichText(confirmedContent),
+      },
+    }
+  }
+
+  async function handleCustomEditorError({ cause }) {
+    console.log(cause)
+    const { editor } = cause
+
+    await showAlert(
+      i18n('alert_message_custom_editor_error', [editor || i18n('placeholder_custom_editor')]),
+      i18n('alert_title_scripting_blocked'),
+    )
+  }
+
+  async function handleUnknownError({ name, message, cause }) {
+    await showAlert(
+      i18n('alert_message_unknown_error', [name, message, cause]),
+      i18n('alert_title_unknown_error'),
+    )
+  }
+
+  const errorHandlers = {
+    ScriptingBlockedError: handleScriptingBlockedError,
+    CrossOriginError: handleCrossOriginError,
+    MissingPermissionsError: handleMissingPermissionsError,
+    SnipNotFoundError: handleSnipNotFoundError,
+    CustomPlaceholderError: handleCustomPlaceholderError,
+    handleCustomEditorError: handleCustomEditorError,
+  }
+
+  const errorHandler = errorHandlers[error.name]
+  if (typeof errorHandler === 'function') {
+    const errorHandlerResult = await errorHandler(error)
+    if (errorHandlerResult) return {
+      ...args,
+      ...errorHandlerResult,
+    }
+  } else {
+    handleUnknownError(error)
+  }
+}
 
 async function handleFollowup({ action, args }) {
   console.log(action, args)
@@ -96,153 +232,80 @@ async function handleFollowup({ action, args }) {
     }
   }
 
-  /** Set counters to match provided argument */
-  async function rollBackCounters() {
-    const counters = new Map(args?.counters || [])
-    if (counters.size && await space.load(args.actionSpace)) {
-      space.setCounters(counters)
-    }
-  };
-
-  /** Confirm any custom placeholders and merge them */
-  async function mergeAndPaste() {
-    const { snip, target } = args
-    const customFields = new Map(args.customFields || [])
-    // console.log(target, snip, customFields);
-    if (customFields.size) {
-      const text = await mergeCustomFields(snip.content, customFields)
-      // console.log(text);
-      if (!text) {
-        // modal cancelled, rollback if necessary
-        await rollBackCounters()
-        return
-      }
-      snip.content = text
-    }
-    if ((await pasteSnip({ target: target, snip: snip })).error) {
-      await rollBackCounters()
-    }
-  }
-
-  async function handleError(error) {
-    async function handleScriptingBlockedError({ cause }) {
-      console.log(cause)
-      const { url } = cause
-      await showAlert(
-        i18n('alert_message_scripting_blocked', url),
-        i18n('alert_title_scripting_blocked'),
-      )
-    }
-
-    async function handleCrossOriginError({ cause }) {
-      const { task, pageSrc, frameSrc } = cause
-      await showAlert(
-        i18n('error_cross_origin_message', [i18n(`error_action_${task}`), pageSrc, frameSrc]),
-        i18n('error_cross_origin_title'),
-      )
-    }
-
-    async function handleMissingPermissionsError({ cause }) {
-      const { origins, task, args } = cause
-
-      const requestOrigins = async (origins) => {
-        const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
-        const request = await confirmSelection(i18n('request_origins', origins.at(0)), [
-          { title: i18n('request_all_site_permissions'), value: allUrls },
-          { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
-        ], i18n('action_permit'))
-        if (request) {
-          return chrome.permissions.request({
-            origins: JSON.parse(request),
-          }).catch(e => (console.error(e), false))
-        }
-        return false
-      }
-
-      if (origins && await requestOrigins(origins)) {
-        console.log('Granted', origins)
-        const result = await runCommand(task, args)
-        console.log(result)
-        if (result) {
-          await space.load()
-          loadSniplets()
-          handleFollowup({ action: task, args: result })
-        }
-      }
-    }
-
-    const errorMap = new Map([
-      ['ScriptingBlockedError', handleScriptingBlockedError],
-      ['MissingPermissionsError', handleMissingPermissionsError],
-      ['CrossOriginError', handleCrossOriginError],
-    ])
-
-    const errorFunc = errorMap.get(error.name)
-    if (typeof errorFunc === 'function') await errorFunc(error)
-
-    // check if sniplets are loaded, otherwise assume popup and close
-    if (!$('path')) {
-      console.log($('path'), error, action, args)
-      // window.close()
-    }
-  }
-
   async function handleSnipResult(result) {
-    console.log(result)
-    if (result.error) return handleError(result.error)
-    if (!(result.space.key === space.storageKey.key && result.space.area === space.storageKey.area)) return
+    console.log(result, !(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area), result.space?.key, space.storageKey.key, result.space?.area, space.storageKey.area)
+    // make sure this window can handle the followup
+    if (!(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area)) return
+    console.log('did we make it?')
 
-    // load space in case this happens before update is called
-    if (Array.isArray(result.path)) space.path = result.path
+    // handle errors first and retry if successfully handled
+    if (result.error) {
+      console.log('is there an error?')
+      const errorResult = await handleError(result)
+      const retryResult = errorResult && await runCommand('snip', errorResult)
+      if (retryResult) return handleSnipResult(retryResult)
+      return
+    }
+
+    // reload and update path before following up
     await space.load()
+    if (Array.isArray(result.path)) space.path = result.path
     loadSniplets()
 
     // focus the new sniplet's name field
-    // (note that side panel doesn't switch focus automatically)
+    // (note that side panel doesn't currently switch focus automatically)
     q$(`input[name="name"][data-seq="${result.seq}"]`)?.focus()
   }
 
-  const followupMap = new Map([
-    ['alert', showAlert],
-    ['snip', handleSnipResult],
-    ['unsynced', handleUnsync],
-  ])
+  async function handlePasteResult(result) {
+    console.log(result, !(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area), result.space?.key, space.storageKey.key, result.space?.area, space.storageKey.area)
+    // make sure this window can handle the followup
+    if (!(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area)) return
+    console.log('did we make it?')
 
-  const followupFunc = followupMap.get(action)
-  if (typeof followupFunc === 'function') {
-    followupFunc(args)
-    return
+    if (result.error) {
+      console.log('did we make it?')
+      const errorResult = handleError(result)
+      const retryResult = errorResult && await runCommand('paste', errorResult)
+      if (retryResult) return handlePasteResult(retryResult)
+      return
+    }
   }
 
-  switch (action) {
-    // case 'permissions': {
-    //   if (await requestOrigins(args.origins)) {
-    //     switch (args.action) {
-    //       case 'snip':
-    //         snipSelection(args.target, args.actionSpace)
-    //         window.close() // in popup, happens automatically after this function completes
-    //         return
+  const followupHandlers = {
+    alert: showAlert,
+    snip: handleSnipResult,
+    paste: handlePasteResult,
+    unsynced: handleUnsync,
+  }
 
-    //       case 'paste':
-    //         await mergeAndPaste()
-    //         window.close() // in popup, happens automatically after this function completes
-    //         return
+  const followupHandler = followupHandlers[action]
+  if (typeof followupHandler === 'function') {
+    followupHandler(args)
+    return
+  }
+}
 
-    //       default:
-    //         window.close() // in popup, happens automatically after this function completes
-    //         return
-    //     }
-    //   }
-    //   break
-    // }
+async function copySniplet(args) {
+  console.log(args)
+  // get requested item
+  if (!args.snip) args.snip = await space.getProcessedSniplet(args.seq)
 
-    case 'placeholders':
-      if (args.action === 'paste') await mergeAndPaste() // should always be true
-      break
+  // rebuild settings menu in case there was an update to counters
+  const { snip } = args
+  console.log(args, snip)
+  if (await setClipboard(snip)) {
+    console.log('copied to clipboard')
+    if (snip.counters) {
+      console.log('setting counters')
+      space.setCounters(snip.counters, true)
+      $('settings').replaceChildren(...buildMenu())
+    }
+    console.log('toasting')
 
-    default:
-      break
-  } // end switch(type)
+    // notify the user it worked
+    toast(i18n('toast_copied'))
+  }
 }
 
 // Listen for updates on the fly in case of multiple popout windows
@@ -1335,36 +1398,31 @@ async function handleAction(target) {
 
     // copy processed sniplet
     case 'copy': {
-    // get requested item
-      const { snip, customFields, counters } = await space.getProcessedSniplet(dataset.seq) || {}
-      // console.log(snip, customFields);
-      if (!snip) break
-      // rebuild settings menu in case there was an update to counters
-      if (counters) $('settings').replaceChildren(...buildMenu())
-      // get custom fields if necessary
-      if (customFields) {
-        const content = await mergeCustomFields(snip.content, customFields)
-        if (!content) {
-        // modal cancelled, initiate rollback if needed
-          if (counters) space.setCounters(counters)
-          break
-        }
-        snip.content = content
-      }
-      // copy result text to clipboard
-      if (await setClipboard(snip)) {
-        showAlert(i18n('alert_copied'))
-      } else if (counters) {
-      // rollback in case of failure
-        space.setCounters(counters)
-      }
+      const result = await copySniplet({ ...dataset }).catch(e => ({
+        error: {
+          name: e.name,
+          message: e.message,
+          cause: e.cause,
+        },
+      }))
+      if (result) handleFollowup({ action: 'copy', args: {
+        ...dataset,
+        ...result,
+      } })
       break }
 
     // paste processed sniplet
     case 'paste': {
-    // attempt to paste into a selected field
+      // get snip
+      const sniplet = await space.getProcessedSniplet(dataset.seq)
+      // attempt to paste into a selected field
       const activeTab = await getCurrentTab()
-      pasteSnip({ tabId: activeTab.id }, dataset.seq, space, { pageUrl: activeTab.url })
+      const result = await pasteItem({
+        target: { tabId: activeTab.id },
+        snip: sniplet,
+        pageUrl: activeTab.url,
+      }).catch(e => ({ error: e }))
+      if (result) handleFollowup('paste', result)
       break }
 
     // settings
@@ -1625,7 +1683,7 @@ async function handleAction(target) {
     case 'edit': {
       const field = dataset.field || target.name
       const value = dataset.value || target.value
-      // console.log('Editing field...', field, value, dataset, target, typeof target.value)
+      console.log('Editing field...', field, value, dataset, target, typeof target.value)
       const item = space.editItem(
         dataset.seq,
         field,

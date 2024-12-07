@@ -193,7 +193,7 @@
   "error_restore_failed": {
     "message": "The data could not be restored, please check the file and try again."
   },
-  "alert_copied": {
+  "toast_copied": {
     "message": "The sniplet has been copied to the clipboard."
   },
   "warning_clear_src": {
@@ -418,7 +418,21 @@
     "message": "Sniplet Not Found"
   },
   "warning_snip_not_found": {
-    "message": "Sorry, the requested sniplet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current sniplets to prevent data loss."
+    "message": "Sorry, the requested sniplet could not be found. Try editing it to update the database or copy it manually. You may also wish to back up your current sniplets to prevent data loss. Here is what was requested:\n\nSpace: $space$\nSynced?: $synced$\nPath: $path$\nSeq: $seq$",
+    "placeholders": {
+      "space": {
+        "content": "$1"
+      },
+      "synced": {
+        "content": "$2"
+      },
+      "path": {
+        "content": "$3"
+      },
+      "seq": {
+        "content": "$4"
+      }
+    }
   },
   "menu_clear_sync": {
     "message": "Clear cloud data"
@@ -603,5 +617,33 @@
   },
   "error_action_paste": {
     "message": "paste the sniplet"
+  },
+  "alert_title_unknown_error": {
+    "message": "Error"
+  },
+  "alert_message_unknown_error": {
+    "message": "An unknown error has occurred while trying to execute a task. If this happens again, please open an issue (you can find the link on the About... page) and provide a screenshot of this error. The error details are below:\n\nName: $name$\nMessage: $message$\nCause: $cause$",
+    "placeholders": {
+      "name": {
+        "content": "$1"
+      },
+      "message": {
+        "content": "$2"
+      },
+      "cause": {
+        "content": "$3"
+      }
+    }
+  },
+  "alert_message_custom_editor_error": {
+    "message": "Sorry, this site is using an unsupported $editor$ instance to handle rich text editing. Please copy and paste manually",
+    "placeholders": {
+      "editor": {
+        "content": "$1"
+      }
+    }
+  },
+  "placeholder_custom_editor": {
+    "message": "custom editor"
   }
 }

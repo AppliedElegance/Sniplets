@@ -249,63 +249,16 @@ function showAbout() {
   })
 }
 
-/** Request and update values for custom fields
- * @param {string} content text content with placeholders
- * @param {Map<string,{type:string,value:string,options:string[]}>} fields Custom fields taken from placeholders for replacement matching
- * @returns {Promise<string>} Updated string with placeholders replaced by confirmed field values
- */
-async function mergeCustomFields(content, fields) {
-  // console.log(content, fields, fields instanceof Map);
-  if (!fields?.size) return content
-  // build modal
-  const submission = await showModal({
-    title: i18n('title_custom_placeholders'),
-    fields: Array.from(fields.entries(), ([placeholder, field], i) => ({
-      type: field.type,
-      name: `placeholder-${i}`,
-      label: placeholder,
-      value: field.value,
-      options: field.options,
-    })),
-    buttons: [
-      {
-        title: i18n('confirm'),
-        value: JSON.stringify(Array.from(fields.entries())),
-        id: 'confirmFields',
-      },
-    ],
-  }, (event) => {
-    // console.log(event);
-    /** @type {HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement} */
-    const input = event.target
-    const modal = input.closest('dialog')
-    /** @type {HTMLButtonElement} */
-    const button = modal.querySelector('#confirmFields')
-    /** @type {Map} */
-    const fields = new Map(JSON.parse(button.value))
-    // console.log(button.value, fields, input.title, input.value);
-    const field = fields.get(input.title)
-    field.value = input.value
-    fields.set(input.title, field)
-    button.value = JSON.stringify(Array.from(fields.entries()))
-    // console.log(button.value, fields);
-  })
-  const confirmedFields = submission && new Map(JSON.parse(submission))
-  if (!confirmedFields) return content
-  return content.replaceAll(
-    /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
-    (match, placeholder) => {
-      const value = confirmedFields.get(placeholder)?.value
-      return (typeof value === 'string') ? value : match
-    },
-  )
-}
-
-/** Reports if a url is completely blocked at the top level (permissions won't help)
- * @param {string|URL} url The requested FQDN for scripting
- */
-function reportBlockedURL(url) {
-  showAlert(i18n('error_scripting_blocked', new URL(url).hostname), i18n('title_scripting_blocked'))
+async function toast(message) {
+  console.log(message)
+  const toast = document.getElementById('t-toast').content.cloneNode(true)
+  console.log(toast)
+  toast.querySelector('#toast').textContent = message
+  const toastNode = document.body.appendChild(toast)
+  console.log(toastNode)
+  setTimeout((toastNode) => {
+    toastNode.remove()
+  }, 5000, [toastNode])
 }
 
 export {
@@ -314,6 +267,5 @@ export {
   confirmAction,
   confirmSelection,
   showAbout,
-  mergeCustomFields,
-  reportBlockedURL,
+  toast,
 }

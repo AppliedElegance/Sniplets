@@ -1,7 +1,7 @@
-import { CrossOriginError, CustomPlaceholderError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
+import { CrossOriginError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
 import { i18n, Colors } from '/modules/refs.js'
 import settings from '/modules/settings.js'
-import { Folder, Sniplet, Space, getRichText } from '/modules/spaces.js'
+import { Folder, Sniplet, Space } from '/modules/spaces.js'
 
 /** Send an internal message
  * @param {string} subject What is expected of the receiver
@@ -293,8 +293,6 @@ async function snipSelection(args) {
  * @returns {Promise<void>}
  */
 async function pasteItem(args) {
-  const { target, menuSpace, seq, snip, ...info } = args
-
   /** Injection script for pasting.
    * @param {{content:string, richText:string}} snip
    */
@@ -312,7 +310,7 @@ async function pasteItem(args) {
         const frame = window.document.activeElement.contentWindow
         if (frame) return insertText(frame)
       } catch (e) {
-        // cross-origin throws a "SecurityError", normally checked using copy command
+        // cross-origin throws a "SecurityError"
         return {
           error: {
             name: e.name,
@@ -330,31 +328,100 @@ async function pasteItem(args) {
        */
       const input = window.document.activeElement
 
-      // CKEditor requires special handling
-      if (input.classList.contains('ck') && window.editor) {
-        // CKEditor 5
+      // some custom editors require special handling
+      if (input.classList.contains('ck')) {
+        // CKEditor 5 (https://ckeditor.com/docs/ckeditor5/latest/api/index.html)
         const { editor } = window
+        if (!editor) return {
+          error: {
+            name: 'CustomEditorError',
+            message: 'An unknown or blocked version of CKEditor is bound to this field.',
+            cause: { editor: 'CKEditor' },
+          },
+        }
         const ckViewFrag = editor.data.processor.toView(snip.richText)
         const ckModFrag = editor.data.toModel(ckViewFrag)
         editor.model.insertContent(ckModFrag)
-        return {
-          snip: snip,
-        }
+        return
       } else if (input.classList.contains('cke_editable')) {
-        // CKEditor 4 and below replace the context menu, so this should only work with keyboard shortcuts
+        // CKEditor 4 (https://ckeditor.com/docs/ckeditor4/latest/api/index.html)
+        // This editor replaces the context menu, so this code will only run with keyboard shortcuts
         const getEditor = window =>
           window.CKEDITOR || (window.parent && getEditor(window.parent))
         const editor = getEditor(window)
         if (!editor) return { // deprecated/unknown version or blocked parent
           error: {
-            name: 'CKEditorError',
-            message: 'An unknown or blocked version of CKEditor is being used on this field.',
+            name: 'CustomEditorError',
+            message: 'An unknown or blocked version of CKEditor is bound to this field.',
+            cause: { editor: 'CKEditor' },
           },
         }
         editor.currentInstance.insertHTML(snip.richText)
-        return {
-          snip: snip,
+        return
+      } else if (input.classList.contains('cm-content')) {
+        // CodeMirror 6 (https://codemirror.net/docs/ref/)
+        const cmView = document.activeElement.cmView?.view
+        if (cmView) {
+          cmView.dispatch(cmView.viewState.state.replaceSelection(snip.content))
+          return
         }
+        return {
+          error: {
+            name: 'CustomEditorError',
+            message: 'An unknown or blocked version of CodeMirror is bound to this field.',
+            cause: { editor: 'CodeMirror' },
+          },
+        }
+      } else if (document.activeElement.closest('.CodeMirror')) {
+        // CodeMirror 5 (https://codemirror.net/5/doc/manual.html)
+        const cm = document.activeElement.closest('.CodeMirror').CodeMirror
+        if (cm) {
+          cm.replaceSelection(snip.content)
+          return
+        }
+        return {
+          error: {
+            name: 'CustomEditorError',
+            message: 'An unknown or blocked version of CodeMirror is bound to this field.',
+            cause: { editor: 'CodeMirror' },
+          },
+        }
+      } else if (input.classList.contains('tiny-editable')) {
+        // TinyMCE (https://www.tiny.cloud/docs/tinymce/latest/apis/tinymce.root/)
+        if (window.tinyMCE || window.tinymce) {
+          const tinyMCE = window.tinyMCE || window.tinymce
+          tinyMCE.activeEditor.execCommand('mceInsertContent', false, snip.richText)
+          return
+        }
+        return {
+          error: {
+            name: 'CustomEditorError',
+            message: 'An unknown or blocked version of TinyMCE is bound to this field.',
+            cause: { editor: 'TinyMCE' },
+          },
+        }
+      } else if (input.classList.contains('fr-element')) {
+        // Froala (https://froala.com/wysiwyg-editor/docs/overview/)
+        const froala = window.FroalaEditor?.INSTANCES?.at(0)
+        if (froala) {
+          froala.html.insert(snip.richText)
+          return
+        }
+        return {
+          error: {
+            name: 'CustomEditorError',
+            message: 'An unknown or blocked version of Froala is bound to this field.',
+            cause: { editor: 'Froala' },
+          },
+        }
+      }
+
+      // update richText in case of a TrustedHTML policy, ensure scripts are escaped
+      if (window.trustedTypes && trustedTypes.createPolicy) {
+        const escapeHTMLPolicy = trustedTypes.createPolicy('snipletsEscapePolicy', {
+          createHTML: string => string.replaceAll(/<script/g, '&lt;script'),
+        })
+        snip.richText = escapeHTMLPolicy.createHTML(snip.richText)
       }
 
       /* execCommand is marked 'deprecated' but has only been demoted to an unofficial draft
@@ -363,20 +430,24 @@ async function pasteItem(args) {
       * See w3c draft: https://w3c.github.io/editing/docs/execCommand/#the-inserthtml-command
       * See WHATWG note: "User agents are encouraged to implement the features described in execCommand."
       */
-      const pasted = (input.value !== undefined || input.contentEditable === 'plaintext-only')
-        ? document.execCommand('insertText', false, snip.content)
-        : document.execCommand('insertHTML', false, snip.richText)
+      const pasted = (() => {
+        try {
+          return (input.value !== undefined || input.contentEditable === 'plaintext-only')
+            ? document.execCommand('insertText', false, snip.content)
+            : document.execCommand('insertHTML', false, snip.richText)
+        } catch (e) {
+          console.error(e)
+          return
+        }
+      })()
       if (!pasted) {
-        // prepare content for backup code
-        const { content } = snip
-
-        // forward-compatible manual cut paste code - kills the undo stack
+        // forward-compatible manual cut paste code that kills the undo stack
         if (input.value === 'undefined') {
           const selection = window.getSelection()
           const range = selection.getRangeAt(0)
           range.deleteContents()
           if (input.contentEditable === 'plaintext-only') {
-            range.insertNode(document.createTextNode(content))
+            range.insertNode(document.createTextNode(snip.content))
           } else { // no sanitation as that's between the user and the website
             const template = document.createElement('template')
             template.innerHTML = snip.richText
@@ -387,8 +458,8 @@ async function pasteItem(args) {
           const { value } = input
           const start = input.selectionStart
           const end = input.selectionEnd
-          input.value = value.slice(0, start) + content + value.slice(end)
-          input.selectionStart = input.selectionEnd = start + content.length
+          input.value = value.slice(0, start) + snip.content + value.slice(end)
+          input.selectionStart = input.selectionEnd = start + snip.content.length
         }
       }
 
@@ -406,68 +477,44 @@ async function pasteItem(args) {
       })
       input.dispatchEvent(new KeyboardEvent('keyup', keyEvent))
 
-      return {
-        snip: snip,
-      }
+      return
     }
 
     return insertText(window)
   }
 
-  // make sure we have something to paste
-  if (!seq && !snip?.content) return
-
   // retrieve sniplet from space if necessary
-  if (!snip) {
+  if (!args.snip) {
+    const { menuSpace, seq } = args
     const space = new Space()
-    if (!(menuSpace.name && await space.load(menuSpace))) {
+    if (!(menuSpace?.name ? await space.load(menuSpace) : await space.loadCurrent())) {
       throw new SnipNotFoundError(menuSpace, seq)
-      // setFollowup('alert', {
-      //   title: i18n('title_snip_not_found'),
-      //   message: i18n('warning_snip_not_found'),
-      // })
     }
-    const { sniplet, customFields, counters } = await space.getProcessedSniplet(seq) || {}
-    if (!sniplet) throw new SnipNotFoundError(menuSpace, seq)
+    const sniplet = await space.getProcessedSniplet(seq)
+    if (!sniplet?.content) throw new SnipNotFoundError(menuSpace, seq)
 
-    // check for custom placeholders that need to be confirmed by the user before pasting
-    if (customFields) throw new CustomPlaceholderError('paste', args, {
-      ...sniplet,
-      customFields: Array.from(customFields.entries()),
-      ...counters ? { counters: Array.from(counters.entries()) } : {},
-    })
-
-    // copy values across to snip
-    snip.content = sniplet.content
-    snip.nosubst = sniplet.nosubst
+    args.snip = sniplet
   }
 
   // if there are no special considerations, go ahead and insert the snip
-  snip.richText = getRichText(snip)
-  return (await injectScript({
+  const { target, snip } = args
+  const result = (await injectScript({
     target: target,
     func: insertSnip,
     args: [snip],
-    world: 'MAIN', // required for CKEditor access if needed
-  }, info)).at(0)?.result
+    world: 'MAIN', // required for CKEditor access
+  }, args)).at(0)?.result
 
-  // if (!result) {
-  //   // something strange went wrong
-  //   setFollowup('alert', {
-  //     title: i18n('title_paste_blocked'),
-  //     message: i18n('error_paste_failed'),
-  //   })
-  //   return
-  // }
+  // increment counters only if paste was successful
+  if (!result?.error && snip?.counters) {
+    const space = new Space()
+    if (await space.load(args.menuSpace)) {
+      space.setCounters(snip.counters, true)
+      space.save()
+    }
+  }
 
-  // // check if ckeditor paste was unsuccessful
-  // if (result.error === 'ckeditor') {
-  //   setFollowup('alert', {
-  //     title: i18n('title_scripting_blocked'),
-  //     message: i18n('error_ck_blocked'),
-  //   })
-  //   return
-  // }
+  return result
 }
 
 /** Available commands (must be async/return promise for error handling) */
@@ -493,7 +540,7 @@ export {
   buildContextMenus,
   parseContextMenuData,
   snipSelection,
-  pasteItem as pasteSnip,
+  pasteItem,
   commandMap,
   runCommand,
 }

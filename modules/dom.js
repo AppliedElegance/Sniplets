@@ -426,7 +426,7 @@ function buildItemWidget(item, list, path, { view, data }) {
           seq: item.seq,
           field: 'content',
         },
-        'textContent': item.content,
+        'value': item.content,
         'rows': 1,
         'draggable': 'true', // fires drag event so it can be prevented
         'autocomplete': 'off',
