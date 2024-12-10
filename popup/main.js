@@ -2,7 +2,7 @@ import settings from '/modules/settings.js'
 import { getCurrentTab, openWindow } from '/modules/sessions.js'
 import { i18n, locale, i18nNum, Colors } from '/modules/refs.js'
 import { setStorageData, getStorageData, removeStorageData, KeyStore, setClipboard } from '/modules/storage.js'
-import { Folder, Sniplet, DataBucket, Space, getStorageArea, getRichText } from '/modules/spaces.js'
+import { Folder, Sniplet, DataBucket, Space, getStorageArea, getRichText, parseStringPath } from '/modules/spaces.js'
 import {
   buildNode,
   buildSvg,
@@ -59,7 +59,7 @@ const resizing = new ResizeObserver(debounce(adjustPath, 0))
 
 async function handleError({ error, ...args }) {
   async function handleScriptingBlockedError({ cause }) {
-    console.log(cause)
+    console.log('Handling Scripting Blocked Error', cause)
     const { url } = cause
 
     await showAlert(
@@ -69,7 +69,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleCrossOriginError({ cause }) {
-    console.log(cause)
+    console.log('Handling Cross Origin Error', cause)
     const { task, pageSrc, frameSrc } = cause
 
     await showAlert(
@@ -79,7 +79,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleMissingPermissionsError({ cause }) {
-    console.log(cause)
+    console.log('Handling Missing Permissions Error', cause)
     const { origins } = cause
 
     const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
@@ -89,7 +89,7 @@ async function handleError({ error, ...args }) {
     ], i18n('action_permit'))
     if (request) {
       // empty object is truthy signifying the request can be retried
-      if (chrome.permissions.request({
+      if (await chrome.permissions.request({
         origins: JSON.parse(request),
       }).catch(e => (console.error(e), false))) return {}
     }
@@ -97,7 +97,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleSnipNotFoundError({ cause }) {
-    console.log(cause)
+    console.log('Handling Snip Not Found Error', cause)
     const { name, synced, path, seq } = cause
     showAlert(
       i18n('warning_snip_not_found', [name, synced, path, seq]),
@@ -106,7 +106,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleCustomPlaceholderError({ cause }) {
-    console.log(cause)
+    console.log('Handling Custom Placeholder Error', cause)
     const { content, placeholders } = cause
 
     const confirmedFields = await showModal({
@@ -156,7 +156,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleCustomEditorError({ cause }) {
-    console.log(cause)
+    console.log('Handling Custom Editor Error', cause)
     const { editor } = cause
 
     await showAlert(
@@ -194,7 +194,7 @@ async function handleError({ error, ...args }) {
 }
 
 async function handleFollowup({ action, args }) {
-  console.log(action, args)
+  console.log('Handling followup...', action, args)
 
   async function handleUnsync(args) {
     // make sure it hasn't already been restored and we're not removing everything
@@ -203,7 +203,11 @@ async function handleFollowup({ action, args }) {
     ) return
 
     // make it possible to keep local data or keep synchronizing on this machine just in case
-    args.synced = await confirmAction(i18n('warning_sync_stopped'), i18n('action_keep_syncing'), i18n('action_use_local'))
+    args.synced = await confirmAction(
+      i18n('warning_sync_stopped'),
+      i18n('action_keep_syncing'),
+      i18n('action_use_local'),
+    )
     // console.log(args);
     if (args.synced === true || args.synced === false) {
       // if not currently working on the same data, make do with saving the data
@@ -233,17 +237,18 @@ async function handleFollowup({ action, args }) {
   }
 
   async function handleSnipResult(result) {
-    console.log(result, !(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area), result.space?.key, space.storageKey.key, result.space?.area, space.storageKey.area)
+    console.log('Handling snip result...', result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area, result.spaceKey, space.storageKey)
     // make sure this window can handle the followup
-    if (!(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area)) return
-    console.log('did we make it?')
+    if (!(result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area)) return
 
     // handle errors first and retry if successfully handled
     if (result.error) {
-      console.log('is there an error?')
       const errorResult = await handleError(result)
-      const retryResult = errorResult && await runCommand('snip', errorResult)
-      if (retryResult) return handleSnipResult(retryResult)
+      if (errorResult) {
+        delete result.error
+        const retryResult = await runCommand('snip', { ...result, ...errorResult })
+        if (retryResult) return handleSnipResult(retryResult)
+      }
       return
     }
 
@@ -258,17 +263,34 @@ async function handleFollowup({ action, args }) {
   }
 
   async function handlePasteResult(result) {
-    console.log(result, !(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area), result.space?.key, space.storageKey.key, result.space?.area, space.storageKey.area)
+    // currently, only errors need handling
+    console.log('Handling paste result...', result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area, result.spaceKey, space.storageKey)
     // make sure this window can handle the followup
-    if (!(result.space?.key === space.storageKey.key && result.space?.area === space.storageKey.area)) return
-    console.log('did we make it?')
+    if (!(result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area)) return
 
+    // handle errors and retry if successfully handled
     if (result.error) {
-      console.log('did we make it?')
-      const errorResult = handleError(result)
-      const retryResult = errorResult && await runCommand('paste', errorResult)
-      if (retryResult) return handlePasteResult(retryResult)
-      return
+      const errorResult = await handleError(result)
+      if (errorResult) {
+        delete result.error
+        const retryResult = await runCommand('snip', { ...result, ...errorResult })
+        if (retryResult) return handleSnipResult(retryResult)
+      }
+    }
+  }
+
+  async function handleCopyResult(result) {
+    // currently, only errors need handling
+    console.log('Handling copy result...', result)
+
+    // handle errors and retry if successfully handled
+    if (result.error) {
+      const errorResult = await handleError(result)
+      if (errorResult) {
+        delete result.error
+        const retryResult = await copySniplet({ ...result, ...errorResult })
+        if (retryResult) return handleSnipResult(retryResult)
+      }
     }
   }
 
@@ -276,24 +298,32 @@ async function handleFollowup({ action, args }) {
     alert: showAlert,
     snip: handleSnipResult,
     paste: handlePasteResult,
+    copy: handleCopyResult,
     unsynced: handleUnsync,
   }
 
   const followupHandler = followupHandlers[action]
   if (typeof followupHandler === 'function') {
-    followupHandler(args)
-    return
+    await followupHandler(args)
   }
+  // check if anythings loaded after handling the followup and close otherwise
+  // if (!$('path')) window.close()
 }
 
 async function copySniplet(args) {
-  console.log(args)
+  console.log('Copying sniplet...', args)
   // get requested item
-  if (!args.snip) args.snip = await space.getProcessedSniplet(args.seq)
+  if (!args.snip) args.snip = await space.getProcessedSniplet(+args.seq).catch(e => ({ error: e }))
+
+  // handle errors
+  if (args.snip.error) {
+    const errorResult = handleError(args.snip)
+    if (errorResult.content) args.snip = errorResult
+    else toast(i18n('error_sniplet_not_copied'))
+  }
 
   // rebuild settings menu in case there was an update to counters
   const { snip } = args
-  console.log(args, snip)
   if (await setClipboard(snip)) {
     console.log('copied to clipboard')
     if (snip.counters) {
@@ -306,6 +336,19 @@ async function copySniplet(args) {
     // notify the user it worked
     toast(i18n('toast_copied'))
   }
+}
+
+async function pasteSniplet(args) {
+  console.log('Pasting sniplet...', args)
+
+  // attempt to paste into a selected field
+  const activeTab = await getCurrentTab()
+  return pasteItem({
+    target: { tabId: activeTab.id },
+    pageUrl: activeTab.url,
+    spaceKey: space.storageKey,
+    ...args,
+  })
 }
 
 // Listen for updates on the fly in case of multiple popout windows
@@ -333,6 +376,7 @@ const loadPopup = async () => {
 
   // load up settings with sanitation check for sideloaded versions
   if (!(await settings.load())) {
+    console.log('no settings')
     settings.init()
     settings.save()
   }
@@ -383,13 +427,13 @@ const loadPopup = async () => {
 
   // update path if needed
   if (window.params.path) {
-    space.path = window.params.path.split('-').map(v => +v).filter(v => v)
+    console.log('Updating path...', window.params)
+    space.path = parseStringPath(window.params.path)
     if (settings.view.rememberPath) setCurrentSpace()
   }
 
   // Fetch requests from session storage set using the `setFollowup()` function
   const followup = await KeyStore.followup.get()
-  console.log(followup)
   if (followup) {
     KeyStore.followup.clear()
     handleFollowup(followup)
@@ -472,16 +516,16 @@ function setHeaderPath() {
     classList: [`folder`],
     dataset: {
       seq: space.path.slice(i, i + 1),
-      path: space.path.slice(0, i).join('-'),
+      path: space.path.slice(0, i),
     },
     children: [
-      separator,
+      separator.cloneNode(true),
       // buildNode('h1', {textContent: `/`}),
       buildNode('button', {
         type: `button`,
         dataset: {
           action: `open-folder`,
-          target: space.path.slice(0, i + 1).join('-'),
+          target: space.path.slice(0, i + 1),
         },
         children: [buildNode('h1', {
           textContent: name,
@@ -658,11 +702,10 @@ function buildTree() {
   /**
    * Build folder tree for pop-out window (recursive function)
    * @param {Folder[]} folders
-   * @param {int[]} level
+   * @param {int[]} path
    */
-  function buildFolderList(folders, level) {
+  function buildFolderList(folders, path) {
     const isRoot = folders.at(0) instanceof DataBucket
-    const path = level.join('-')
 
     // list container with initial drop zone for reordering
     const folderList = buildNode('ul', {
@@ -671,7 +714,7 @@ function buildTree() {
         ? {}
         : { children: [
             buildNode('li', {
-              dataset: { path: path, seq: '.5' },
+              dataset: { path: path, seq: '0.5' },
               classList: ['delimiter'],
             }),
           ] },
@@ -693,12 +736,12 @@ function buildTree() {
       folderItem.append(buildTreeWidget(
         !!subFolders,
         Colors.get(folder.color).value,
-        (isRoot) ? '' : level.concat([folder.seq]).join('-'),
+        (isRoot) ? '' : path.concat([folder.seq]),
         (isRoot) ? space.name : folder.name,
       ))
       // add sub-list if subfolders were found
       if (subFolders) folderItem.append(
-        buildFolderList(subFolders, (isRoot) ? [] : level.concat([folder.seq])),
+        buildFolderList(subFolders, (isRoot) ? [] : path.concat([folder.seq])),
       )
       // Add list item to list
       folderList.append(folderItem)
@@ -737,8 +780,8 @@ function buildList() {
           buildNode('li', { // leading dropzone
             classList: ['delimiter'],
             dataset: {
-              seq: '.5',
-              path: path.join('-'),
+              seq: 0.5,
+              path: path,
             },
           }),
         ].concat(groupedItems.folder.flatMap((folder, i, a) => [
@@ -746,7 +789,7 @@ function buildList() {
             classList: ['folder'],
             dataset: {
               seq: folder.seq,
-              path: path.join('-'),
+              path: path,
             },
             children: buildItemWidget(folder, groupedItems.folder, path, settings),
           }),
@@ -754,7 +797,7 @@ function buildList() {
             classList: [(i < a.length - 1) ? 'separator' : 'delimiter'],
             dataset: {
               seq: String(folder.seq + 0.5),
-              path: path.join('-'),
+              path: path,
             },
             children: (i < a.length - 1) && [buildNode('hr')],
           }),
@@ -774,7 +817,7 @@ function buildList() {
           classList: ['delimiter'],
           dataset: {
             seq: 0.5,
-            path: path.join('-'),
+            path: path,
           },
         }),
       ].concat(items.flatMap(item => [
@@ -782,7 +825,7 @@ function buildList() {
           classList: [item.constructor.name.toLowerCase()],
           dataset: {
             seq: item.seq,
-            path: path.join('-'),
+            path: path,
           },
           children: [buildNode('div', {
             classList: ['card', 'drag'],
@@ -794,7 +837,7 @@ function buildList() {
           classList: ['delimiter'],
           dataset: {
             seq: item.seq + 0.5,
-            path: path.join('-'),
+            path: path,
           },
         }),
       ])),
@@ -1084,12 +1127,12 @@ function handleDragDrop(event) {
         return dragEnd()
       // data for moving item
       const moveFrom = {
-        path: item.dataset.path?.length ? item.dataset.path.split('-') : [],
-        seq: item.dataset.seq,
+        path: item.dataset.path ? parseStringPath(item.dataset.path) : [],
+        seq: +item.dataset.seq,
       }
       const moveTo = {
-        path: target.dataset.path?.length ? target.dataset.path.split('-') : [],
-        seq: target.dataset.seq,
+        path: target.dataset.path ? parseStringPath(target.dataset.path) : [],
+        seq: +target.dataset.seq,
       }
       if (target.classList.contains('folder')) {
         // no need to push seq for root
@@ -1102,7 +1145,7 @@ function handleDragDrop(event) {
         // make sure we're not trying to put a folder inside its child
         if (
           moveTo.path.length > moveFrom.path.length
-          && moveTo.path.slice(0, moveFrom.path.length + 1).join('-') === moveFrom.path.concat([moveFrom.seq]).join('-')
+          && moveTo.path.slice(0, moveFrom.path.length + 1).join() === moveFrom.path.concat([moveFrom.seq]).join()
         ) {
           showAlert(i18n('error_folder_to_child'))
           return dragEnd()
@@ -1397,33 +1440,14 @@ async function handleAction(target) {
       break }
 
     // copy processed sniplet
-    case 'copy': {
-      const result = await copySniplet({ ...dataset }).catch(e => ({
-        error: {
-          name: e.name,
-          message: e.message,
-          cause: e.cause,
-        },
-      }))
-      if (result) handleFollowup({ action: 'copy', args: {
-        ...dataset,
-        ...result,
-      } })
-      break }
+    case 'copy':
+      copySniplet({ ...dataset })
+      break
 
     // paste processed sniplet
-    case 'paste': {
-      // get snip
-      const sniplet = await space.getProcessedSniplet(dataset.seq)
-      // attempt to paste into a selected field
-      const activeTab = await getCurrentTab()
-      const result = await pasteItem({
-        target: { tabId: activeTab.id },
-        snip: sniplet,
-        pageUrl: activeTab.url,
-      }).catch(e => ({ error: e }))
-      if (result) handleFollowup('paste', result)
-      break }
+    case 'paste':
+      pasteSniplet({ ...dataset })
+      break
 
     // settings
     case 'set-icon-action':
@@ -1471,7 +1495,7 @@ async function handleAction(target) {
       settings.save()
       // Update color menu
       const colorMenu = target.closest('fieldset')
-      const newColorMenu = buildColorMenu({ seq: dataset.seq, color: dataset.color }, settings.data.moreColors)
+      const newColorMenu = buildColorMenu({ seq: +dataset.seq, color: dataset.color }, settings.data.moreColors)
       colorMenu.replaceWith(newColorMenu)
       // keep the menu open (mimics keyboard navigation)
       newColorMenu.querySelector('.menu-list')?.classList.remove('hidden')
@@ -1659,7 +1683,7 @@ async function handleAction(target) {
 
     case 'delete':
       if (await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
-        const deletedItem = space.deleteItem(dataset.seq)
+        const deletedItem = space.deleteItem(+dataset.seq)
         // console.log(deletedItem, deletedItem instanceof Folder);
         saveSpace()
         buildList()
@@ -1685,7 +1709,7 @@ async function handleAction(target) {
       const value = dataset.value || target.value
       console.log('Editing field...', field, value, dataset, target, typeof target.value)
       const item = space.editItem(
-        dataset.seq,
+        +dataset.seq,
         field,
         value,
       )
@@ -1699,8 +1723,8 @@ async function handleAction(target) {
     // console.log(dataset);
       if (target.value) {
         const movedItem = space.moveItem(
-          { seq: dataset.seq },
-          { seq: target.value },
+          { seq: +dataset.seq },
+          { seq: +target.value },
         )
         saveSpace()
         buildList()
@@ -1715,30 +1739,26 @@ async function handleAction(target) {
       break }
 
     case 'open-folder': {
-    // update url for ease of navigating
+      // update url for ease of navigating
       const url = new URL(location.href)
-      // console.log(`Setting path...`, url, dataset, dataset.target.length);
-      if (dataset.target.length) {
-        url.searchParams.set('path', dataset.target)
-      } else {
-        url.searchParams.delete('path')
-      }
+
       // clear any action info
       url.searchParams.delete('action')
       url.searchParams.delete('field')
       url.searchParams.delete('seq')
       url.searchParams.delete('reason')
-      // push new url location to history
-      history.pushState(null, '', url.href)
-      // console.log(`Updating path...`, space, dataset.target);
-      space.path.length = 0
-      if (dataset.target.length) {
-      // console.log(structuredClone(space.path));
-        space.path.push(...dataset.target.split('-').map(v => +v))
-      // console.log(structuredClone(space.path));
-      }
-      // console.log(`setting space`, space, settings);
+
+      // Update url path
+      if (dataset.target) url.searchParams.set('path', dataset.target)
+      else url.searchParams.delete('path')
+
+      // push updated url to history
+      if (!(url.href === location.href)) history.pushState(null, '', url.href)
+
+      // update the path
+      space.path = parseStringPath(dataset.target)
       if (settings.view.rememberPath) setCurrentSpace()
+
       // console.log(`setting path`);
       setHeaderPath()
       // console.log(`building list`);

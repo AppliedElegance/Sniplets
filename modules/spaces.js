@@ -9,6 +9,11 @@ import { CustomPlaceholderError, ParseError } from '/modules/errors.js'
  */
 const getStorageArea = synced => synced ? 'sync' : 'local'
 
+/** Return an array of numbers from a string path
+ * @param {string} path (path in the form of '#,#,...' as when setting an array directly to an attribute)
+ */
+const parseStringPath = path => (path && (path !== 'root')) ? path.split(',').map(Number) : []
+
 /** Base constructor for folders, sniplets and any future items */
 class TreeItem {
   constructor({ name = i18n('title_new_generic'), seq, color } = {}) {
@@ -165,6 +170,35 @@ class DataBucket {
     }
   }
 
+  /** Retrieve a specific item using a path
+   * @param {number[]} path
+   */
+  getItem(path) {
+    console.log('Getting item...', path)
+    let item = this
+    for (const seq of path) {
+      if (!(item.children)) return // path broken
+      item = item.children.find(v => v.seq === seq)
+    }
+    console.log('Returning item...', item)
+    return item
+  }
+
+  /** Retrieve a specific item using a path
+   * @param {number[]} path
+   */
+  getPathNames(path) {
+    const pathNames = []
+    let item = this
+    for (const seq of path) {
+      if (!(item.children)) return // path broken
+      item = item.children.find(v => v.seq === seq)
+      if (item) pathNames.push(item.name)
+      else return
+    }
+    return pathNames
+  }
+
   /** process data into a clippings compatible object */
   toClippings() {
     /** @param {(TreeItem|Folder|Sniplet)[]} folder */
@@ -221,6 +255,7 @@ class Space {
     this.path = path
   }
 
+  // helper for storage handling
   get storageKey() {
     return new StorageKey(this.name, getStorageArea(this.synced))
   }
@@ -237,16 +272,15 @@ class Space {
    */
   async setAsCurrent(rememberPath) {
     return KeyStore.currentSpace.set({
-      name: this.name,
-      synced: this.synced,
+      ...this.storageKey,
       ...(rememberPath ? { path: this.path } : {}),
     })
   }
 
   /** load last used space or fall back to default */
   async loadCurrent() {
-    const currentSpace = await KeyStore.currentSpace.get()
-    if (!(await this.load(currentSpace))) {
+    const { path, ...key } = await KeyStore.currentSpace.get()
+    if (!(await this.load(key, path))) {
       await settings.load()
       if (!(await this.load(settings.defaultSpace))) {
         // should never happen unless memory is corrupt
@@ -279,21 +313,23 @@ class Space {
   }
 
   /** Load a stored DataBucket into the space
-   * @param {{
-   *   name: string
-   *   synced: boolean
-   *   path: number[]
-   * }} args - Name & storage bucket location (reloads current space if empty)
+   * @param {StorageKey} [key] Name (key) and area (synced?) of the space to load, reloads if omitted
+   * @param {number[]} [path] Optional folder path
    */
-  async load({ name = this.name, synced = this.synced, path = [] } = {}) {
-    // console.log('Loading space...', name, synced, path)
-    if (!name) return false
-    const data = await (new StorageKey(name, synced)).get()
+  async load(key, path = []) {
+    // make sure the storage key is typed
+    const spaceLocker = new StorageKey(
+      key?.key || key?.name || this.name,
+      key?.area || key?.synced || this.synced,
+    )
+    console.log('Loading space...', spaceLocker, key, path)
+    if (!spaceLocker.name) return false
+    const data = await spaceLocker.get()
     // console.log('Confirming data...', data)
     if (!data) return
     await this.init({
-      name: name,
-      synced: synced,
+      name: spaceLocker.name,
+      synced: spaceLocker.synced,
       data: data,
       path: path,
     })
@@ -304,17 +340,12 @@ class Space {
    * @param {number[]} path
    */
   getPathNames(path = this.path) {
-    const pathNames = [this.name]
-    let item = this.data
-    for (const seq of path) {
-      item = item.children.find(i => i.seq == seq)
-      if (!item?.children) {
-        console.error(`The requested path sequence ${path} doesn't exist. Reached: ${pathNames.join('/')}`)
-        return
-      }
-      pathNames.push(item.name)
+    const folderNames = this.data.getPathNames(path)
+    if (!folderNames) {
+      console.error(`The requested path sequence ${path} doesn't exist.`, structuredClone(this))
+      return
     }
-    return pathNames
+    return [this.name].concat(folderNames)
   }
 
   /** Get the item found at a specific path sequence
@@ -322,13 +353,10 @@ class Space {
    * @returns {TreeItem|Folder|Sniplet|void}
    */
   getItem(path = this.path) {
-    let item = this.data
-    for (const seq of path) {
-      item = item.children?.find(o => (o.seq === +seq))
-      if (!item) {
-        console.error(`The requested item path sequence ${path} doesn't exist. The last item reached: ${item}`)
-        return
-      }
+    const item = this.data.getItem(path)
+    if (!item) {
+      console.error(`The requested item path sequence ${path} doesn't exist. The last item reached: ${item}`)
+      return
     }
     return item
   }
@@ -429,25 +457,20 @@ class Space {
   /** Process placeholders and rich text options of a sniplet and return the result
    * @param {number} seq
    * @param {number[]} path
-   * @returns {Promise<{sniplet:Sniplet,customFields?:Map<string,string>,counters?:Map<string,number>}>}
+   * @returns {Promise<{content:string,richText:string,nosubst?:boolean,customFields?:Map<string,string>,counters?:Map<string,number>}>}
    */
   async getProcessedSniplet(seq, path = this.path) {
-    console.log('Getting item...', seq, path)
-    const item = this.getItem(path.concat(seq))
-    console.log({ ...item })
-    if (!item) return
+    const item = this.getItem(path.concat([seq]))
+    if (!(item instanceof Sniplet)) return
     // avoid touching space
     const sniplet = new Sniplet(item)
-    console.log({ ...sniplet })
     // Skip if there's nothing to process
-    if (!sniplet.content) return { sniplet: sniplet }
+    if (!sniplet.content) return structuredClone(sniplet)
 
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
     if (sniplet.name.slice(0, 9).toUpperCase() === '[NOSUBST]') {
       sniplet.nosubst = true
-      return {
-        sniplet: sniplet,
-      }
+      return structuredClone(sniplet)
     }
 
     // process counters and keep track of difference in case update is needed
@@ -658,7 +681,6 @@ class Space {
       ...customFields.size ? { placeholders: Array.from(customFields) } : {},
       ...counters.size ? { counters: Array.from(counters) } : {},
     }
-    console.log(snip, sniplet, typeof sniplet, customFields, counters)
     if (customFields.size) throw new CustomPlaceholderError(snip)
 
     return snip
@@ -736,19 +758,18 @@ class Space {
    * }} details
    */
   async init({ name, synced, data, path } = {}) {
-    // console.log('Initializing space...', name, synced, data, path)
+    console.log('Initializing space...', name, synced, data, path)
     // check defaults if either name or synced are blank
     if (!name || !synced) await settings.load()
 
     // make sure data is parsed correctly
-    if (!(data instanceof DataBucket)) {
-      data = new DataBucket(data)
-      await data.parse()
-    }
+    if (!(data instanceof DataBucket)) data = new DataBucket(data)
+    await data.parse()
 
     // make sure path is correct or reset otherwise
-    if (typeof path === 'string') path = path.split('-').filter(v => !isNaN(v))
+    if (typeof path === 'string') path = parseStringPath(path)
     if (!Array.isArray(path)) path = []
+    if (!(data.getItem(path) instanceof Folder)) path = []
 
     // update properties
     this.name = name || settings.defaultSpace.name
@@ -768,7 +789,7 @@ const tagNewlines = text => text.replaceAll(
   () => '<br>',
 ).replaceAll(
   /\r\n|\r|\n/g,
-  '',
+  '', // clears newline-introduced whitespace (chromium does the same on manual copy from selection)
 )
 
 /** Place anchor tags around emails if not already linked
@@ -785,12 +806,10 @@ const linkEmails = text => text.replaceAll(
 const linkURLs = text => text.replaceAll(
   /<a.+?\/a>|<[^>]*?>|((?:\b(https?|ftp|chrome|edge|about|file):\/+)(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?|www.?\.(?:[a-zA-Z0-9]+\.)+[a-z]+|(?<=\s|^|[>])(?:[a-zA-Z0-9]+\.)+(?:com|org|net|int|edu|gov|biz|io|co(?:\.[a-z]+)?|us|jp|eu|nu))/gi,
   (match, p1, p2) => {
-    console.log(match, p1, p2)
     // skip anchors and tag attributes
     if (!p1) return match
     // ensure what was picked up evaluates to a proper url (just in case)
     const matchURL = new URL(((!p2) ? `http://${match}` : match))
-    // console.log(matchURL);
     return (matchURL) ? `<a href="${matchURL.href}">${match}</a>` : match
   },
 )
@@ -819,5 +838,6 @@ export {
   Folder,
   Sniplet,
   Space,
+  parseStringPath,
   getRichText,
 }

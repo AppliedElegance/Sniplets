@@ -26,7 +26,7 @@ async function setFollowup(action, args = {}) {
       Contexts.POPUP,
     ],
   })
-  console.log(sessions)
+  // console.log(sessions)
 
   // send followup to any found contexts available to the current tab if possible
   const session = sessions.find(o =>
@@ -34,7 +34,7 @@ async function setFollowup(action, args = {}) {
   ) || sessions.find(o =>
     !(new URL(o.documentUrl).searchParams.get('tabId')),
   )
-  console.log(session)
+  // console.log(session)
   if (session) {
     sendMessage('followup', followup, session)
       .catch(e => (console.error(e, followup)))
@@ -138,7 +138,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 chrome.runtime.onStartup.addListener(async () => {
   // rebuild context menus in case of crash or CCleaner deletion
   const space = new Space()
-  console.log(space)
   if (await space.loadCurrent()) buildContextMenus(space)
 })
 
@@ -150,7 +149,7 @@ chrome.action.onClicked.addListener((tab) => {
   src.searchParams.append('view', 'panel')
   src.searchParams.append('tabId', tab.id)
 
-  // use callback only to avoid losing gesture
+  // use single callback only to avoid losing gesture (nested callbacks and async are broken)
   chrome.sidePanel.setOptions({
     tabId: tab.id,
     enabled: true,
@@ -173,50 +172,50 @@ chrome.action.onClicked.addListener((tab) => {
   // }
 })
 
+// handle context menu and keyboard shortcut commands
+async function handleCommand(command, args) {
+  // Get result and convert caught errors to serializable object for passing to window
+  const result = await runCommand(command, args)
+    .catch(e => ({ error: {
+      name: e.name,
+      message: e.message,
+      cause: e.cause,
+    } }))
+
+  // set followup if anything was returned
+  if (result) setFollowup(command, {
+    ...args,
+    ...result,
+  })
+}
+
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  // console.log(info, tab)
   // get details from menu item and ignore "empty" ones (sanity check)
   const { command, ...data } = parseContextMenuData(info.menuItemId)
   if (!commandMap.has(command)) return
 
   // set up command injection
-  const args = {
+  handleCommand(command, {
     target: {
       tabId: tab.id,
       ...info.frameId ? { frameIds: [info.frameId] } : {},
     },
     ...info,
     ...data,
-  }
-
-  // Get result and convert caught errors to serializable object
-  const result = await runCommand(command, args).catch(e => ({ error: {
-    name: e.name,
-    message: e.message,
-    cause: e.cause,
-  } }))
-
-  // set followup if anything was returned
-  if (result) setFollowup(command, { ...args, space: new StorageKey(data.menuSpace.name, data.menuSpace.synced), ...result })
+  })
 })
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
-  console.log(command, tab)
+  // console.log(command, tab)
   if (!commandMap.has(command)) return
 
   // Get result and convert caught errors to serializable object
-  const target = { tabId: tab.id }
-  const result = await runCommand(command, {
-    target: target,
+  handleCommand(command, {
+    target: { tabId: tab.id },
     pageUrl: tab.url,
-  }).catch(e => ({ error: {
-    name: e.name,
-    message: e.message,
-    cause: e.cause,
-  } }))
-
-  // set followup if anything was returned
-  if (result) setFollowup(command, { target: target, ...result })
+  })
 })
 
 // update spaces and menu items as needed
@@ -253,7 +252,6 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
             synced: synced,
             data: change.newValue,
           })
-          console.log(space)
           buildContextMenus(space)
         } catch (e) {
           console.error(e)

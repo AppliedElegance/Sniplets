@@ -645,5 +645,8 @@
   },
   "placeholder_custom_editor": {
     "message": "custom editor"
+  },
+  "error_sniplet_not_copied": {
+    "message": "Error: Sniplet Not Copied"
   }
 }

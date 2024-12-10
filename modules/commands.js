@@ -20,7 +20,7 @@ async function sendMessage(subject, body, to) {
  * @param {Space} space
  */
 async function buildContextMenus(space) {
-  console.log(space)
+  console.log('Building context menus...', structuredClone(space))
   // Since there's no way to poll current menu items, clear all first
   await chrome.contextMenus.removeAll().catch(e => console.error(e))
 
@@ -30,14 +30,11 @@ async function buildContextMenus(space) {
     chrome.runtime.lastError && console.error(chrome.runtime.lastError),
   )
 
-  /** @type {{command:string,path:number[],seq:number,menuSpace:{name:string,synced:boolean}}} */
+  /** @type {{command:string,spaceKey:StorageKey,path:number[],seq:number}} */
   const menuData = {
     command: 'snip',
-    menuSpace: {
-      name: space.name,
-      synced: space.synced,
-      path: [],
-    },
+    spaceKey: space.storageKey,
+    path: [],
   }
 
   // create snipper for selected text
@@ -63,21 +60,27 @@ async function buildContextMenus(space) {
      * @param {*} parentData
      */
     const buildFolder = (folder, parentData) => {
+      console.log('Building menu folder...', structuredClone(folder), structuredClone(parentData))
       const menuItem = {
         contexts: ['editable'],
         parentId: JSON.stringify(parentData),
       }
+
       // clone parent object to avoid polluting it
       const menuData = structuredClone(parentData)
-      if (menuData.seq) menuData.menuSpace.path.push(menuData.seq)
+      if (parentData.seq) menuData.path.push(parentData.seq)
+
       // list sniplets in folder
       if (folder.length) {
         folder.forEach((item) => {
+          console.log(structuredClone(item))
           menuData.seq = item.seq
           menuItem.id = JSON.stringify(menuData)
-          // using emojis for ease of parsing and && escaping, nbsp needed for chrome bug
+          // using emojis for ease of parsing and && escaping, non-breaking spaces (`\xA0`) avoids collapsing
           const color = Colors.get(item.color)
-          menuItem.title = `${(item instanceof Folder) ? color.folder : color.sniplet}\xA0\xA0${item.name.replaceAll('&', '&&')}`
+          menuItem.title = `${
+            (item instanceof Folder) ? color.folder : color.sniplet
+          }\xA0\xA0${item.name.replaceAll('&', '&&')}`
           addMenu(menuItem)
           if (item instanceof Folder) buildFolder(item.children, menuData)
         })
@@ -96,7 +99,7 @@ async function buildContextMenus(space) {
 
 /** Parse the MenuItemID providing data for context menu items
  * @param {string} data The menuItemId from the ContextMenus onClicked event info
- * @returns {{command:string,path:number[],seq:number,menuSpace:{name:string,synced:boolean}}}
+ * @returns {{command:string,spaceKey:{name:string,synced:boolean},path:number[],seq:number}}
  */
 function parseContextMenuData(data) {
   try {
@@ -118,23 +121,23 @@ function parseContextMenuData(data) {
  * @param {{frameUrl:string,pageUrl:string}} info
  */
 async function injectScript(injection, info) {
-  console.log(injection, info)
+  console.log('Injecting script...', injection, info)
   // check for known blocked urls
   const url = info.frameUrl || info.pageUrl
-  console.log(url)
+  // console.log(url)
   if (url) {
     const testUrl = new URL(url)
-    console.log(testUrl)
+    // console.log(testUrl)
     const isBlockedProtocol = [
       'chrome:',
       'edge:',
     ].includes(testUrl.protocol)
-    console.log(testUrl.protocol, isBlockedProtocol)
+    // console.log(testUrl.protocol, isBlockedProtocol)
     const isBlockedOrigin = [
       'https://chromewebstore.google.com',
       'https://microsoftedge.microsoft.com',
     ].includes(testUrl.origin)
-    console.log(testUrl.origin, isBlockedOrigin)
+    // console.log(testUrl.origin, isBlockedOrigin)
     if (isBlockedProtocol || isBlockedOrigin) throw new ScriptingBlockedError(url)
   }
 
@@ -154,14 +157,14 @@ async function injectScript(injection, info) {
           [...new Set([frameOrigin, srcOrigin])].filter(v => v && v !== 'null/*'),
         }
         if (!target.frameIds?.length
-          || !missingPermissions.origins.length
+          || !missingPermissions.origins?.length
           || await chrome.permissions.contains(missingPermissions)
         ) {
           // nothing more we can do
           throw new CrossOriginError(pageSrc, frameSrc, result.error)
         } else {
           // provide permissions error details to caller
-          throw new MissingPermissionsError(missingPermissions, injection, info, result.error)
+          throw new MissingPermissionsError(missingPermissions, result.error)
         }
       }
       return retryResults
@@ -173,12 +176,11 @@ async function injectScript(injection, info) {
 }
 
 /** Snip the selection found at the target
- * @param {{target:chrome.scripting.InjectionTarget, menuSpace:{name:string,synced:boolean,path:number[]}, pageUrl:string, frameUrl:string}} args
- * @returns {Promise<{space:StorageKey,path:number[],seq:number}>}
+ * @param {{target:chrome.scripting.InjectionTarget,spaceKey:StorageKey,path:number[],pageUrl:string,frameUrl:string}} args
  */
 async function snipSelection(args) {
-  const { target, menuSpace, ...info } = args
-  // console.log(target, menuSpace, info)
+  console.log('Snipping selection...', args)
+  const { target, spaceKey, path, ...info } = args
 
   /** Injection script to grab selection text
    * @param {{preserveTags:boolean, saveSource:boolean}} options
@@ -240,56 +242,27 @@ async function snipSelection(args) {
     func: returnSnip,
     args: [settings.snipping],
   }, info)).at(0)?.result
-  console.log(result)
 
-  // worst case, should never happen
-  if (!result) return
-
-  // check for cross-origin errors and retry if possible
-  if (result.error?.name === 'SecurityError') {
-    const { frameUrl } = info
-    const { pageSrc, frameSrc } = result
-    const frameOrigin = frameUrl && `${(new URL(frameUrl)).origin}/*`
-    const srcOrigin = frameSrc && `${(new URL(frameSrc)).origin}/*`
-    const missingPermissions = { origins:
-      [...new Set([frameOrigin, srcOrigin])].filter(v => v && v !== 'null/*'),
-    }
-    if (!target.frameIds?.length
-      || !missingPermissions.origins.length
-      || await chrome.permissions.contains(missingPermissions)
-    ) {
-      // nothing more we can do
-      throw new CrossOriginError('snip', pageSrc, frameSrc, result.error)
-    } else {
-      // provide permissions error details to caller
-      throw new MissingPermissionsError(missingPermissions, 'snip', args, result.error)
-    }
-  }
+  console.log('Handling snip result...', result)
+  if (!result || result.error) return result
 
   // add snip to requested or current space and return result
   const space = new Space()
-  if (!(menuSpace?.name && await space.load(menuSpace)) && !(await space.loadCurrent())) return
+  if (!(spaceKey?.name && await space.load(spaceKey, path)) && !(await space.loadCurrent())) return
   const newSnip = space.addItem(new Sniplet(result))
   space.sort(settings.sort)
   await space.save(settings.data)
   return {
     target: target,
-    space: space.storageKey,
+    spaceKey: space.storageKey,
     path: space.path,
     seq: newSnip.seq,
   }
-  // openWindow({
-  //   action: 'focus',
-  //   path: space.path.join('-'),
-  //   seq: newSnip.seq,
-  //   field: 'name',
-  // });
-  // return
 }
 
 /**
  * Retrieve and paste a sniplet into the selection found at the target
- * @param {{target:chrome.scripting.InjectionTarget, menuSpace:{name:string,synced:boolean,path:number[]}, seq:number, pageUrl:string, frameUrl:string}} args
+ * @param {{target:chrome.scripting.InjectionTarget,spaceKey:StorageKey,path:number[],seq:number,pageUrl:string,frameUrl:string}} args
  * @returns {Promise<void>}
  */
 async function pasteItem(args) {
@@ -485,13 +458,13 @@ async function pasteItem(args) {
 
   // retrieve sniplet from space if necessary
   if (!args.snip) {
-    const { menuSpace, seq } = args
+    const { spaceKey, path, seq } = args
     const space = new Space()
-    if (!(menuSpace?.name ? await space.load(menuSpace) : await space.loadCurrent())) {
-      throw new SnipNotFoundError(menuSpace, seq)
+    if (!(spaceKey?.name ? await space.load(spaceKey, path) : await space.loadCurrent())) {
+      throw new SnipNotFoundError(spaceKey, path, seq)
     }
-    const sniplet = await space.getProcessedSniplet(seq)
-    if (!sniplet?.content) throw new SnipNotFoundError(menuSpace, seq)
+    const sniplet = await space.getProcessedSniplet(+seq)
+    if (!sniplet?.content) throw new SnipNotFoundError(spaceKey, path, seq)
 
     args.snip = sniplet
   }
@@ -502,13 +475,14 @@ async function pasteItem(args) {
     target: target,
     func: insertSnip,
     args: [snip],
-    world: 'MAIN', // required for CKEditor access
+    world: 'MAIN', // required for custom WYSIWYG editor access
   }, args)).at(0)?.result
 
+  console.log('Handling paste result...', result)
   // increment counters only if paste was successful
   if (!result?.error && snip?.counters) {
     const space = new Space()
-    if (await space.load(args.menuSpace)) {
+    if (await space.load(args.spaceKey, args.path)) {
       space.setCounters(snip.counters, true)
       space.save()
     }
@@ -524,7 +498,7 @@ const commandMap = new Map([
 ])
 
 async function runCommand(command, args) {
-  console.log(command, args)
+  console.log('Running command...', command, args)
   const actionFunc = commandMap.get(command)
   if (typeof actionFunc === 'function') {
     return actionFunc(args).catch(e => ({ error: {

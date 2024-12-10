@@ -250,12 +250,12 @@ function showAbout() {
 }
 
 async function toast(message) {
-  console.log(message)
+  // console.log(message)
   const toast = document.getElementById('t-toast').content.cloneNode(true)
-  console.log(toast)
+  // console.log(toast)
   toast.querySelector('#toast').textContent = message
   const toastNode = document.body.appendChild(toast)
-  console.log(toastNode)
+  // console.log(toastNode)
   setTimeout((toastNode) => {
     toastNode.remove()
   }, 5000, [toastNode])

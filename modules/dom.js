@@ -39,7 +39,7 @@ function buildNode(tagName, attributes) {
         break
 
       case 'textContent': { // add text content within tag (should not be used along with children)
-        const lines = attributes.textContent.split(/\n/)
+        const lines = attributes.textContent.split(/\r\n|\r|\n/)
         element.textContent = lines.at(0)
         for (let i = 1; i < lines.length; i++) {
           element.appendChild(document.createElement('br'))
@@ -372,7 +372,7 @@ function buildItemWidget(item, list, path, { view, data }) {
     'autocomplete': 'off',
     'aria-label': (isFolder) ? i18n('label_folder_name') : i18n('label_sniplet_name'),
   })
-  if (isFolder) widgetTitle.dataset.target = path.concat([item.seq]).join('-')
+  if (isFolder) widgetTitle.dataset.target = path.concat([item.seq])
 
   const widgetActions = buildNode('div', {
     classList: ['quick-actions'],

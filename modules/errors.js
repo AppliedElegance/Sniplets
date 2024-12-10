@@ -47,9 +47,10 @@ class CrossOriginError extends Error {
 
 class SnipNotFoundError extends Error {
   name = 'SnipNotFoundError'
-  constructor(space, seq, lastError) {
-    super(`The requested sniplet could not be found\n  Space: ${space.name}\n  Path: ${space.path}\n  Seq: ${seq}`, { cause: {
-      ...space,
+  constructor(spaceKey, path, seq, lastError) {
+    super(`The requested sniplet could not be found\n  Space: ${spaceKey.name}\n  Path: ${path}\n  Seq: ${seq}`, { cause: {
+      spaceKey: spaceKey,
+      path: path,
       seq: seq,
       lastError: lastError,
     } })

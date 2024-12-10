@@ -107,13 +107,12 @@ class KeyStore {
  * @param {{content:string,richText:string}} snip a processed sniplet (use `getProcessedSniplet`)
  */
 async function setClipboard(snip) {
-  console.log({ ...snip })
+  console.log('Setting clipboard...', { ...snip })
   if (!snip?.content) return
   const items = {
     'text/plain': new Blob([snip.content], { type: 'text/plain' }),
     'text/html': new Blob([snip.richText || snip.content], { type: 'text/html' }),
   }
-  console.log({ ...items })
   // console.log(`Copying to clipboard...`);
   return navigator.clipboard.write([new ClipboardItem(items)])
     .then(() => true)
