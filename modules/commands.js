@@ -266,6 +266,7 @@ async function snipSelection(args) {
  * @returns {Promise<void>}
  */
 async function pasteItem(args) {
+  console.log('pasting', args)
   /** Injection script for pasting.
    * @param {{content:string, richText:string}} snip
    */
@@ -484,7 +485,8 @@ async function pasteItem(args) {
     const space = new Space()
     if (await space.load(args.spaceKey, args.path)) {
       space.setCounters(snip.counters, true)
-      space.save()
+      await settings.load()
+      space.save(settings.data)
     }
   }
 

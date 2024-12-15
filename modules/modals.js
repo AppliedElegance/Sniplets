@@ -249,16 +249,17 @@ function showAbout() {
   })
 }
 
-async function toast(message) {
-  // console.log(message)
-  const toast = document.getElementById('t-toast').content.cloneNode(true)
-  // console.log(toast)
-  toast.querySelector('#toast').textContent = message
-  const toastNode = document.body.appendChild(toast)
-  // console.log(toastNode)
-  setTimeout((toastNode) => {
-    toastNode.remove()
-  }, 5000, [toastNode])
+/** Show a toast message
+ * @param {string} message Text to show in the toast
+ * @param {'success'|'warning'|'error'} [type] The css class name to use for the toast
+ */
+async function toast(message, type = 'success') {
+  /** @type {HTMLDivElement} */
+  const toast = document.getElementById('t-toast').content.firstElementChild.cloneNode(true)
+  toast.textContent = message
+  toast.classList.add(type)
+  document.body.append(toast)
+  setTimeout(() => toast.remove(), 5000)
 }
 
 export {

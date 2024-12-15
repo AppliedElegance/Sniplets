@@ -18,15 +18,8 @@ import {
   buildTreeWidget,
   buildColorMenu,
 } from '/modules/dom.js'
-import {
-  showModal,
-  showAlert,
-  confirmAction,
-  confirmSelection,
-  showAbout,
-  toast,
-} from '/modules/modals.js'
-import { pasteItem, runCommand } from '/modules/commands.js'
+import { showModal, showAlert, confirmAction, confirmSelection, showAbout, toast } from '/modules/modals.js'
+import { runCommand } from '/modules/commands.js'
 
 /**
  * Shorthand for document.getElementById(id)
@@ -107,7 +100,7 @@ async function handleError({ error, ...args }) {
 
   async function handleCustomPlaceholderError({ cause }) {
     console.log('Handling Custom Placeholder Error', cause)
-    const { content, placeholders } = cause
+    const { content, placeholders } = cause.snip
 
     const confirmedFields = await showModal({
       title: i18n('title_custom_placeholders'),
@@ -138,21 +131,23 @@ async function handleError({ error, ...args }) {
       fields.set(input.title, field)
       button.value = JSON.stringify(Array.from(fields.entries()))
     })
-    const fieldMap = confirmedFields && new Map(JSON.parse(confirmedFields))
+
+    // update confirmed fields and richText
+    const fieldMap = new Map(confirmedFields ? JSON.parse(confirmedFields) : [])
     if (!fieldMap) return // assume cancelled
-    const confirmedContent = content.replaceAll(
+    const { snip } = cause
+    snip.content = content.replaceAll(
       /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
       (match, placeholder) => {
         const value = fieldMap.get(placeholder)?.value
+        // confirm that selections have been updated with values
         return (typeof value === 'string') ? value : match
       },
     )
-    return {
-      snip: {
-        content: confirmedContent,
-        richText: await getRichText(confirmedContent),
-      },
-    }
+    snip.richText = await getRichText(snip)
+
+    console.log(snip)
+    return { snip: snip }
   }
 
   async function handleCustomEditorError({ cause }) {
@@ -184,12 +179,16 @@ async function handleError({ error, ...args }) {
   const errorHandler = errorHandlers[error.name]
   if (typeof errorHandler === 'function') {
     const errorHandlerResult = await errorHandler(error)
-    if (errorHandlerResult) return {
-      ...args,
-      ...errorHandlerResult,
+    console.log(errorHandlerResult)
+    if (errorHandlerResult) {
+      console.log('returning', errorHandlerResult)
+      return {
+        ...args,
+        ...errorHandlerResult,
+      }
     }
   } else {
-    handleUnknownError(error)
+    await handleUnknownError(error)
   }
 }
 
@@ -273,22 +272,7 @@ async function handleFollowup({ action, args }) {
       const errorResult = await handleError(result)
       if (errorResult) {
         delete result.error
-        const retryResult = await runCommand('snip', { ...result, ...errorResult })
-        if (retryResult) return handleSnipResult(retryResult)
-      }
-    }
-  }
-
-  async function handleCopyResult(result) {
-    // currently, only errors need handling
-    console.log('Handling copy result...', result)
-
-    // handle errors and retry if successfully handled
-    if (result.error) {
-      const errorResult = await handleError(result)
-      if (errorResult) {
-        delete result.error
-        const retryResult = await copySniplet({ ...result, ...errorResult })
+        const retryResult = await runCommand('paste', { ...result, ...errorResult })
         if (retryResult) return handleSnipResult(retryResult)
       }
     }
@@ -298,7 +282,6 @@ async function handleFollowup({ action, args }) {
     alert: showAlert,
     snip: handleSnipResult,
     paste: handlePasteResult,
-    copy: handleCopyResult,
     unsynced: handleUnsync,
   }
 
@@ -311,15 +294,23 @@ async function handleFollowup({ action, args }) {
 }
 
 async function copySniplet(args) {
-  console.log('Copying sniplet...', args)
+  console.log('Copying sniplet...', { ...args })
   // get requested item
   if (!args.snip) args.snip = await space.getProcessedSniplet(+args.seq).catch(e => ({ error: e }))
+  console.log(args.snip)
 
   // handle errors
   if (args.snip.error) {
-    const errorResult = handleError(args.snip)
-    if (errorResult.content) args.snip = errorResult
-    else toast(i18n('error_sniplet_not_copied'))
+    const errorResult = await handleError(args.snip)
+    console.log(errorResult)
+    if (errorResult?.snip?.content) {
+      args.snip = errorResult.snip
+      console.log({ ...args })
+      return copySniplet(args)
+    } else {
+      toast(i18n('error_sniplet_not_copied'), 'error')
+      return
+    }
   }
 
   // rebuild settings menu in case there was an update to counters
@@ -329,6 +320,7 @@ async function copySniplet(args) {
     if (snip.counters) {
       console.log('setting counters')
       space.setCounters(snip.counters, true)
+      space.save(settings.data)
       $('settings').replaceChildren(...buildMenu())
     }
     console.log('toasting')
@@ -338,17 +330,22 @@ async function copySniplet(args) {
   }
 }
 
-async function pasteSniplet(args) {
-  console.log('Pasting sniplet...', args)
-
-  // attempt to paste into a selected field
+async function pasteSniplet(info) {
+  console.log('Pasting sniplet...', info)
   const activeTab = await getCurrentTab()
-  return pasteItem({
+  const args = {
     target: { tabId: activeTab.id },
     pageUrl: activeTab.url,
     spaceKey: space.storageKey,
+    ...info,
+  }
+
+  // attempt to paste into a selected field
+  const result = await runCommand('paste', args).catch(e => ({ error: e }))
+  if (result) handleFollowup({ action: 'paste', args: {
+    ...result,
     ...args,
-  })
+  } })
 }
 
 // Listen for updates on the fly in case of multiple popout windows
@@ -1216,7 +1213,7 @@ async function handleAction(target) {
 
   // handle changes first if needed (buttons do not pull focus)
   const ae = document.activeElement
-  // console.log(ae, target, ae == target, ae === target);
+  console.log(target, target.tagName, ae, ae.tagName)
   if (target.tagName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.tagName)) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae)
@@ -1714,9 +1711,10 @@ async function handleAction(target) {
         value,
       )
       // console.log(item, dataset);
-      saveSpace()
       // update tree if changes were made to a folder
       if (item instanceof Folder) buildTree()
+      // make sure the space is saved before exiting
+      await saveSpace()
       break }
 
     case 'move':

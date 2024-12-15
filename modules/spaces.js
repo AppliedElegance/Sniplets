@@ -170,6 +170,37 @@ class DataBucket {
     }
   }
 
+  /** Find an item based on text
+   * @param {string} q The search string to use
+   * @param {{field?:'name'|'content',matchCase:boolean}} [options] The optional field to constrain by and whether to match case
+   */
+  findItems(q, { field, matchCase = false } = {}) {
+    const queryString = matchCase ? q.toLowerCase() : q
+    const results = []
+
+    /** Recursive search through folders
+     * @param {(Folder|Sniplet)[]} folder
+     * @param {number[]} path
+     */
+    const pushFound = (folder, path) => {
+      for (const item of folder) {
+        if (item instanceof Folder) pushFound(item.children, path.concat(item.seq))
+
+        // add the path in case further processing needed and test query
+        item.path = path
+        if ((!field || field === 'name') && (
+          matchCase ? item.name : item.name.toLowerCase()
+        ).includes(queryString)) results.push(item)
+        else if (item.content && (!field || field === 'content') && (
+          matchCase ? item.content : item.content.toLowerCase()
+        ).includes(queryString)) results.push(item)
+      }
+    }
+
+    pushFound(this.children, [])
+    return results
+  }
+
   /** Retrieve a specific item using a path
    * @param {number[]} path
    */
@@ -295,7 +326,7 @@ class Space {
   /** Save the space's DataBucket into the appropriate storage
    * @param {{compress:boolean}} options External save options
    */
-  async save({ compress = true }) {
+  async save({ compress = true } = {}) {
     // make sure the space has been initialized
     if (!this.name?.length) return
 
@@ -462,38 +493,39 @@ class Space {
   async getProcessedSniplet(seq, path = this.path) {
     const item = this.getItem(path.concat([seq]))
     if (!(item instanceof Sniplet)) return
+
     // avoid touching space
-    const sniplet = new Sniplet(item)
-    // Skip if there's nothing to process
-    if (!sniplet.content) return structuredClone(sniplet)
+    const sniplet = structuredClone(item)
+
+    // Skip if there's nothing to process ('' is falsy)
+    if (!sniplet.content) return sniplet
 
     // skip processing if Clippings [NOSUBST] flag is prepended to the name
     if (sniplet.name.slice(0, 9).toUpperCase() === '[NOSUBST]') {
       sniplet.nosubst = true
-      return structuredClone(sniplet)
+      return sniplet
     }
 
     // process counters and keep track of difference in case update is needed
     const counters = new Map()
     sniplet.content = sniplet.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, counter, increment) => {
       // add the increment to the counters tracker so it can be updated when successfully used
-      counters.set(counters.has(counter) ? counters.get(counter) + increment : increment)
+      console.log(match, counter, increment, (counters.get(counter) || 0) + (increment || 1))
+      counters.set(counter, (counters.get(counter) || 0) + (increment || 1))
       return counter in this.data.counters ? this.data.counters[counter] : this.data.counters.startVal
     })
-    console.log('Processed counters', { ...sniplet })
+    console.log('Processed counters', { ...sniplet }, counters)
 
     // placeholders
     // console.log("Processing placeholders...");
     const customFields = new Map()
     sniplet.content = sniplet.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, placeholder, format, defaultValue) => {
-      if (defaultValue?.includes('|')) defaultValue = defaultValue.split('|')
       const now = new Date()
+      const UA = navigator.userAgent
+      if (defaultValue?.includes('|')) defaultValue = defaultValue.split('|')
 
-      /** Full custom date/time format string replacement (compatible with Clippings)
-       * @param {string} dateString
-       * @param {*} date
-       */
-      const formattedDateTime = (dateString, date) => {
+      /** Full custom date/time format string replacement (compatible with Clippings) */
+      const formatTimestamp = () => {
         // helper for setting up date objects
         const datePartsToObject = (obj, item) =>
           (item.type === 'literal') ? obj : (obj[item.type] = item.value, obj)
@@ -504,32 +536,44 @@ class Space {
           weekday: 'long', day: 'numeric', month: 'long',
           hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3,
           dayPeriod: 'long', timeZoneName: 'long', era: 'long',
-        }).formatToParts(date).reduce(datePartsToObject, {})
+        }).formatToParts(now).reduce(datePartsToObject, {})
         const shortDate = new Intl.DateTimeFormat(locale, {
           hourCycle: 'h12',
           weekday: 'short', day: 'numeric', month: 'short',
           hour: 'numeric', minute: 'numeric', second: 'numeric', fractionalSecondDigits: 1,
           timeZoneName: 'short', era: 'short',
-        }).formatToParts(date).reduce(datePartsToObject, {})
+        }).formatToParts(now).reduce(datePartsToObject, {})
         const paddedDate = new Intl.DateTimeFormat(locale, {
           hourCycle: 'h23',
           year: '2-digit', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 2,
           timeZoneName: 'longOffset',
-        }).formatToParts(date).reduce(datePartsToObject, {})
+        }).formatToParts(now).reduce(datePartsToObject, {})
         // numeric date/times will only not be padded if loaded individually
         const numericDate = new Intl.DateTimeFormat(locale, {
           hourCycle: 'h23', year: 'numeric', hour: 'numeric',
-        }).formatToParts(date).concat(new Intl.DateTimeFormat(locale, {
+        }).formatToParts(now).concat(new Intl.DateTimeFormat(locale, {
           month: 'numeric', minute: 'numeric',
-        }).formatToParts(date).concat(new Intl.DateTimeFormat(locale, {
+        }).formatToParts(now).concat(new Intl.DateTimeFormat(locale, {
           day: 'numeric', second: 'numeric', fractionalSecondDigits: 3,
-        }).formatToParts(date))).reduce(datePartsToObject, {})
+        }).formatToParts(now))).reduce(datePartsToObject, {})
         // fix numeric 24 hours still being padded for some locals no matter how generated
         if (numericDate.hour.length === 2) numericDate.hour = numericDate.hour.replace(/^0/, '')
 
-        // replace each part of format string
+        // Replacer for each part of format string
         const datetimeMap = new Map([
+          ['d', numericDate.day],
+          ['dd', paddedDate.day],
+          ['do', i18nOrd(numericDate.day)],
+          ['ddd', shortDate.weekday],
+          ['dddd', longDate.weekday],
+          ['mmm', shortDate.month],
+          ['mmmm', longDate.month],
+          ['y', numericDate.year.slice(-1)],
+          ['yy', numericDate.year.slice(-2)],
+          ['yyy', numericDate.year.slice(-3)],
+          ['yyyy', numericDate.year],
+          ['gg', shortDate.era],
           ['h', shortDate.hour],
           ['hh', longDate.hour],
           ['H', numericDate.hour],
@@ -543,133 +587,85 @@ class Space {
           ['.sss', `.${longDate.fractionalSecond}`],
           ['a', shortDate.dayPeriod],
           ['A', shortDate.dayPeriod.toUpperCase()],
+          ['z', paddedDate.timeZoneName],
+          ['zz', paddedDate.timeZoneName.replaceAll(/[^+\-\d]/g, '')],
         ])
-        dateString = dateString.replaceAll(/([a-zA-Z]*)(\.s+)?/g, (match, p1, p2) => {
+
+        return format.replaceAll(/([a-zA-Z]*)(\.s+)?/g, (match, p1, p2) => {
           // split seconds
           if (p2) return (datetimeMap.get(p1) || p1) + (datetimeMap.get(p2) || p2)
 
-          // case sensitive matches
-          if (datetimeMap.has(match)) return datetimeMap.get(match)
-          // case insensitive matches required for clippings compatibility
-          switch (match.toUpperCase()) {
-            case 'D':
-              return numericDate.day
-            case 'DD':
-              return paddedDate.day
-            case 'DDD':
-              return shortDate.weekday
-            case 'DDDD':
-              return longDate.weekday
-            case 'DO':
-              return i18nOrd(numericDate.day)
-            case 'MMM':
-              return shortDate.month
-            case 'MMMM':
-              return longDate.month
-            case 'Y':
-              return paddedDate.slice(-1)
-            case 'YY':
-              return paddedDate.year
-            case 'YYY':
-              return numericDate.year.slice(-3)
-            case 'YYYY':
-              return numericDate.year
-            case 'GG':
-              return shortDate.era
-            case 'S':
-              return numericDate.second
-            case 'SS':
-              return paddedDate.second
-            case 'Z':
-              return paddedDate.timeZoneName
-            case 'ZZ':
-              return paddedDate.timeZoneName.replaceAll(/[^+\-\d]/g, '')
-            default:
-              break
-          }
-          return match
+          return datetimeMap.get(match) // case sensitive matches
+            || datetimeMap.get(match.toLowerCase()) // case insensitive matches
+            || match // unknown characters
         })
-        return dateString
       }
-      const UA = navigator.userAgent
-      let host
-      switch (placeholder.toUpperCase()) {
-        case 'DATE':
-          if (format) {
-            // shorthand date options
-            if (format.toUpperCase() === 'FULL') return new Intl.DateTimeFormat(locale, {
-              dateStyle: 'full',
-            }).format(now)
-            if (format.toUpperCase() === 'LONG') return new Intl.DateTimeFormat(locale, {
-              dateStyle: 'long',
-            }).format(now)
-            if (format.toUpperCase() === 'MEDIUM') return new Intl.DateTimeFormat(locale, {
-              dateStyle: 'medium',
-            }).format(now)
-            if (format.toUpperCase() === 'SHORT') return new Intl.DateTimeFormat(locale, {
-              dateStyle: 'short',
-            }).format(now)
 
-            return formattedDateTime(format, now)
-          }
-          return now.toLocaleDateString()
+      const getDate = () => {
+        const dateMap = new Map([
+          ['full', Intl.DateTimeFormat(locale, { dateStyle: 'full' }).format(now)],
+          ['long', Intl.DateTimeFormat(locale, { dateStyle: 'long' }).format(now)],
+          ['medium', Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(now)],
+          ['short', Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(now)],
+        ])
 
-        case 'TIME':
-          if (format) {
-            if (format === 'full') return new Intl.DateTimeFormat(locale, {
-              timeStyle: 'full',
-            }).format(now)
-            if (format === 'long') return new Intl.DateTimeFormat(locale, {
-              timeStyle: 'long',
-            }).format(now)
-            if (format === 'medium') return new Intl.DateTimeFormat(locale, {
-              timeStyle: 'medium',
-            }).format(now)
-            if (format === 'short') return new Intl.DateTimeFormat(locale, {
-              timeStyle: 'short',
-            }).format(now)
-
-            return formattedDateTime(format, now)
-          }
-          return now.toLocaleTimeString()
-
-        case 'HOSTAPP':
-          host = UA.match(/Edg\/([0-9.]+)/)
-          if (host) return `Edge ${host[1]}`
-          host = UA.match(/Chrome\/([0-9.]+)/)
-          if (host) return `Chrome ${host[1]}`
-          return match
-
-        case 'UA':
-          return UA
-
-        case 'NAME':
-          return sniplet.name
-
-        case 'FOLDER':
-          return this.getPathNames(path).pop()
-
-        case 'PATH':
-          return this.getPathNames(path).join(format || `/`)
-
-        default:
-          // custom field, save for future processing
-          if (!customFields.has(placeholder)) {
-            if (Array.isArray(defaultValue)) {
-              customFields.set(placeholder, {
-                type: 'select',
-                value: defaultValue.at(0) || '',
-                options: defaultValue,
-              })
-            } else {
-              customFields.set(placeholder, {
-                type: format || 'text',
-                value: defaultValue || '',
-              })
-            }
-          }
-          return match
+        return format ? dateMap.get(format) || formatTimestamp() : now.toLocaleDateString()
       }
+
+      const getTime = () => {
+        const timeMap = new Map([
+          ['full', Intl.DateTimeFormat(locale, { timeStyle: 'full' }).format(now)],
+          ['long', Intl.DateTimeFormat(locale, { timeStyle: 'long' }).format(now)],
+          ['medium', Intl.DateTimeFormat(locale, { timeStyle: 'medium' }).format(now)],
+          ['short', Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(now)],
+        ])
+
+        return format ? timeMap.get(format) || formatTimestamp() : now.toLocaleTimeString()
+      }
+
+      const insertSniplet = async () => {
+        const sniplet = this.data.findItems(format, { field: 'name', matchCase: 'true' }).at(0)
+        if (sniplet) return this.getProcessedSniplet(sniplet.seq, sniplet.path)
+      }
+
+      const placeholderMap = new Map([
+        ['NAME', () => sniplet.name],
+        ['FOLDER', () => this.getPathNames(path).pop()],
+        ['PATH', () => this.getPathNames(path).join(format || `/`)],
+        ['DATE', getDate],
+        ['TIME', getTime],
+        ['HOSTAPP', () =>
+          UA.match(/Edg\/([0-9.]+)/)?.at(1).replace(/^/, 'Edge ')
+          || UA.match(/Chrome\/([0-9.]+)/)?.at(1).replace(/^/, 'Chrome ')
+          || match,
+        ],
+        ['UA', () => UA],
+        ['CLIPPING', insertSniplet],
+        ['SNIPLET', insertSniplet],
+      ])
+
+      // Handle default placeholders
+      const placeholderFunc = placeholderMap.get(placeholder)
+      if (typeof placeholderFunc === 'function') return placeholderFunc()
+
+      // Add custom placeholders for followup
+      if (placeholder) {
+        if (!customFields.has(placeholder)) {
+          if (Array.isArray(defaultValue)) {
+            customFields.set(placeholder, {
+              type: 'select',
+              value: defaultValue.at(0) || '',
+              options: defaultValue,
+            })
+          } else {
+            customFields.set(placeholder, {
+              type: format || 'text',
+              value: defaultValue || '',
+            })
+          }
+        }
+      }
+      return match
     })
     console.log('Content replaced', { ...sniplet })
 
@@ -681,6 +677,7 @@ class Space {
       ...customFields.size ? { placeholders: Array.from(customFields) } : {},
       ...counters.size ? { counters: Array.from(counters) } : {},
     }
+    console.log('checking placeholders', snip)
     if (customFields.size) throw new CustomPlaceholderError(snip)
 
     return snip
@@ -691,13 +688,17 @@ class Space {
    * @param {boolean} deltas - whether to treat the values as deltas and increment rather than set
    */
   setCounters(counters, deltas = false) {
-    for (const [key, value] in counters) {
+    console.log(counters, deltas)
+    for (const [key, value] of counters) {
+      console.log(key, value)
       if (deltas) {
         // add new counters to DataBucket before incrementing
         if (!(key in this.data.counters)) {
+          console.log('adding to counters')
           this.data.counters[key] = this.data.counters.startVal
         }
         this.data.counters[key] += value
+        console.log(this.data.counters)
       } else this.data.counters[key] = value
     }
   }
