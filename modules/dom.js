@@ -433,7 +433,6 @@ function buildItemWidget(item, list, path, { view, data }) {
         'aria-label': i18n('label_sniplet_content'),
       })],
     })
-    widget.push(widgetBody)
     if (view.sourceURL) {
       const widgetSource = buildNode('div', {
         classList: ['fields', 'source-url'],
@@ -458,8 +457,9 @@ function buildItemWidget(item, list, path, { view, data }) {
           ],
         })],
       })
-      widget.push(widgetSource)
+      widgetBody.append(widgetSource)
     }
+    widget.push(widgetBody)
   }
   return widget
 }

@@ -20,6 +20,7 @@ import {
 } from '/modules/dom.js'
 import { showModal, showAlert, confirmAction, confirmSelection, showAbout, toast } from '/modules/modals.js'
 import { runCommand } from '/modules/commands.js'
+import { CustomPlaceholderError } from '/modules/errors.js'
 
 /**
  * Shorthand for document.getElementById(id)
@@ -100,11 +101,12 @@ async function handleError({ error, ...args }) {
 
   async function handleCustomPlaceholderError({ cause }) {
     console.log('Handling Custom Placeholder Error', cause)
-    const { content, placeholders } = cause.snip
+    const snip = structuredClone(cause.snip)
+    const { customFields } = snip
 
     const confirmedFields = await showModal({
       title: i18n('title_custom_placeholders'),
-      fields: placeholders.map(([placeholder, field], i) => ({
+      fields: customFields.map(([placeholder, field], i) => ({
         type: field.type,
         name: `placeholder-${i}`,
         label: placeholder,
@@ -114,7 +116,7 @@ async function handleError({ error, ...args }) {
       buttons: [
         {
           title: i18n('confirm'),
-          value: JSON.stringify(placeholders),
+          value: JSON.stringify(customFields),
           id: 'confirmFields',
         },
       ],
@@ -135,8 +137,8 @@ async function handleError({ error, ...args }) {
     // update confirmed fields and richText
     const fieldMap = new Map(confirmedFields ? JSON.parse(confirmedFields) : [])
     if (!fieldMap) return // assume cancelled
-    const { snip } = cause
-    snip.content = content.replaceAll(
+
+    snip.content = snip.content.replaceAll(
       /\$\[(.+?)(?:\(.+?\))?(?:\{.+?\})?\]/g,
       (match, placeholder) => {
         const value = fieldMap.get(placeholder)?.value
@@ -144,9 +146,11 @@ async function handleError({ error, ...args }) {
         return (typeof value === 'string') ? value : match
       },
     )
-    snip.richText = await getRichText(snip)
+    snip.richText = getRichText(snip, settings.pasting)
 
-    console.log(snip)
+    // remove custom field info after finished processing
+    delete snip.customFields
+
     return { snip: snip }
   }
 
@@ -296,12 +300,14 @@ async function handleFollowup({ action, args }) {
 async function copySniplet(args) {
   console.log('Copying sniplet...', { ...args })
   // get requested item
-  if (!args.snip) args.snip = await space.getProcessedSniplet(+args.seq).catch(e => ({ error: e }))
+  args.snip ||= space.getProcessedSniplet(+args.seq)
   console.log(args.snip)
+  if (!args.snip) return
+  const { snip } = args
 
-  // handle errors
-  if (args.snip.error) {
-    const errorResult = await handleError(args.snip)
+  // handle placeholders
+  if (snip.customFields) {
+    const errorResult = await handleError({ error: new CustomPlaceholderError(snip) })
     console.log(errorResult)
     if (errorResult?.snip?.content) {
       args.snip = errorResult.snip
@@ -314,7 +320,6 @@ async function copySniplet(args) {
   }
 
   // rebuild settings menu in case there was an update to counters
-  const { snip } = args
   if (await setClipboard(snip)) {
     console.log('copied to clipboard')
     if (snip.counters) {

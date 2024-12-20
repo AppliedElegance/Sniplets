@@ -1,4 +1,4 @@
-import { CrossOriginError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
+import { CrossOriginError, CustomPlaceholderError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
 import { i18n, Colors } from '/modules/refs.js'
 import settings from '/modules/settings.js'
 import { Folder, Sniplet, Space } from '/modules/spaces.js'
@@ -464,8 +464,9 @@ async function pasteItem(args) {
     if (!(spaceKey?.name ? await space.load(spaceKey, path) : await space.loadCurrent())) {
       throw new SnipNotFoundError(spaceKey, path, seq)
     }
-    const sniplet = await space.getProcessedSniplet(+seq)
+    const sniplet = space.getProcessedSniplet(+seq)
     if (!sniplet?.content) throw new SnipNotFoundError(spaceKey, path, seq)
+    if (sniplet.customFields) throw new CustomPlaceholderError(sniplet)
 
     args.snip = sniplet
   }

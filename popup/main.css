@@ -245,6 +245,10 @@ main,
   position: relative;
 }
 
+.snip-content {
+  flex-direction: column;
+}
+
 h1,
 h2,
 textarea,

@@ -61,7 +61,7 @@ class SnipNotFoundError extends Error {
 class CustomPlaceholderError extends Error {
   name = 'CustomPlaceholderError'
   constructor(snip, lastError) {
-    super(`Custom placeholders were found. The fields will need to be confirmed before inserting the sniplet\n  content: ${snip.content}\n  Placeholders: ${snip.placeholders.map(v => v.at(0)).join(', ')}`, { cause: {
+    super(`Custom placeholders were found. The fields will need to be confirmed before inserting the sniplet\n  content: ${snip.content}\n  Placeholders: ${snip.customFields.map(v => v.at(0)).join(', ')}`, { cause: {
       snip: snip,
       lastError: lastError,
     } })

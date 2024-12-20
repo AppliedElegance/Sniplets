@@ -1,7 +1,7 @@
 import { i18n, locale, i18nOrd, Colors } from '/modules/refs.js'
 import { StorageKey, KeyStore } from '/modules/storage.js'
 import settings from '/modules/settings.js'
-import { CustomPlaceholderError, ParseError } from '/modules/errors.js'
+import { ParseError } from '/modules/errors.js'
 
 /** Converts a boolean value (`synced`) to a `chrome.storage` area name
  * @param {boolean} synced `true` for `'sync'` and `false` for `'local'`
@@ -172,32 +172,31 @@ class DataBucket {
 
   /** Find an item based on text
    * @param {string} q The search string to use
-   * @param {{field?:'name'|'content',matchCase:boolean}} [options] The optional field to constrain by and whether to match case
+   * @param {{field?:'name'|'content',matchCase:boolean,exactMatch:boolean}} [options] The optional field to constrain by and whether to match case
    */
-  findItems(q, { field, matchCase = false } = {}) {
-    const queryString = matchCase ? q.toLowerCase() : q
+  findItems(q, { field, matchCase = false, exactMatch = false } = {}) {
     const results = []
+    const queryString = matchCase ? q : q.toLowerCase()
 
     /** Recursive search through folders
      * @param {(Folder|Sniplet)[]} folder
      * @param {number[]} path
+     * @param {'name'|'content'} loc
      */
-    const pushFound = (folder, path) => {
+    const pushFound = (folder, path, loc) => {
       for (const item of folder) {
-        if (item instanceof Folder) pushFound(item.children, path.concat(item.seq))
+        if (item instanceof Folder) pushFound(item.children, path.concat(item.seq), loc)
 
         // add the path in case further processing needed and test query
         item.path = path
-        if ((!field || field === 'name') && (
-          matchCase ? item.name : item.name.toLowerCase()
-        ).includes(queryString)) results.push(item)
-        else if (item.content && (!field || field === 'content') && (
-          matchCase ? item.content : item.content.toLowerCase()
-        ).includes(queryString)) results.push(item)
+        const text = matchCase ? item[loc] : item[loc].toLowerCase()
+        if (exactMatch && text === queryString) results.push(item)
+        else if (text.includes(queryString)) results.push(item)
       }
     }
 
-    pushFound(this.children, [])
+    if (['name', 'content'].includes(field)) pushFound(this.children, [], field)
+    else for (const loc of ['name', 'content']) pushFound(this.children, [], loc)
     return results
   }
 
@@ -485,16 +484,18 @@ class Space {
     return removedItem
   }
 
+  // eslint-disable-next-line jsdoc/require-returns-check
   /** Process placeholders and rich text options of a sniplet and return the result
-   * @param {number} seq
-   * @param {number[]} path
-   * @returns {Promise<{content:string,richText:string,nosubst?:boolean,customFields?:Map<string,string>,counters?:Map<string,number>}>}
+   * @param {number} seq The sniplet seq value
+   * @param {number[]} path The folder path to look in
+   * @param {string[]} embeds Embed chain to avoid endless loops
+   * @returns {{content:string,richText:string,nosubst?:boolean,customFields?:[string,string][],counters?:[string,number][]}}
    */
-  async getProcessedSniplet(seq, path = this.path) {
+  getProcessedSniplet(seq, path = this.path, embeds = []) {
+    console.log(seq, path, embeds)
+    // get a copy of the requested sniplet
     const item = this.getItem(path.concat([seq]))
     if (!(item instanceof Sniplet)) return
-
-    // avoid touching space
     const sniplet = structuredClone(item)
 
     // Skip if there's nothing to process ('' is falsy)
@@ -506,20 +507,73 @@ class Space {
       return sniplet
     }
 
-    // process counters and keep track of difference in case update is needed
+    // Set up maps for post-processes
     const counters = new Map()
-    sniplet.content = sniplet.content.replaceAll(/#\[(.+?)(?:\((.+?)\))?\]/g, (match, counter, increment) => {
-      // add the increment to the counters tracker so it can be updated when successfully used
-      console.log(match, counter, increment, (counters.get(counter) || 0) + (increment || 1))
-      counters.set(counter, (counters.get(counter) || 0) + (increment || 1))
-      return counter in this.data.counters ? this.data.counters[counter] : this.data.counters.startVal
-    })
-    console.log('Processed counters', { ...sniplet }, counters)
-
-    // placeholders
-    // console.log("Processing placeholders...");
     const customFields = new Map()
-    sniplet.content = sniplet.content.replaceAll(/\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g, (match, placeholder, format, defaultValue) => {
+
+    // add current sniplet to embeds list to avoid infinite loops
+    embeds.push(sniplet.name)
+
+    /** Handle embedded sniplets first per Clippings, but allow for preprocessing
+     * @param {string} match Entire string match
+     * @param {string} preName The name of a sniplet to inline prior to processing (Clippings style)
+     * @param {string} postName The name of a sniplet to inline after processing standard placeholders first
+     */
+    const processInlineSniplet = (match, preName, postName) => {
+      if ((!preName && !postName) || (preName && postName && preName !== postName)) return match
+
+      // Get a copy of the sniplet to inline
+      const inlineSniplet = structuredClone(this.data.findItems(preName || postName, {
+        field: 'name', matchCase: true, exactMatch: true,
+      }).at(0))
+      if (!inlineSniplet || embeds.includes(inlineSniplet.name)) return match // avoid endless loops
+
+      // not clippings compatible, but allows processing standard placeholders before embedding
+      if (postName) {
+        console.log(structuredClone(inlineSniplet))
+        const snip = this.getProcessedSniplet(inlineSniplet.seq, inlineSniplet.path, embeds)
+        inlineSniplet.content = snip.content
+        console.log(structuredClone(inlineSniplet))
+
+        // update counters as needed, but ignore custom placeholders as they'll be rechecked
+        if (snip.counters)
+          for (const [key, value] of snip.counters)
+            counters.set(key, (counters.get(key) || 0) + value)
+
+        console.log(structuredClone(counters), structuredClone(customFields))
+      }
+
+      return inlineSniplet.content
+    }
+    const rxInlineSniplets = /\$\[(?:CLIPPING|SNIPLET)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g
+    console.log(structuredClone(sniplet.content))
+    sniplet.content = sniplet.content.replaceAll(rxInlineSniplets, processInlineSniplet)
+    console.log(structuredClone(sniplet.content))
+
+    /** Process counters and keep track of difference in case update is needed
+     * @param {string} match
+     * @param {string} counter
+     * @param {string} increment
+     */
+    const processCounter = (match, counter, increment) => {
+      const value = this.data.counters[counter] || this.data.counters.startVal
+      const i = counters.get(counter) || 0
+
+      // add the increment to the counters tracker so it can be updated when successfully used
+      counters.set(counter, i + (increment ? +increment : 1))
+
+      return value + i
+    }
+    const rxCounters = /#\[(.+?)(?:\((.+?)\))?\]/g
+    sniplet.content = sniplet.content.replaceAll(rxCounters, processCounter)
+
+    /** Process remaining placeholders and save custom ones for later processing
+     * @param {string} match
+     * @param {string} placeholder
+     * @param {string} format
+     * @param {string} defaultValue
+     */
+    const processPlaceholder = (match, placeholder, format, defaultValue) => {
       const now = new Date()
       const UA = navigator.userAgent
       if (defaultValue?.includes('|')) defaultValue = defaultValue.split('|')
@@ -591,14 +645,12 @@ class Space {
           ['zz', paddedDate.timeZoneName.replaceAll(/[^+\-\d]/g, '')],
         ])
 
-        return format.replaceAll(/([a-zA-Z]*)(\.s+)?/g, (match, p1, p2) => {
-          // split seconds
-          if (p2) return (datetimeMap.get(p1) || p1) + (datetimeMap.get(p2) || p2)
-
-          return datetimeMap.get(match) // case sensitive matches
-            || datetimeMap.get(match.toLowerCase()) // case insensitive matches
-            || match // unknown characters
-        })
+        // Replace DO (ordinal date) or letter patterns (allows strings like YYYYMMDDHHmmSS)
+        return format.replaceAll(/[dD][oO]|\.?([a-zA-Z])\1*/g, match =>
+          datetimeMap.get(match) // case sensitive matches
+          || datetimeMap.get(match.toLowerCase()) // case insensitive matches
+          || match, // unknown character strings
+        )
       }
 
       const getDate = () => {
@@ -609,7 +661,7 @@ class Space {
           ['short', Intl.DateTimeFormat(locale, { dateStyle: 'short' }).format(now)],
         ])
 
-        return format ? dateMap.get(format) || formatTimestamp() : now.toLocaleDateString()
+        return format ? dateMap.get(format.toLowerCase()) || formatTimestamp() : now.toLocaleDateString()
       }
 
       const getTime = () => {
@@ -620,33 +672,25 @@ class Space {
           ['short', Intl.DateTimeFormat(locale, { timeStyle: 'short' }).format(now)],
         ])
 
-        return format ? timeMap.get(format) || formatTimestamp() : now.toLocaleTimeString()
-      }
-
-      const insertSniplet = async () => {
-        const sniplet = this.data.findItems(format, { field: 'name', matchCase: 'true' }).at(0)
-        if (sniplet) return this.getProcessedSniplet(sniplet.seq, sniplet.path)
+        return format ? timeMap.get(format.toLowerCase()) || formatTimestamp() : now.toLocaleTimeString()
       }
 
       const placeholderMap = new Map([
         ['NAME', () => sniplet.name],
         ['FOLDER', () => this.getPathNames(path).pop()],
-        ['PATH', () => this.getPathNames(path).join(format || `/`)],
+        ['PATH', () => this.getPathNames(path).join(typeof format === 'string' ? format : '/')],
         ['DATE', getDate],
         ['TIME', getTime],
-        ['HOSTAPP', () =>
-          UA.match(/Edg\/([0-9.]+)/)?.at(1).replace(/^/, 'Edge ')
+        ['HOSTAPP', () => UA.match(/Edg\/([0-9.]+)/)?.at(1).replace(/^/, 'Edge ')
           || UA.match(/Chrome\/([0-9.]+)/)?.at(1).replace(/^/, 'Chrome ')
           || match,
         ],
         ['UA', () => UA],
-        ['CLIPPING', insertSniplet],
-        ['SNIPLET', insertSniplet],
       ])
 
       // Handle default placeholders
-      const placeholderFunc = placeholderMap.get(placeholder)
-      if (typeof placeholderFunc === 'function') return placeholderFunc()
+      const placeholderValue = placeholderMap.get(placeholder)
+      if (typeof placeholderValue === 'function') return placeholderValue()
 
       // Add custom placeholders for followup
       if (placeholder) {
@@ -654,7 +698,7 @@ class Space {
           if (Array.isArray(defaultValue)) {
             customFields.set(placeholder, {
               type: 'select',
-              value: defaultValue.at(0) || '',
+              value: defaultValue.at(0),
               options: defaultValue,
             })
           } else {
@@ -666,19 +710,21 @@ class Space {
         }
       }
       return match
-    })
+    }
+    const rxPlaceholders = /\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g
+    sniplet.content = sniplet.content.replaceAll(rxPlaceholders, processPlaceholder)
     console.log('Content replaced', { ...sniplet })
 
-    sniplet.richText = await getRichText(sniplet)
+    sniplet.richText = getRichText(sniplet)
     console.log('Added richText', { ...sniplet })
 
     const snip = {
       ...sniplet,
-      ...customFields.size ? { placeholders: Array.from(customFields) } : {},
+      ...customFields.size ? { customFields: Array.from(customFields) } : {},
       ...counters.size ? { counters: Array.from(counters) } : {},
     }
-    console.log('checking placeholders', snip)
-    if (customFields.size) throw new CustomPlaceholderError(snip)
+
+    console.log(structuredClone(snip), customFields, counters)
 
     return snip
   }
@@ -816,16 +862,14 @@ const linkURLs = text => text.replaceAll(
 )
 
 /** Process and return snip contents according to rich text settings
- * @param {{content:string,nosubst:boolean}} snip
+ * @param {{content:string,nosubst:boolean}} snip A processed sniplet
+ * @param {{rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} rtOptions Snipping settings (use `settings.snipping`)
  */
-const getRichText = async (snip) => {
+const getRichText = (snip, { rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true } = {}) => {
   // don't process flagged sniplets
   if (snip.nosubst) return snip.content
   // work on string copy
   let text = snip.content
-  // check what processing has been enabled
-  await settings.load()
-  const { rtLineBreaks, rtLinkEmails, rtLinkURLs } = settings.pasting
   // process according to settings
   if (rtLineBreaks) text = tagNewlines(text)
   if (rtLinkEmails) text = linkEmails(text)

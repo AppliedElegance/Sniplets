@@ -4,16 +4,16 @@ import { StorageKey, KeyStore } from '/modules/storage.js'
 export default class Settings {
   static View = class View {
     constructor({
-      adjustTextArea = true,
-      sourceURL = false,
-      rememberPath = false,
       action = 'popup',
+      rememberPath = false,
+      sourceURL = false,
+      adjustTextArea = true,
       collapseEditors = false,
     } = {}) {
-      this.adjustTextArea = adjustTextArea
-      this.sourceURL = sourceURL
-      this.rememberPath = rememberPath
       this.action = action
+      this.rememberPath = rememberPath
+      this.sourceURL = sourceURL
+      this.adjustTextArea = adjustTextArea
       this.collapseEditors = collapseEditors
     }
   }

@@ -147,6 +147,16 @@ class Colors {
   }
 }
 
+// taken from https://stackoverflow.com/a/73891404/3083215
+async function replaceAllAsync(string, pattern, replacement) {
+  const replacements = await Promise.all(Array.from(
+    string.matchAll(pattern),
+    match => replacement(...match),
+  ))
+  let i = 0
+  return string.replace(pattern, () => replacements[i++])
+}
+
 export {
   i18n,
   locale,
@@ -155,4 +165,5 @@ export {
   Contexts,
   Tasks,
   Colors,
+  replaceAllAsync,
 }
