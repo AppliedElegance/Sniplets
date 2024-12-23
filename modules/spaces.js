@@ -172,9 +172,9 @@ class DataBucket {
 
   /** Find an item based on text
    * @param {string} q The search string to use
-   * @param {{field?:'name'|'content',matchCase:boolean,exactMatch:boolean}} [options] The optional field to constrain by and whether to match case
+   * @param {{field?:'name'|'content'|'shortcut',maxItems:number,matchCase:boolean,exactMatch:boolean}} [options] The optional field to constrain by and whether to match case
    */
-  findItems(q, { field, matchCase = false, exactMatch = false } = {}) {
+  findItems(q, { field, maxItems, matchCase = false, exactMatch = false } = {}) {
     const results = []
     const queryString = matchCase ? q : q.toLowerCase()
 
@@ -184,8 +184,10 @@ class DataBucket {
      * @param {'name'|'content'} loc
      */
     const pushFound = (folder, path, loc) => {
+      const subfolders = []
       for (const item of folder) {
-        if (item instanceof Folder) pushFound(item.children, path.concat(item.seq), loc)
+        if (maxItems > 0 && results.length === maxItems) return
+        if (item instanceof Folder) subfolders.push(item)
 
         // add the path in case further processing needed and test query
         item.path = path
@@ -193,6 +195,7 @@ class DataBucket {
         if (exactMatch && text === queryString) results.push(item)
         else if (text.includes(queryString)) results.push(item)
       }
+      for (const subfolder of subfolders) pushFound(subfolder.children, path.concat(subfolder.seq), loc)
     }
 
     if (['name', 'content'].includes(field)) pushFound(this.children, [], field)
@@ -204,13 +207,12 @@ class DataBucket {
    * @param {number[]} path
    */
   getItem(path) {
-    console.log('Getting item...', path)
+    // console.log('Getting item...', path)
     let item = this
     for (const seq of path) {
       if (!(item.children)) return // path broken
       item = item.children.find(v => v.seq === seq)
     }
-    console.log('Returning item...', item)
     return item
   }
 
@@ -352,7 +354,6 @@ class Space {
       key?.key || key?.name || this.name,
       key?.area || key?.synced || this.synced,
     )
-    console.log('Loading space...', spaceLocker, key, path)
     if (!spaceLocker.name) return false
     const data = await spaceLocker.get()
     // console.log('Confirming data...', data)
@@ -410,7 +411,6 @@ class Space {
    */
   editItem(seq, field, value, folderPath = this.path) {
     const item = this.getItem(folderPath.concat([seq]))
-    console.log('Editing item...', seq, field, value, folderPath, structuredClone(item))
 
     // validations for optional fields
     switch (field) {
@@ -492,7 +492,6 @@ class Space {
    * @returns {{content:string,richText:string,nosubst?:boolean,customFields?:[string,string][],counters?:[string,number][]}}
    */
   getProcessedSniplet(seq, path = this.path, embeds = []) {
-    console.log(seq, path, embeds)
     // get a copy of the requested sniplet
     const item = this.getItem(path.concat([seq]))
     if (!(item instanceof Sniplet)) return
@@ -514,42 +513,44 @@ class Space {
     // add current sniplet to embeds list to avoid infinite loops
     embeds.push(sniplet.name)
 
+    const rxInlineSniplets = /\$\[(CLIPPING|SNIPLET)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g
     /** Handle embedded sniplets first per Clippings, but allow for preprocessing
      * @param {string} match Entire string match
+     * @param {'CLIPPING'|'SNIPLET'} placeholder The placeholder keyword
      * @param {string} preName The name of a sniplet to inline prior to processing (Clippings style)
      * @param {string} postName The name of a sniplet to inline after processing standard placeholders first
      */
-    const processInlineSniplet = (match, preName, postName) => {
+    const processInlineSniplet = (match, placeholder, preName, postName) => {
       if ((!preName && !postName) || (preName && postName && preName !== postName)) return match
 
       // Get a copy of the sniplet to inline
       const inlineSniplet = structuredClone(this.data.findItems(preName || postName, {
-        field: 'name', matchCase: true, exactMatch: true,
+        field: 'name', maxItems: 1, matchCase: true, exactMatch: true,
       }).at(0))
       if (!inlineSniplet || embeds.includes(inlineSniplet.name)) return match // avoid endless loops
 
-      // not clippings compatible, but allows processing standard placeholders before embedding
-      if (postName) {
-        console.log(structuredClone(inlineSniplet))
+      if (placeholder === 'SNIPLET' && preName) {
+        embeds.push(inlineSniplet.name)
+        inlineSniplet.content = inlineSniplet.content.replaceAll(rxInlineSniplets, processInlineSniplet)
+        embeds.pop()
+      } else if (placeholder === 'SNIPLET' && postName) {
+        // not clippings compatible, but allows processing standard placeholders before embedding
+        embeds.push(inlineSniplet.name)
         const snip = this.getProcessedSniplet(inlineSniplet.seq, inlineSniplet.path, embeds)
+        embeds.pop()
         inlineSniplet.content = snip.content
-        console.log(structuredClone(inlineSniplet))
 
         // update counters as needed, but ignore custom placeholders as they'll be rechecked
         if (snip.counters)
           for (const [key, value] of snip.counters)
             counters.set(key, (counters.get(key) || 0) + value)
-
-        console.log(structuredClone(counters), structuredClone(customFields))
       }
 
       return inlineSniplet.content
     }
-    const rxInlineSniplets = /\$\[(?:CLIPPING|SNIPLET)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g
-    console.log(structuredClone(sniplet.content))
     sniplet.content = sniplet.content.replaceAll(rxInlineSniplets, processInlineSniplet)
-    console.log(structuredClone(sniplet.content))
 
+    const rxCounters = /#\[(.+?)(?:\((.+?)\))?\]/g
     /** Process counters and keep track of difference in case update is needed
      * @param {string} match
      * @param {string} counter
@@ -564,7 +565,6 @@ class Space {
 
       return value + i
     }
-    const rxCounters = /#\[(.+?)(?:\((.+?)\))?\]/g
     sniplet.content = sniplet.content.replaceAll(rxCounters, processCounter)
 
     /** Process remaining placeholders and save custom ones for later processing
@@ -601,33 +601,41 @@ class Space {
           hourCycle: 'h23',
           year: '2-digit', month: '2-digit', day: '2-digit',
           hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 2,
-          timeZoneName: 'longOffset',
         }).formatToParts(now).reduce(datePartsToObject, {})
-        // numeric date/times will only not be padded if loaded individually
+
+        // numeric date/times must be loaded individually to avoid extra padding
         const numericDate = new Intl.DateTimeFormat(locale, {
-          hourCycle: 'h23', year: 'numeric', hour: 'numeric',
+          year: 'numeric', hour: 'numeric', hourCycle: 'h23',
         }).formatToParts(now).concat(new Intl.DateTimeFormat(locale, {
           month: 'numeric', minute: 'numeric',
         }).formatToParts(now).concat(new Intl.DateTimeFormat(locale, {
-          day: 'numeric', second: 'numeric', fractionalSecondDigits: 3,
+          day: 'numeric', second: 'numeric', fractionalSecondDigits: 3, timeZoneName: 'longOffset',
         }).formatToParts(now))).reduce(datePartsToObject, {})
         // fix numeric 24 hours still being padded for some locals no matter how generated
         if (numericDate.hour.length === 2) numericDate.hour = numericDate.hour.replace(/^0/, '')
+        // remove text from timezone offset
+        numericDate.timeZoneName = numericDate.timeZoneName.replaceAll(/[^+\-\d]/g, '') || '+0000'
+        console.log(numericDate, paddedDate, shortDate, longDate)
 
-        // Replacer for each part of format string
+        // Replacer for each part of format string following Clippings &
+        // https://docs.oracle.com/javase/8/docs/api/java/text/SimpleDateFormat.html
         const datetimeMap = new Map([
           ['d', numericDate.day],
           ['dd', paddedDate.day],
           ['do', i18nOrd(numericDate.day)],
           ['ddd', shortDate.weekday],
           ['dddd', longDate.weekday],
+          ['M', numericDate.month], // m/mm = minutes
+          ['MM', paddedDate.month],
           ['mmm', shortDate.month],
           ['mmmm', longDate.month],
           ['y', numericDate.year.slice(-1)],
           ['yy', numericDate.year.slice(-2)],
           ['yyy', numericDate.year.slice(-3)],
           ['yyyy', numericDate.year],
+          ['g', shortDate.era],
           ['gg', shortDate.era],
+          ['ggg', longDate.era],
           ['h', shortDate.hour],
           ['hh', longDate.hour],
           ['H', numericDate.hour],
@@ -641,16 +649,18 @@ class Space {
           ['.sss', `.${longDate.fractionalSecond}`],
           ['a', shortDate.dayPeriod],
           ['A', shortDate.dayPeriod.toUpperCase()],
-          ['z', paddedDate.timeZoneName],
-          ['zz', paddedDate.timeZoneName.replaceAll(/[^+\-\d]/g, '')],
+          ['z', shortDate.timeZoneName],
+          ['zz', numericDate.timeZoneName], // Clippings style
+          ['zzz', longDate.timeZoneName],
         ])
 
         // Replace DO (ordinal date) or letter patterns (allows strings like YYYYMMDDHHmmSS)
-        return format.replaceAll(/[dD][oO]|\.?([a-zA-Z])\1*/g, match =>
-          datetimeMap.get(match) // case sensitive matches
-          || datetimeMap.get(match.toLowerCase()) // case insensitive matches
-          || match, // unknown character strings
-        )
+        return format.replaceAll(/D[oO]|\.?s+|([a-zA-Z])\1*/g, (match) => {
+          console.log(match, match.toLowerCase(), datetimeMap.get(match), datetimeMap.get(match.toLowerCase()))
+          return datetimeMap.get(match) // case sensitive matches
+            || datetimeMap.get(match.toLowerCase()) // case insensitive matches
+            || match // unknown character strings}
+        })
       }
 
       const getDate = () => {
@@ -675,17 +685,21 @@ class Space {
         return format ? timeMap.get(format.toLowerCase()) || formatTimestamp() : now.toLocaleTimeString()
       }
 
+      // provide functions for consistency and so nothing's generated unless needed
       const placeholderMap = new Map([
         ['NAME', () => sniplet.name],
         ['FOLDER', () => this.getPathNames(path).pop()],
         ['PATH', () => this.getPathNames(path).join(typeof format === 'string' ? format : '/')],
         ['DATE', getDate],
         ['TIME', getTime],
-        ['HOSTAPP', () => UA.match(/Edg\/([0-9.]+)/)?.at(1).replace(/^/, 'Edge ')
+        ['HOSTAPP', () =>
+          UA.match(/Edg\/([0-9.]+)/)?.at(1).replace(/^/, 'Edge ')
           || UA.match(/Chrome\/([0-9.]+)/)?.at(1).replace(/^/, 'Chrome ')
           || match,
         ],
         ['UA', () => UA],
+        ['CLIPPING', () => match],
+        ['SNIPLET', () => match],
       ])
 
       // Handle default placeholders
@@ -734,17 +748,13 @@ class Space {
    * @param {boolean} deltas - whether to treat the values as deltas and increment rather than set
    */
   setCounters(counters, deltas = false) {
-    console.log(counters, deltas)
     for (const [key, value] of counters) {
-      console.log(key, value)
       if (deltas) {
         // add new counters to DataBucket before incrementing
         if (!(key in this.data.counters)) {
-          console.log('adding to counters')
           this.data.counters[key] = this.data.counters.startVal
         }
         this.data.counters[key] += value
-        console.log(this.data.counters)
       } else this.data.counters[key] = value
     }
   }
@@ -805,7 +815,6 @@ class Space {
    * }} details
    */
   async init({ name, synced, data, path } = {}) {
-    console.log('Initializing space...', name, synced, data, path)
     // check defaults if either name or synced are blank
     if (!name || !synced) await settings.load()
 

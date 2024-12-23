@@ -9,8 +9,7 @@ const i18n = (messageName, substitutions) => chrome.i18n.getMessage(messageName,
 const locale = i18n('@@ui_locale').replace('_', '-')
 const i18nNum = (i, options = { useGrouping: false }) =>
   new Intl.NumberFormat(locale, options).format(i)
-const i18nOrd = i =>
-  i18n(`ordinal_${new Intl.PluralRules(locale).select(i)}`, i)
+const i18nOrd = i => i18n(`ordinal_${new Intl.PluralRules(locale, { type: 'ordinal' }).select(i)}`, i)
 
 // see https://developer.chrome.com/docs/extensions/reference/api/runtime#type-ContextType
 class Contexts {

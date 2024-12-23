@@ -1,5 +1,5 @@
 import { i18n, Colors } from '/modules/refs.js'
-import { buildNode, buildActionIcon, buildMenuControl } from '/modules/dom.js'
+import { buildNode, buildActionIcon, buildMenuControl, buildSearchBox } from '/modules/dom.js'
 
 /** Builder for modal dialogue.
  * Buttons with the value `esc` return undefined and `true` & `false` return as boolean rather than string.
@@ -61,6 +61,22 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
             field.label,
             i === 0,
           )],
+        }))
+      } else if (field.type === 'sniplet') {
+        formFields.append(buildNode('div', {
+          classList: ['field'],
+          children: [
+            buildNode('label', {
+              for: field.id,
+              textContent: field.label,
+            }),
+            buildSearchBox({
+              name: field.name,
+              id: field.id,
+              title: field.label,
+              value: field.value,
+            }),
+          ],
         }))
       } else {
         const isSelect = (field.type === 'select')

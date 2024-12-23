@@ -464,7 +464,7 @@ async function pasteItem(args) {
     if (!(spaceKey?.name ? await space.load(spaceKey, path) : await space.loadCurrent())) {
       throw new SnipNotFoundError(spaceKey, path, seq)
     }
-    const sniplet = space.getProcessedSniplet(+seq)
+    const sniplet = space.getProcessedSniplet(seq, path)
     if (!sniplet?.content) throw new SnipNotFoundError(spaceKey, path, seq)
     if (sniplet.customFields) throw new CustomPlaceholderError(sniplet)
 

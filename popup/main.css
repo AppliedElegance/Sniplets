@@ -322,6 +322,10 @@ input:checked + label .icon.checked {
   z-index: 10;
 }
 
+.quick-actions .menu-list {
+  right: 0;
+}
+
 .dropdown hr {
   margin: 1px;
 }

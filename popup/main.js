@@ -940,7 +940,7 @@ function handleMouseUp() {
  * @param {MouseEvent} event
  */
 function handleClick(event) {
-  // console.log(event, event.target)
+  console.log(event, event.target)
   /** @type {HTMLButtonElement|HTMLInputElement} */
   const button = event.target.closest('[type="button"]')
 
@@ -953,8 +953,14 @@ function handleClick(event) {
 
   // close menus & modals as needed
   for (const popover of document.querySelectorAll('.popover')) {
-    if (!(button || input)
-      || !(popover.contains(input) || ['open-popover', 'open-submenu'].includes(button?.dataset.action))) {
+    if (
+      !(button || input)
+      || !(
+        popover.contains(input)
+        || button.dataset.target === popover.id
+        || (popover.contains(button) && button.dataset.action === 'open-submenu')
+      )
+    ) {
       // hide if no button/input, or a different menu was clicked
       popover.classList.add('hidden')
     }
@@ -1218,7 +1224,7 @@ async function handleAction(target) {
 
   // handle changes first if needed (buttons do not pull focus)
   const ae = document.activeElement
-  console.log(target, target.tagName, ae, ae.tagName)
+  // console.log(target, target.tagName, ae, ae.tagName)
   if (target.tagName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.tagName)) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae)
