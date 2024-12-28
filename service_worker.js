@@ -26,7 +26,6 @@ async function setFollowup(action, args = {}) {
       Contexts.POPUP,
     ],
   })
-  // console.log(sessions)
 
   // send followup to any found contexts available to the current tab if possible
   const session = sessions.find(o =>
@@ -34,10 +33,10 @@ async function setFollowup(action, args = {}) {
   ) || sessions.find(o =>
     !(new URL(o.documentUrl).searchParams.get('tabId')),
   )
-  // console.log(session)
+  console.log(session, sessions)
   if (session) {
     sendMessage('followup', followup, session)
-      .catch(e => (console.error(e, followup)))
+      .catch(e => (console.warn(e, followup)))
   } else {
     // save followup as session data and open a new session to action it
     await KeyStore.followup.set(followup)
@@ -87,8 +86,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // force refresh
   self.skipWaiting()
 
-  // check currently stored data
-  // console.log(await chrome.storage.local.get(null), await chrome.storage.sync.get(null));
+  // console.log('Checking currently stored data...',
+  //   await chrome.storage.local.get(null),
+  //   await chrome.storage.sync.get(null),
+  // )
 
   // prepare defaults
   if (!(await settings.load())) {
@@ -124,7 +125,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         const starterData = new DataBucket(starterContent.data)
         space.data = await starterData.parse()
       } catch (e) {
-        console.error(`Starter data could not be loaded at ${starterPath}`, e)
+        console.warn(`Starter data could not be loaded at ${starterPath}`, e)
       }
     }
 
@@ -174,6 +175,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 // handle context menu and keyboard shortcut commands
 async function handleCommand(command, args) {
+  console.log('Handling command...', command, args)
   // Get result and convert caught errors to serializable object for passing to window
   const result = await runCommand(command, args)
     .catch(e => ({ error: {
@@ -181,6 +183,7 @@ async function handleCommand(command, args) {
       message: e.message,
       cause: e.cause,
     } }))
+  console.log(result)
 
   // set followup if anything was returned
   if (result) setFollowup(command, {
@@ -191,7 +194,8 @@ async function handleCommand(command, args) {
 
 // set up context menu listener
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  // console.log(info, tab)
+  // console.log('Context menu clicked...', info, tab)
+
   // get details from menu item and ignore "empty" ones (sanity check)
   const { command, ...data } = parseContextMenuData(info.menuItemId)
   if (!commandMap.has(command)) return
@@ -208,7 +212,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 })
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
-  // console.log(command, tab)
+  // console.log('Keyboard command received...', command, tab)
   if (!commandMap.has(command)) return
 
   // Get result and convert caught errors to serializable object
@@ -220,7 +224,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  // console.log(changes, areaName)
+  // console.log('Storage changed...', changes, areaName)
   const synced = (areaName === 'sync')
 
   for (const [key, change] of Object.entries(changes)) {
@@ -243,7 +247,6 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
       // check if current space was changed
       const currentSpace = await KeyStore.currentSpace.get()
-      // console.log(name, synced, areaName);
       if (!currentSpace || (currentSpace.name === key && currentSpace.synced === synced)) {
         const space = new Space()
         try {

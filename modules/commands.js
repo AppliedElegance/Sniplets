@@ -20,7 +20,6 @@ async function sendMessage(subject, body, to) {
  * @param {Space} space
  */
 async function buildContextMenus(space) {
-  console.log('Building context menus...', structuredClone(space))
   // Since there's no way to poll current menu items, clear all first
   await chrome.contextMenus.removeAll().catch(e => console.error(e))
 
@@ -60,7 +59,6 @@ async function buildContextMenus(space) {
      * @param {*} parentData
      */
     const buildFolder = (folder, parentData) => {
-      console.log('Building menu folder...', structuredClone(folder), structuredClone(parentData))
       const menuItem = {
         contexts: ['editable'],
         parentId: JSON.stringify(parentData),
@@ -73,7 +71,6 @@ async function buildContextMenus(space) {
       // list sniplets in folder
       if (folder.length) {
         folder.forEach((item) => {
-          console.log(structuredClone(item))
           menuData.seq = item.seq
           menuItem.id = JSON.stringify(menuData)
           // using emojis for ease of parsing and && escaping, non-breaking spaces (`\xA0`) avoids collapsing
@@ -124,10 +121,8 @@ async function injectScript(injection, info) {
   console.log('Injecting script...', injection, info)
   // check for known blocked urls
   const url = info.frameUrl || info.pageUrl
-  // console.log(url)
   if (url) {
     const testUrl = new URL(url)
-    // console.log(testUrl)
     const isBlockedProtocol = [
       'chrome:',
       'edge:',
@@ -137,24 +132,30 @@ async function injectScript(injection, info) {
       'https://chromewebstore.google.com',
       'https://microsoftedge.microsoft.com',
     ].includes(testUrl.origin)
-    // console.log(testUrl.origin, isBlockedOrigin)
     if (isBlockedProtocol || isBlockedOrigin) throw new ScriptingBlockedError(url)
   }
 
   const { target } = injection
 
   const results = await chrome.scripting.executeScript(injection).catch(async (e) => {
+    console.log('Blocked', e)
+    // only happens if aggressively blocked by browser, retry if it's just the frame
     if (target.allFrames || target.frameIds?.length) {
       const { frameUrl } = info
       delete info.frameUrl
-      const retryResults = await injectScript({ ...injection, target: { tabId: target.tabId } }, info)
+      const retryResults = await chrome.scripting.executeScript({
+        ...injection,
+        target: { tabId: target.tabId },
+      }).catch(e => ({ error: e }))
+      if (retryResults?.error) throw new ScriptingBlockedError(url || 'chrome://new-tab-page', e)
+
       const result = retryResults?.at(0)?.result
       if (result?.error?.name === 'SecurityError') {
         const { pageSrc, frameSrc } = result
         const frameOrigin = frameUrl && `${(new URL(frameUrl)).origin}/*`
         const srcOrigin = frameSrc && `${(new URL(frameSrc)).origin}/*`
         const missingPermissions = { origins:
-          [...new Set([frameOrigin, srcOrigin])].filter(v => v && v !== 'null/*'),
+          [...new Set([frameOrigin, srcOrigin].filter(v => v && v !== 'null/*'))],
         }
         if (!target.frameIds?.length
           || !missingPermissions.origins?.length
@@ -169,9 +170,198 @@ async function injectScript(injection, info) {
       }
       return retryResults
     } else {
-      throw new ScriptingBlockedError(url, e)
+      throw new ScriptingBlockedError(url || 'chrome://new-tab-page', e)
     }
   })
+  const result = results?.at(0)?.result
+  console.log(results, result)
+
+  if (result?.error?.name === 'SecurityError') {
+    const frameOrigin = result.frameSrc && `${new URL(result.frameSrc).origin}/*`
+
+    // see if we can try again by injecting a relay to find the right frame
+    // (a bit silly, but the only way)
+    if (!(target.allFrames || target.frameIds?.length)) {
+      // get the extension ID to avoid window variable conflicts
+      const xId = i18n('@@extension_id')
+
+      // add ping function and listener to a window
+      const injectRelay = async (xId) => {
+        // skip in case already attached
+        if (typeof window[xId]?.pingFrame === 'function') return
+        window[xId] = {}
+
+        // attach ping function to window so it can be fired on a subsequent call
+        window[xId].pingFrame = async (frame, origins) => {
+          if (!frame || !Array.isArray(origins)) return
+
+          // promise for send/response needed to confirm when done
+          const ping = new Promise((resolve, reject) => {
+            // open channel
+            const channel = new MessageChannel()
+
+            // settle the promise after receiving a response
+            channel.port1.onmessage = ({ data }) => {
+              if (data instanceof Error) reject(data)
+              else resolve(data)
+            }
+
+            // send the ping message and pass the port
+            frame.postMessage({
+              xId: xId,
+              origins: origins,
+            }, '*', [channel.port2])
+          })
+
+          // use a timeout function to avoid hanging
+          const timeout = new Promise((resolve, reject) => {
+            // reduce timeout for each level
+            const ms = 400 / origins.length
+
+            // Set timeout error
+            const frameSrc = document.activeElement.src
+            setTimeout(reject, ms, new Error(`Failed to receive a response from the frame within ${ms}ms`, { cause: {
+              frameSrc: frameSrc,
+              origins: origins.concat(new URL(frameSrc).origin),
+              lastError: 'TimeoutError',
+            } }))
+          })
+
+          // return response or timeout, whichever comes first
+          return Promise.race([ping, timeout]).catch(e => e)
+        }
+
+        // attach event listener to relay the message or set the destination flag
+        window.addEventListener('message', async ({ data, ports }) => {
+          // ignore messages that aren't for us
+          if (!(data.xId === xId) || !ports.length) return
+
+          // update the list of origins
+          const { origins } = data
+          if (Array.isArray(origins)) origins.push(new URL(window.location.href).origin)
+
+          // check if we're in the final frame yet
+          const frame = document.activeElement.contentWindow
+          if (frame) {
+            // relay the ping and send back the result
+            const result = await window[xId].pingFrame(frame, origins).catch(e => e)
+            ports[0].postMessage(result)
+          } else {
+            // set the flag and respond
+            window[xId].flag = true
+            ports[0].postMessage(origins)
+          }
+        }, false)
+      }
+
+      // ping frames to mark the active one
+      const markFrame = async (xId) => {
+        // grab the frame
+        const frame = document.activeElement.contentWindow
+
+        // start an origin chain
+        const origins = [new URL(window.location.href).origin]
+
+        // finish here if there's no active frame
+        if (!frame) {
+          window[xId].flag = true
+          return origins
+        }
+
+        // ping the frame (serialize errors for return)
+        const response = await window[xId].pingFrame(frame, origins).catch(e => e)
+        if (response instanceof Error) {
+          return ({ error: {
+            name: response.name,
+            message: response.message,
+            cause: response.cause,
+            string: response.toString(),
+          } })
+        }
+
+        return response
+      }
+
+      // find the frame that's marked active
+      const findFlag = (xId) => {
+        const { flag } = window[xId]
+        delete window[xId].flag
+        return flag
+      }
+
+      // get the tabId from the provided injection object
+      const { tabId } = injection.target
+
+      // inject the relay
+      const injectRelayResults = await chrome.scripting.executeScript({
+        target: {
+          tabId: tabId,
+          allFrames: true,
+        },
+        world: 'MAIN',
+        func: injectRelay,
+        args: [xId],
+      }).catch(e => e)
+      if (injectRelayResults instanceof Error) return result
+
+      // fire the relay from the top level
+      const markFrameResults = await chrome.scripting.executeScript({
+        target: {
+          tabId: tabId,
+        },
+        world: 'MAIN',
+        func: markFrame,
+        args: [xId],
+      }).catch(e => e)
+      if (markFrameResults instanceof Error) return result
+
+      // check for TimeoutError indicating a blocked frame
+      const markFrameError = markFrameResults.at(0).result?.error
+      if (markFrameError) {
+        const { cause, string } = markFrameError
+        if (cause.lastError === 'TimeoutError') {
+          throw new MissingPermissionsError({ origins:
+            [`${cause.origins.at(-1)}/*`],
+          }, string)
+        } else {
+          return result
+        }
+      }
+
+      // check all frames for the flag to find the right one
+      const findFlagResults = await chrome.scripting.executeScript({
+        target: {
+          tabId: tabId,
+          allFrames: true,
+        },
+        world: 'MAIN',
+        func: findFlag,
+        args: [xId],
+      }).catch(e => e)
+      if (findFlagResults instanceof Error) return result
+
+      // use the frameId to try again
+      const frameID = findFlagResults.find(v => v.result)?.frameId
+      if (frameID) {
+        const retryResults = await chrome.scripting.executeScript({
+          ...injection,
+          target: {
+            tabId: target.tabId,
+            frameIds: [frameID],
+          },
+        }).catch(e => ({ error: e }))
+        if (retryResults?.error) throw new ScriptingBlockedError(url || 'chrome://new-tab-page', retryResults.error)
+
+        return retryResults
+      }
+    }
+
+    const missingPermissions = { origins:
+      [frameOrigin].filter(v => v && v !== 'null/*'),
+    }
+    throw new MissingPermissionsError(missingPermissions, result.error)
+  }
+
   return results
 }
 
@@ -182,20 +372,29 @@ async function snipSelection(args) {
   console.log('Snipping selection...', args)
   const { target, spaceKey, path, ...info } = args
 
+  // Make sure we have a space to return into
+  const space = new Space()
+  if (!(spaceKey?.name && await space.load(spaceKey, path)) && !(await space.loadCurrent())) {
+    throw new SnipNotFoundError(spaceKey, path, 'TBD')
+  }
+
   /** Injection script to grab selection text
    * @param {{preserveTags:boolean, saveSource:boolean}} options
    */
   const returnSnip = ({ preserveTags, saveSource }) => {
-  /** Recursive for traversing embedded content - required for keyboard shortcuts
-   * @param {Window} window
-   */
+    console.log('Snipping selection...', preserveTags, saveSource)
+
+    /** Recursive for traversing embedded content - required for keyboard shortcuts
+     * @param {Window} window
+     */
     const getText = (window) => {
+      const frame = window.document.activeElement.contentWindow
+      console.log(window, frame)
       try {
-      // check if we're inside a frame and recurse
-        const frame = window.document.activeElement.contentWindow
+        // check if we're inside a frame and recurse
         if (frame) return getText(frame)
       } catch (e) {
-      // cross-origin throws a "SecurityError"
+        // cross-origin throws a "SecurityError"
         return {
           error: {
             name: e.name,
@@ -226,6 +425,7 @@ async function snipSelection(args) {
       } else {
         text = selection.toString()
       }
+      console.log(text, window.location.href)
       return {
         content: text,
         ...saveSource ? { sourceURL: window.location.href } : {},
@@ -233,7 +433,9 @@ async function snipSelection(args) {
     }
 
     // grab selection
-    return getText(window)
+    const result = getText(window)
+    console.log(result)
+    return result
   }
 
   await settings.load()
@@ -242,13 +444,12 @@ async function snipSelection(args) {
     func: returnSnip,
     args: [settings.snipping],
   }, info)).at(0)?.result
+  console.log(result)
 
-  console.log('Handling snip result...', result)
+  // console.log('Handling snip result...', result)
   if (!result || result.error) return result
 
-  // add snip to requested or current space and return result
-  const space = new Space()
-  if (!(spaceKey?.name && await space.load(spaceKey, path)) && !(await space.loadCurrent())) return
+  // add snip to space and return result
   const newSnip = space.addItem(new Sniplet(result))
   space.sort(settings.sort)
   await space.save(settings.data)
@@ -266,14 +467,11 @@ async function snipSelection(args) {
  * @returns {Promise<void>}
  */
 async function pasteItem(args) {
-  console.log('pasting', args)
+  // console.log('pasting', args)
   /** Injection script for pasting.
    * @param {{content:string, richText:string}} snip
    */
   const insertSnip = (snip) => {
-    // no followup needed if there was nothing to insert
-    if (!snip?.content) return
-
     /**
      * Recursive insert function for traversing embedded content - required for keyboard shortcuts
      * @param {Window} window
@@ -297,10 +495,16 @@ async function pasteItem(args) {
         }
       }
 
+      // no followup needed if there was nothing to insert (done after to clear EOL markers)
+      if (!snip?.content) return
+
       /** Get input element (may be contenteditable)
        * @type {HTMLInputElement|HTMLTextAreaElement|HTMLElement}
        */
       const input = window.document.activeElement
+
+      // skip inserting if no input selection found
+      // if (!(input?.value || ['true', 'plaintext-only'].includes(input?.contentEditable))) return
 
       // some custom editors require special handling
       if (input.classList.contains('ck')) {
@@ -414,6 +618,7 @@ async function pasteItem(args) {
           return
         }
       })()
+
       if (!pasted) {
         // forward-compatible manual cut paste code that kills the undo stack
         if (input.value === 'undefined') {
@@ -480,7 +685,6 @@ async function pasteItem(args) {
     world: 'MAIN', // required for custom WYSIWYG editor access
   }, args)).at(0)?.result
 
-  console.log('Handling paste result...', result)
   // increment counters only if paste was successful
   if (!result?.error && snip?.counters) {
     const space = new Space()
@@ -501,7 +705,7 @@ const commandMap = new Map([
 ])
 
 async function runCommand(command, args) {
-  console.log('Running command...', command, args)
+  // console.log('Running command...', command, args)
   const actionFunc = commandMap.get(command)
   if (typeof actionFunc === 'function') {
     return actionFunc(args).catch(e => ({ error: {

@@ -504,26 +504,27 @@ function buildTreeWidget(collapsible, color, target, text) {
   })
 }
 
-function buildSearchBox(attributes) {
-  const searchControl = buildNode('div', {
-    classList: ['search-control'],
-  })
+// Build a search box for sniplets
+// function buildSearchBox(attributes) {
+//   const searchControl = buildNode('div', {
+//     classList: ['search-control'],
+//   })
 
-  const searchBox = buildNode('input', {
-    type: 'text',
-    ...attributes,
-  })
-  searchBox.addEventListener('input', (ev) => {
-    console.log(ev)
-  })
+//   const searchBox = buildNode('input', {
+//     type: 'text',
+//     ...attributes,
+//   })
+//   searchBox.addEventListener('input', (ev) => {
+//     console.log(ev)
+//   })
 
-  const resultList = buildNode('div', {
-    classList: ['card', 'search-results', 'hidden'],
-  })
+//   const resultList = buildNode('div', {
+//     classList: ['card', 'search-results', 'hidden'],
+//   })
 
-  searchControl.append(searchBox, resultList)
-  return searchControl
-}
+//   searchControl.append(searchBox, resultList)
+//   return searchControl
+// }
 
 export {
   buildNode,
@@ -539,5 +540,5 @@ export {
   buildColorMenu,
   buildItemWidget,
   buildTreeWidget,
-  buildSearchBox,
+  // buildSearchBox,
 }

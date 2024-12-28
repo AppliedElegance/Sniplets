@@ -107,7 +107,7 @@ class KeyStore {
  * @param {{content:string,richText:string}} snip a processed sniplet (use `getProcessedSniplet`)
  */
 async function setClipboard(snip) {
-  console.log('Setting clipboard...', { ...snip })
+  // console.log('Setting clipboard...', { ...snip })
   if (!snip?.content) return
   const items = {
     'text/plain': new Blob([snip.content], { type: 'text/plain' }),

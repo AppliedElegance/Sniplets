@@ -194,7 +194,7 @@
     "message": "The data could not be restored, please check the file and try again."
   },
   "toast_copied": {
-    "message": "The sniplet has been copied to the clipboard."
+    "message": "Copied to clipboard."
   },
   "warning_clear_src": {
     "message": "Are you sure you would like to remove all source data? This cannot be undone."
@@ -374,7 +374,7 @@
     "message": "Remember my choice"
   },
   "request_origins": {
-    "message": "Additional site permissions are required to use the context menu within the embedded page you’ve selected.\n\nOrigin: $framesrc$\n\nPlease select how you would like to proceed:",
+    "message": "Additional site permissions are required to handle this type of command when the selection is within an embedded page. To avoided repeated requests like this, please allow full site permissions. An attempt has also been made to detect exactly which site is denying access.\n\nDetected origin: $framesrc$\n\nPlease select how you would like to proceed:",
     "placeholders": {
       "framesrc": {
         "content": "$1"
@@ -648,5 +648,11 @@
   },
   "error_sniplet_not_copied": {
     "message": "Error: Sniplet Not Copied"
+  },
+  "error_sniplet_not_pasted": {
+    "message": "Error: Sniplet not inserted"
+  },
+  "request_origins_all": {
+    "message": "This functionality requires Sniplets to have general access to all the pages you visit. Please grant this permission to continue."
   }
 }

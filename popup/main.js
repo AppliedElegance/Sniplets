@@ -20,7 +20,7 @@ import {
 } from '/modules/dom.js'
 import { showModal, showAlert, confirmAction, confirmSelection, showAbout, toast } from '/modules/modals.js'
 import { runCommand } from '/modules/commands.js'
-import { CustomPlaceholderError } from '/modules/errors.js'
+import { CustomPlaceholderError, SnipNotFoundError } from '/modules/errors.js'
 
 /**
  * Shorthand for document.getElementById(id)
@@ -53,7 +53,7 @@ const resizing = new ResizeObserver(debounce(adjustPath, 0))
 
 async function handleError({ error, ...args }) {
   async function handleScriptingBlockedError({ cause }) {
-    console.log('Handling Scripting Blocked Error', cause)
+    // console.log('Handling Scripting Blocked Error', cause)
     const { url } = cause
 
     await showAlert(
@@ -63,7 +63,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleCrossOriginError({ cause }) {
-    console.log('Handling Cross Origin Error', cause)
+    // console.log('Handling Cross Origin Error', cause)
     const { task, pageSrc, frameSrc } = cause
 
     await showAlert(
@@ -73,25 +73,35 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleMissingPermissionsError({ cause }) {
-    console.log('Handling Missing Permissions Error', cause)
+    // console.log('Handling Missing Permissions Error', cause)
     const { origins } = cause
+    const allUrls = ['<all_urls>']
 
-    const allUrls = JSON.stringify(chrome.runtime.getManifest().optional_host_permissions || [])
-    const request = await confirmSelection(i18n('request_origins', origins.at(0)), [
-      { title: i18n('request_all_site_permissions'), value: allUrls },
-      { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
-    ], i18n('action_permit'))
-    if (request) {
-      // empty object is truthy signifying the request can be retried
+    // check if we already have the permissions in question and therefore only all_urls will help
+    const haveOrigins = !origins.length || (origins.length && await chrome.permissions.contains({
+      origins: origins,
+    }))
+
+    // empty objects are truthy signifying the request can be retried
+    if (haveOrigins && await confirmAction(i18n('request_origins_all'), i18n('action_permit'))) {
       if (await chrome.permissions.request({
+        origins: allUrls,
+      }).catch(e => (console.warn(e), false))) return {}
+    } else if (origins.length) {
+      const request = await confirmSelection(i18n('request_origins', origins.join(', ')), [
+        { title: i18n('request_all_site_permissions'), value: JSON.stringify(allUrls) },
+        { title: i18n('request_site_permissions'), value: JSON.stringify(origins) },
+      ], i18n('action_permit'))
+      if (request && await chrome.permissions.request({
         origins: JSON.parse(request),
-      }).catch(e => (console.error(e), false))) return {}
+      }).catch(e => (console.warn(e), false))) return {}
     }
+
     return
   }
 
   async function handleSnipNotFoundError({ cause }) {
-    console.log('Handling Snip Not Found Error', cause)
+    // console.log('Handling Snip Not Found Error', cause)
     const { name, synced, path, seq } = cause
     showAlert(
       i18n('warning_snip_not_found', [name, synced, path, seq]),
@@ -100,7 +110,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleCustomPlaceholderError({ cause }) {
-    console.log('Handling Custom Placeholder Error', cause)
+    // console.log('Handling Custom Placeholder Error', cause)
     const snip = structuredClone(cause.snip)
     const { customFields } = snip
 
@@ -155,7 +165,7 @@ async function handleError({ error, ...args }) {
   }
 
   async function handleCustomEditorError({ cause }) {
-    console.log('Handling Custom Editor Error', cause)
+    // console.log('Handling Custom Editor Error', cause)
     const { editor } = cause
 
     await showAlert(
@@ -183,9 +193,7 @@ async function handleError({ error, ...args }) {
   const errorHandler = errorHandlers[error.name]
   if (typeof errorHandler === 'function') {
     const errorHandlerResult = await errorHandler(error)
-    console.log(errorHandlerResult)
     if (errorHandlerResult) {
-      console.log('returning', errorHandlerResult)
       return {
         ...args,
         ...errorHandlerResult,
@@ -197,7 +205,7 @@ async function handleError({ error, ...args }) {
 }
 
 async function handleFollowup({ action, args }) {
-  console.log('Handling followup...', action, args)
+  // console.log('Handling followup...', action, args)
 
   async function handleUnsync(args) {
     // make sure it hasn't already been restored and we're not removing everything
@@ -212,7 +220,7 @@ async function handleFollowup({ action, args }) {
       i18n('action_use_local'),
     )
     // console.log(args);
-    if (args.synced === true || args.synced === false) {
+    if (typeof args.synced === 'boolean') {
       // if not currently working on the same data, make do with saving the data
       const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
       // console.log(currentSpace);
@@ -240,17 +248,29 @@ async function handleFollowup({ action, args }) {
   }
 
   async function handleSnipResult(result) {
-    console.log('Handling snip result...', result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area, result.spaceKey, space.storageKey)
+    // console.log('Handling snip result...', result, result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area, result.spaceKey, space.storageKey)
+    if (!result.spaceKey) result.spaceKey = space.storageKey
+    if (!result.path) result.path = space.path
+
     // make sure this window can handle the followup
-    if (!(result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area)) return
+    if (!(result.spaceKey?.key === space.storageKey.key
+      && result.spaceKey?.area === space.storageKey.area)) return
 
     // handle errors first and retry if successfully handled
     if (result.error) {
       const errorResult = await handleError(result)
+      console.log(errorResult)
       if (errorResult) {
         delete result.error
-        const retryResult = await runCommand('snip', { ...result, ...errorResult })
-        if (retryResult) return handleSnipResult(retryResult)
+        const retryResult = await runCommand('snip', {
+          ...result,
+          ...errorResult,
+        })
+        console.log(retryResult)
+        if (retryResult) return handleFollowup({ action: 'snip', args: {
+          ...result,
+          ...retryResult,
+        } })
       }
       return
     }
@@ -267,17 +287,26 @@ async function handleFollowup({ action, args }) {
 
   async function handlePasteResult(result) {
     // currently, only errors need handling
-    console.log('Handling paste result...', result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area, result.spaceKey, space.storageKey)
+    if (!result.spaceKey) result.spaceKey = space.storageKey
+    if (!result.path) result.path = space.path
+
     // make sure this window can handle the followup
-    if (!(result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area)) return
+    if (!(result.spaceKey?.key === space.storageKey.key
+      && result.spaceKey?.area === space.storageKey.area)) return
 
     // handle errors and retry if successfully handled
     if (result.error) {
       const errorResult = await handleError(result)
       if (errorResult) {
         delete result.error
-        const retryResult = await runCommand('paste', { ...result, ...errorResult })
-        if (retryResult) return handleSnipResult(retryResult)
+        const retryResult = await runCommand('paste', {
+          ...result,
+          ...errorResult,
+        })
+        if (retryResult) return handleFollowup({ action: 'paste', args: {
+          ...result,
+          ...retryResult,
+        } })
       }
     }
   }
@@ -293,69 +322,78 @@ async function handleFollowup({ action, args }) {
   if (typeof followupHandler === 'function') {
     await followupHandler(args)
   }
+
   // check if anythings loaded after handling the followup and close otherwise
-  // if (!$('path')) window.close()
+  console.log($('path'), !$('path'))
+  if (!$('path')) window.close()
 }
 
-async function copySniplet(args) {
-  console.log('Copying sniplet...', { ...args })
-  // get requested item
-  args.snip ||= space.getProcessedSniplet(+args.seq)
-  console.log(args.snip)
-  if (!args.snip) return
-  const { snip } = args
+async function getProcessedSniplet(seq) {
+  const snip = space.getProcessedSniplet(seq)
+  if (!snip) return
 
   // handle placeholders
   if (snip.customFields) {
     const errorResult = await handleError({ error: new CustomPlaceholderError(snip) })
-    console.log(errorResult)
-    if (errorResult?.snip?.content) {
-      args.snip = errorResult.snip
-      console.log({ ...args })
-      return copySniplet(args)
-    } else {
-      toast(i18n('error_sniplet_not_copied'), 'error')
-      return
-    }
+    if (errorResult?.snip?.content) return errorResult.snip
+    else return
   }
 
-  // rebuild settings menu in case there was an update to counters
-  if (await setClipboard(snip)) {
-    console.log('copied to clipboard')
+  return snip
+}
+
+async function copySniplet(args) {
+  // console.log('Copying sniplet...', { ...args })
+
+  // get requested item
+  const snip = args.snip || await getProcessedSniplet(+args.seq)
+
+  if (snip && await setClipboard(snip)) {
+    // rebuild settings menu in case there was an update to counters
     if (snip.counters) {
-      console.log('setting counters')
       space.setCounters(snip.counters, true)
       space.save(settings.data)
       $('settings').replaceChildren(...buildMenu())
     }
-    console.log('toasting')
 
     // notify the user it worked
     toast(i18n('toast_copied'))
+  } else {
+    toast(i18n('error_sniplet_not_copied'), 'error')
+    return
   }
 }
 
-async function pasteSniplet(info) {
-  console.log('Pasting sniplet...', info)
-  const activeTab = await getCurrentTab()
-  const args = {
-    target: { tabId: activeTab.id },
-    pageUrl: activeTab.url,
-    spaceKey: space.storageKey,
-    ...info,
+async function pasteSniplet(args) {
+  // console.log('Pasting sniplet...', args)
+
+  // get requested item
+  args.snip ||= await getProcessedSniplet(+args.seq)
+  if (!args.snip) {
+    await handleError(new SnipNotFoundError(space.storageKey, space.path, args.seq))
+    return
   }
+
+  // get active tab info
+  const activeTab = await getCurrentTab()
+
+  // set up remaining args
+  args.pageUrl = activeTab.url
+  args.target = { tabId: activeTab.id }
+  args.spaceKey = space.storageKey
 
   // attempt to paste into a selected field
   const result = await runCommand('paste', args).catch(e => ({ error: e }))
   if (result) handleFollowup({ action: 'paste', args: {
-    ...result,
     ...args,
+    ...result,
   } })
 }
 
 // Listen for updates on the fly in case of multiple popout windows
-chrome.runtime.onMessage.addListener(async (message, sender) => {
-  console.log('Receiving message...', message, sender)
+chrome.runtime.onMessage.addListener(async (message) => {
+  // console.log('Receiving message...', message, sender)
+
   /** @type {{ to: chrome.runtime.ExtensionContext, subject: string, body: * }} */
   const { to, subject, body } = message
 
@@ -378,7 +416,7 @@ const loadPopup = async () => {
 
   // load up settings with sanitation check for sideloaded versions
   if (!(await settings.load())) {
-    console.log('no settings')
+    console.warn('No settings found, reinitializing...')
     settings.init()
     settings.save()
   }
@@ -429,7 +467,6 @@ const loadPopup = async () => {
 
   // update path if needed
   if (window.params.path) {
-    console.log('Updating path...', window.params)
     space.path = parseStringPath(window.params.path)
     if (settings.view.rememberPath) setCurrentSpace()
   }
@@ -940,7 +977,8 @@ function handleMouseUp() {
  * @param {MouseEvent} event
  */
 function handleClick(event) {
-  console.log(event, event.target)
+  // console.log('Handling click...', event, event.target)
+
   /** @type {HTMLButtonElement|HTMLInputElement} */
   const button = event.target.closest('[type="button"]')
 
@@ -957,7 +995,7 @@ function handleClick(event) {
       !(button || input)
       || !(
         popover.contains(input)
-        || button.dataset.target === popover.id
+        || button?.dataset.target === popover.id
         || (popover.contains(button) && button.dataset.action === 'open-submenu')
       )
     ) {
@@ -1229,7 +1267,6 @@ async function handleAction(target) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae)
     } else {
-      console.log('Blurring...', ae)
       ae.blur()
     }
   }
@@ -1715,7 +1752,7 @@ async function handleAction(target) {
     case 'edit': {
       const field = dataset.field || target.name
       const value = dataset.value || target.value
-      console.log('Editing field...', field, value, dataset, target, typeof target.value)
+      // console.log('Editing field...', field, value, dataset, target, typeof target.value)
       const item = space.editItem(
         +dataset.seq,
         field,

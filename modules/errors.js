@@ -1,5 +1,5 @@
 class NotImplementedError extends Error {
-  name = 'NotImplementedError'
+  name = this.constructor.name
   constructor(feature, lastError) {
     super(`The ${feature || 'requested'} feature has not yet been implemented.`, { cause: lastError })
     Error.captureStackTrace(this, this.constructor)
@@ -7,7 +7,7 @@ class NotImplementedError extends Error {
 }
 
 class MissingPermissionsError extends Error {
-  name = 'MissingPermissionsError'
+  name = this.constructor.name
   constructor({ permissions, origins }, lastError) {
     super(`The following ${
       permissions ? `permissions are missing:${permissions.map(permission => `\n${permission}`)}` : ''
@@ -23,7 +23,7 @@ class MissingPermissionsError extends Error {
 }
 
 class ScriptingBlockedError extends Error {
-  name = 'ScriptingBlockedError'
+  name = this.constructor.name
   constructor(url, lastError) {
     super(`Scripting on this page is blocked.\nURL: ${url}`, { cause: {
       url: url,
@@ -34,7 +34,7 @@ class ScriptingBlockedError extends Error {
 }
 
 class CrossOriginError extends Error {
-  name = 'CrossOriginError'
+  name = this.constructor.name
   constructor(pageSrc, frameSrc, lastError) {
     super(`Scripting was blocked by a cross-origin policy...\nPage URL: ${pageSrc}\nFrame URL: ${frameSrc}`, { cause: {
       pageSrc: pageSrc,
@@ -46,7 +46,7 @@ class CrossOriginError extends Error {
 }
 
 class SnipNotFoundError extends Error {
-  name = 'SnipNotFoundError'
+  name = this.constructor.name
   constructor(spaceKey, path, seq, lastError) {
     super(`The requested sniplet could not be found\n  Space: ${spaceKey.name}\n  Path: ${path}\n  Seq: ${seq}`, { cause: {
       spaceKey: spaceKey,
@@ -59,7 +59,7 @@ class SnipNotFoundError extends Error {
 }
 
 class CustomPlaceholderError extends Error {
-  name = 'CustomPlaceholderError'
+  name = this.constructor.name
   constructor(snip, lastError) {
     super(`Custom placeholders were found. The fields will need to be confirmed before inserting the sniplet\n  content: ${snip.content}\n  Placeholders: ${snip.customFields.map(v => v.at(0)).join(', ')}`, { cause: {
       snip: snip,
@@ -70,7 +70,7 @@ class CustomPlaceholderError extends Error {
 }
 
 class ParseError extends Error {
-  name = 'ParseError'
+  name = this.constructor.name
   constructor(data, lastError) {
     super(`Unable to parse the data, cancelling initialization...\n${data}`, { cause: {
       data: data,

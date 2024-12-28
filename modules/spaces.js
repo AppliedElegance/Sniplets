@@ -615,7 +615,6 @@ class Space {
         if (numericDate.hour.length === 2) numericDate.hour = numericDate.hour.replace(/^0/, '')
         // remove text from timezone offset
         numericDate.timeZoneName = numericDate.timeZoneName.replaceAll(/[^+\-\d]/g, '') || '+0000'
-        console.log(numericDate, paddedDate, shortDate, longDate)
 
         // Replacer for each part of format string following Clippings &
         // https://docs.oracle.com/javase/8/docs/api/java/text/SimpleDateFormat.html
@@ -655,12 +654,11 @@ class Space {
         ])
 
         // Replace DO (ordinal date) or letter patterns (allows strings like YYYYMMDDHHmmSS)
-        return format.replaceAll(/D[oO]|\.?s+|([a-zA-Z])\1*/g, (match) => {
-          console.log(match, match.toLowerCase(), datetimeMap.get(match), datetimeMap.get(match.toLowerCase()))
-          return datetimeMap.get(match) // case sensitive matches
-            || datetimeMap.get(match.toLowerCase()) // case insensitive matches
-            || match // unknown character strings}
-        })
+        return format.replaceAll(/D[oO]|\.?s+|([a-zA-Z])\1*/g, match =>
+          datetimeMap.get(match) // case sensitive matches
+          || datetimeMap.get(match.toLowerCase()) // case insensitive matches
+          || match, // unknown character strings}
+        )
       }
 
       const getDate = () => {
@@ -727,19 +725,17 @@ class Space {
     }
     const rxPlaceholders = /\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g
     sniplet.content = sniplet.content.replaceAll(rxPlaceholders, processPlaceholder)
-    console.log('Content replaced', { ...sniplet })
+    // console.log('Content replaced', { ...sniplet })
 
     sniplet.richText = getRichText(sniplet)
-    console.log('Added richText', { ...sniplet })
+    // console.log('Added richText', { ...sniplet })
 
+    // combine sniplet and serialize maps as arrays for followup
     const snip = {
       ...sniplet,
       ...customFields.size ? { customFields: Array.from(customFields) } : {},
       ...counters.size ? { counters: Array.from(counters) } : {},
     }
-
-    console.log(structuredClone(snip), customFields, counters)
-
     return snip
   }
 

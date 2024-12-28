@@ -1,5 +1,5 @@
 import { i18n, Colors } from '/modules/refs.js'
-import { buildNode, buildActionIcon, buildMenuControl, buildSearchBox } from '/modules/dom.js'
+import { buildNode, buildActionIcon, buildMenuControl } from '/modules/dom.js'
 
 /** Builder for modal dialogue.
  * Buttons with the value `esc` return undefined and `true` & `false` return as boolean rather than string.
@@ -12,7 +12,7 @@ import { buildNode, buildActionIcon, buildMenuControl, buildSearchBox } from '/m
  * }} options Model elements to include
  * @param {Function=} onChange Event handler for form updates
  */
-function showModal({ title, message, content, fields, buttons }, onChange) {
+async function showModal({ title, message, content, fields, buttons }, onChange) {
   // console.log("Setting up container...");
   const form = buildNode('form', {
     method: 'dialog',
@@ -62,22 +62,22 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
             i === 0,
           )],
         }))
-      } else if (field.type === 'sniplet') {
-        formFields.append(buildNode('div', {
-          classList: ['field'],
-          children: [
-            buildNode('label', {
-              for: field.id,
-              textContent: field.label,
-            }),
-            buildSearchBox({
-              name: field.name,
-              id: field.id,
-              title: field.label,
-              value: field.value,
-            }),
-          ],
-        }))
+      // } else if (field.type === 'sniplet') {
+      //   formFields.append(buildNode('div', {
+      //     classList: ['field'],
+      //     children: [
+      //       buildNode('label', {
+      //         for: field.id,
+      //         textContent: field.label,
+      //       }),
+      //       buildSearchBox({
+      //         name: field.name,
+      //         id: field.id,
+      //         title: field.label,
+      //         value: field.value,
+      //       }),
+      //     ],
+      //   }))
       } else {
         const isSelect = (field.type === 'select')
         formFields.append(buildNode('div', {
@@ -142,24 +142,21 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
   if (onChange) modal.addEventListener('change', onChange)
 
   return new Promise((resolve) => {
+    // wait for the modal to be actioned before settling
     modal.addEventListener('close', () => {
-      switch (modal.returnValue) {
-        case 'esc':
-          resolve()
-          break
-
-        case 'true':
-          resolve(true)
-          break
-
-        case 'false':
-          resolve(false)
-          break
-
-        default:
-          resolve(modal.returnValue)
-          break
+      // get the returned value
+      const value = modal.returnValue
+      const truthMap = {
+        true: true,
+        false: false,
       }
+
+      // Return as appropriate
+      if (value === 'esc') resolve()
+      else if (value in truthMap) resolve(truthMap[value])
+      else resolve(value)
+
+      // clean up modal from dom
       modal.remove()
     })
 
@@ -172,7 +169,7 @@ function showModal({ title, message, content, fields, buttons }, onChange) {
  * @param {string=} title Title to show at top of modal
  * @returns {Promise<void>} Always returns `void`
  */
-function showAlert(message, title) {
+async function showAlert(message, title) {
   return showModal({
     ...title ? { title: title } : {},
     message: message,
@@ -185,7 +182,8 @@ function showAlert(message, title) {
  * @param {string} [okLabel] - confirmation button text
  * @param {string} [cancelLabel] - cancel button text
  */
-function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
+async function confirmAction(message, okLabel = i18n('ok'), cancelLabel = i18n('cancel')) {
+  // console.log('Confirming action...', message, okLabel)
   return showModal({
     message: message,
     buttons: [
