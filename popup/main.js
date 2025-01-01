@@ -933,12 +933,8 @@ function loadSniplets() {
 function adjustTextArea(target, maxLines = settings.view.maxEditorLines) {
   if (target.tagName !== 'TEXTAREA') return
 
-  // don't shrink if focused (user may have resized manually for more room)
-  const focused = document.activeElement === target
-  if (focused && target.clientHeight >= target.scrollHeight) return
-
-  // get lineHeight for computation
-  const lineHeight = target.computedStyleMap().get('line-height')?.value
+  // focus set on focusin and removed on focusout before running this function
+  const { focused } = target.dataset
 
   // get number of lines from wrapped text using FormData
   const formData = new FormData(target.closest('form'))
@@ -947,6 +943,13 @@ function adjustTextArea(target, maxLines = settings.view.maxEditorLines) {
   // set line count to actual or appropriate max
   const lineLimit = !focused && settings.view.adjustTextArea ? maxLines || lineCount : lineCount
   const targetLines = lineCount < maxLines ? lineCount : lineLimit
+
+  // get lineHeight & padding for computation
+  const lineHeight = target.computedStyleMap().get('line-height')?.value
+  const padding = target.computedStyleMap().get('padding')?.value
+
+  // don't shrink if focused (user may have resized manually for more room)
+  if (focused && target.clientHeight >= (targetLines * lineHeight) + (2 * padding)) return
 
   // set hight based on lines
   target.style.height = `${targetLines * lineHeight}px`
@@ -1043,6 +1046,7 @@ function handleFocusIn(event) {
   const { target } = event
 
   const expandTextArea = () => {
+    target.dataset.focused = 'true'
     adjustTextArea(target, 0)
   }
 
@@ -1105,7 +1109,7 @@ function handleChange(event) {
 }
 
 function handleFocusOut(event) {
-  /** @type {{target:Element}} */
+  /** @type {{target:HTMLElement}} */
   const { target } = event
 
   // return folder open button after rename
@@ -1116,7 +1120,8 @@ function handleFocusOut(event) {
 
   // adjust sniplet textAreas
   const shrinkTextArea = () => {
-    if (settings.view.adjustTextArea) adjustTextArea(target)
+    delete target.dataset.focused
+    adjustTextArea(target)
   }
 
   const labelMap = new Map([
@@ -1311,7 +1316,7 @@ async function handleAction(target) {
   const dataset = target.dataset || target
   dataset.action ||= target.name
 
-  // handle changes first if needed (buttons do not pull focus)
+  // handle change events first if needed (buttons do not pull focus)
   const ae = document.activeElement
   // console.log(target, target.tagName, ae, ae.tagName)
   if (target.tagName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.tagName)) {
