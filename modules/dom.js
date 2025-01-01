@@ -328,7 +328,7 @@ function buildColorMenu(item, moreColors) {
 function buildItemWidget(item, list, path, { view, data }) {
   const index = list.indexOf(item)
   if (index < 0) return
-  const widget = []
+  const widget = buildNode('form')
   const isFolder = item instanceof Folder
   const isSniplet = item instanceof Sniplet
 
@@ -411,28 +411,37 @@ function buildItemWidget(item, list, path, { view, data }) {
     ],
   })
 
-  widget.push(widgetHead)
+  widget.append(widgetHead)
 
   // Separate widget contents from title
-  if (!isFolder) widget.push(buildNode('hr', { class: item.color }))
+  if (!isFolder) widget.append(buildNode('hr', { class: item.color }))
 
+  // build editor
   if (isSniplet) {
+    // build the body
     const widgetBody = buildNode('div', {
       classList: ['snip-content'],
-      children: [buildNode('textarea', {
-        'name': 'content',
-        'dataset': {
-          action: 'edit',
-          seq: item.seq,
-          field: 'content',
-        },
-        'value': item.content,
-        'rows': 1,
-        'draggable': 'true', // fires drag event so it can be prevented
-        'autocomplete': 'off',
-        'aria-label': i18n('label_sniplet_content'),
-      })],
     })
+
+    // build the editor
+    const widgetContent = buildNode('textarea', {
+      'name': 'content',
+      'classList': ['content-editor'],
+      'dataset': {
+        action: 'edit',
+        seq: item.seq,
+        field: 'content',
+      },
+      'value': item.content,
+      'rows': 1,
+      'wrap': 'hard', // allows to retrieve current number of lines
+      'draggable': 'true', // fires drag event so it can be prevented
+      'autocomplete': 'off',
+      'aria-label': i18n('label_sniplet_content'),
+    })
+    widgetBody.append(widgetContent)
+
+    // append the sniplet's sourceURL field if requested
     if (view.sourceURL) {
       const widgetSource = buildNode('div', {
         classList: ['fields', 'source-url'],
@@ -459,7 +468,26 @@ function buildItemWidget(item, list, path, { view, data }) {
       })
       widgetBody.append(widgetSource)
     }
-    widget.push(widgetBody)
+
+    // append the body
+    widget.append(widgetBody)
+
+    // hide the body and add a collapse button if requested
+    if (view.collapseEditors) {
+      widgetBody.classList.add('collapsed')
+      const collapseButton = buildNode('button', {
+        type: 'button',
+        classList: ['content-collapser'],
+        children: [buildNode('span', {
+          classList: [item.color],
+          textContent: '╲╱',
+        })],
+        dataset: {
+          action: 'toggle-content',
+        },
+      })
+      widget.append(collapseButton)
+    }
   }
   return widget
 }

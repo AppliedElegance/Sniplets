@@ -36,12 +36,37 @@ const $ = id => document.getElementById(id)
  */
 const q$ = query => document.querySelector(query)
 
+/**
+ * Shorthand for document.querySelectorAll(query)
+ * @param {string} query
+ * @returns {HTMLElement}
+ */
+const qa$ = query => document.querySelectorAll(query)
+
 // globals for settings and keeping track of the current folder
 const space = new Space()
 const saveSpace = async () => space.save(settings.data)
 const setCurrentSpace = async () => space.setAsCurrent(settings.view.rememberPath)
 
-// observer for resizing the header path, debounce may cause flashing but prevents loop errors
+// resize helper for editors
+const adjustEditors = () => {
+  for (const ta of qa$('.snip-content textarea')) adjustTextArea(ta)
+}
+
+/**
+ * @param {ResizeObserverEntry[]} entries
+ */
+const adjustOnResize = ([{ target, contentBoxSize: [{ inlineSize }] }]) => {
+  const { lastInlineSize } = target.dataset
+  if (inlineSize !== +lastInlineSize) {
+    adjustPath()
+    adjustEditors()
+  }
+  target.dataset.lastInlineSize = inlineSize
+}
+
+// observer for resizing the header path and textAreas
+// debounce may cause flashing but prevents loop errors
 const debounce = function setDelay(f, delay) {
   let timer = 0
   return function (...args) {
@@ -49,7 +74,7 @@ const debounce = function setDelay(f, delay) {
     timer = setTimeout(() => f.apply(this, args), delay)
   }
 }
-const resizing = new ResizeObserver(debounce(adjustPath, 0))
+const onResize = new ResizeObserver(debounce(adjustOnResize, 0))
 
 async function handleError({ error, ...args }) {
   async function handleScriptingBlockedError({ cause }) {
@@ -430,23 +455,20 @@ const loadPopup = async () => {
     document.body.style.height = '540px'
   }
 
-  // set up listeners (some followups load modals which require these)
+  // set up listeners
   document.body.addEventListener('mousedown', handleMouseDown, false)
   document.body.addEventListener('dragstart', handleDragDrop, false)
   document.body.addEventListener('click', handleClick, false)
   document.body.addEventListener('mouseup', handleMouseUp, false)
   document.body.addEventListener('keydown', handleKeydown, false)
   document.body.addEventListener('keyup', handleKeyup, false)
+  document.body.addEventListener('focusin', handleFocusIn, false)
+  document.body.addEventListener('input', handleInput, false)
   document.body.addEventListener('change', handleChange, false)
   document.body.addEventListener('focusout', handleFocusOut, false)
 
-  // textarea adjustments
-  document.body.addEventListener('focusin', adjustTextArea, false)
-  document.body.addEventListener('input', adjustTextArea, false)
-  document.body.addEventListener('focusout', adjustTextArea, false)
-
-  // keep an eye on the path and hide path names as necessary
-  resizing.observe($('header'))
+  // set up ResizeObserver to handle path and editor reflows
+  onResize.observe($('sniplets'))
 
   // load up the current space
   if (!(await space.loadCurrent())) {
@@ -587,7 +609,8 @@ function buildMenu() {
         settings.view.action === 'panel', { id: 'set-action-panel' }),
       buildMenuControl('radio', 'set-icon-action', 'panel-toggle', i18n('menu_set_view_action_panel_toggle'),
         settings.view.action === 'panel-toggle', { id: 'set-action-panel-toggle' }),
-      // It's not currently possible to look up settings inside the action listener, so only panel possible
+      // It's not currently possible to look up settings inside the action listener,
+      // so windows must be opened using pop-out button
       // buildMenuControl('radio', 'set-icon-action', 'window', i18n('menu_set_view_action_window'),
       //   settings.view.action === 'window', { id: "set-action-window" }),
     ]),
@@ -596,13 +619,13 @@ function buildMenu() {
         i18n('menu_remember_path'), settings.view.rememberPath),
       buildMenuControl('checkbox', `toggle-folders-first`, settings.sort.foldersOnTop,
         i18n('menu_folders_first'), settings.sort.foldersOnTop),
-      buildMenuControl('checkbox', `toggle-show-source`, settings.view.sourceURL,
-        i18n('menu_show_src'), settings.view.sourceURL),
       buildMenuSeparator(),
-      buildMenuControl('checkbox', `toggle-collapse-editors`, settings.view.collapseEditors,
-        i18n('menu_collapse_editors'), settings.view.collapseEditors),
       buildMenuControl('checkbox', `toggle-adjust-editors`, settings.view.adjustTextArea,
         i18n('menu_adjust_textarea'), settings.view.adjustTextArea),
+      buildMenuControl('checkbox', `toggle-collapse-editors`, settings.view.collapseEditors,
+        i18n('menu_collapse_editors'), settings.view.collapseEditors),
+      buildMenuControl('checkbox', `toggle-show-source`, settings.view.sourceURL,
+        i18n('menu_show_src'), settings.view.sourceURL),
     ]),
     buildSubMenu(i18n('menu_snip'), `settings-snip`, [
       buildMenuControl('checkbox', `toggle-save-source`, settings.snipping.saveSource,
@@ -830,7 +853,7 @@ function buildList() {
               seq: folder.seq,
               path: path,
             },
-            children: buildItemWidget(folder, groupedItems.folder, path, settings),
+            children: [buildItemWidget(folder, groupedItems.folder, path, settings)],
           }),
           buildNode('li', { // trailing dropzone
             classList: [(i < a.length - 1) ? 'separator' : 'delimiter'],
@@ -869,7 +892,7 @@ function buildList() {
           children: [buildNode('div', {
             classList: ['card', 'drag'],
             draggable: 'true',
-            children: buildItemWidget(item, items, path, settings),
+            children: [buildItemWidget(item, items, path, settings)],
           })],
         }),
         buildNode('li', {
@@ -884,7 +907,7 @@ function buildList() {
 
     // set textarea height as appropriate
     for (const textarea of container.getElementsByTagName('textarea')) {
-      adjustTextArea(textarea, 0)
+      adjustTextArea(textarea)
     }
   }
 
@@ -899,54 +922,34 @@ function loadSniplets() {
 }
 
 /** auto-adjust the heights of input text areas
- * @param {Event|FocusEvent|HTMLTextAreaElement} target
- * @param {number} [maxHeight] - pass 0 for default
+ * @implNote Setting height to auto and measuring scrollHeight causes issues when collapsing
+ * the TextArea causes the list scroll bar to be hidden, and thus the width to expand allowing
+ * for more text on one line. Instead, the current number of lines is measured and the height
+ * set directly without the style height auto step. Only if the field shrinks will it be
+ * possible for a line to disappear on losing a scroll bar. This is both rare and preferable.
+ * @param {HTMLTextAreaElement} target The TextArea to adjust
+ * @param {number} maxLines The maximum number of lines to show when adjusting (0 = infinite)
  */
-function adjustTextArea(target, maxHeight) {
-  const padding = 2 * 5 // 5px top & bottom padding
-  const minHeight = 1 * 19 // 19px line height
-  const overflowHeight = (6 * 19) + 5 // Add bottom padding for scroll to max 7 lines
-  // console.log(target, maxHeight, overflowHeight);
+function adjustTextArea(target, maxLines = settings.view.maxEditorLines) {
+  if (target.tagName !== 'TEXTAREA') return
 
-  /** @type {HTMLTextAreaElement} set target for events */
-  const textarea = target.target || target
-  if (textarea.tagName !== 'TEXTAREA') return
-  const focusout = target.type === 'focusout'
-  // console.log(maxHeight);
-  if (maxHeight === 0 || (!maxHeight && focusout)) maxHeight = overflowHeight
+  // don't shrink if focused (user may have resized manually for more room)
+  const focused = document.activeElement === target
+  if (focused && target.clientHeight >= target.scrollHeight) return
 
-  // save current scroll position
-  const { scrollTop } = $('sniplets')
+  // get lineHeight for computation
+  const lineHeight = target.computedStyleMap().get('line-height')?.value
 
-  // disable animation while inputting
-  if (target.type === 'input') textarea.style.transition = 'none'
+  // get number of lines from wrapped text using FormData
+  const formData = new FormData(target.closest('form'))
+  const lineCount = formData.get('content').split('\n').length
 
-  // calculate current content height
-  let scrollHeight = textarea.scrollHeight - padding
-  // console.log(scrollHeight, textarea.scrollHeight, textarea.offsetHeight, textarea.style.height.replaceAll(/\D/g, ''));
-  if (focusout || textarea.style.height.replaceAll(/\D/g, '') === scrollHeight) {
-    // check and update actual scroll height to allow shrinking
-    textarea.style.height = 'auto'
-    scrollHeight = textarea.scrollHeight - padding
-  }
-  if (scrollHeight < minHeight) scrollHeight = minHeight
-  // console.log(textarea.style.height, scrollHeight);
+  // set line count to actual or appropriate max
+  const lineLimit = !focused && settings.view.adjustTextArea ? maxLines || lineCount : lineCount
+  const targetLines = lineCount < maxLines ? lineCount : lineLimit
 
-  // set max height to actual in case no limit set
-  if (!settings.view.adjustTextArea || !maxHeight) maxHeight = scrollHeight
-
-  // console.log(maxHeight, textarea.clientHeight);
-  // update if needed
-  if (maxHeight !== textarea.clientHeight) {
-    const targetHeight = scrollHeight > maxHeight ? maxHeight : scrollHeight
-    textarea.style.height = `${targetHeight}px`
-    if (focusout) {
-      textarea.style.removeProperty('transition') // reenable animations
-
-      // preserve scroll position
-      $('sniplets').scrollTop = scrollTop + targetHeight - scrollHeight
-    }
-  }
+  // set hight based on lines
+  target.style.height = `${targetLines * lineHeight}px`
 }
 
 /**
@@ -1034,6 +1037,38 @@ function handleKeyup(event) {
   }
 }
 
+function handleFocusIn(event) {
+  console.log(event)
+  /** @type {{target:Element}} */
+  const { target } = event
+
+  const expandTextArea = () => {
+    adjustTextArea(target, 0)
+  }
+
+  const labelMap = new Map([
+    [i18n('label_sniplet_content'), expandTextArea],
+  ])
+  const labelFunc = labelMap.get(target.ariaLabel)
+  if (typeof labelFunc === 'function') labelFunc(target)
+}
+
+function handleInput(event) {
+  console.log(event)
+  /** @type {{target:Element}} */
+  const { target } = event
+
+  const expandTextArea = () => {
+    adjustTextArea(target, 0)
+  }
+
+  const labelMap = new Map([
+    [i18n('label_sniplet_content'), expandTextArea],
+  ])
+  const labelFunc = labelMap.get(target.ariaLabel)
+  if (typeof labelFunc === 'function') labelFunc(target)
+}
+
 /**
  * Input change handler
  * @param {Event} event
@@ -1041,6 +1076,7 @@ function handleKeyup(event) {
 function handleChange(event) {
   // console.log(event)
   // helpers
+  /** @type {{target:Element}} */
   const { target } = event
   const { dataset } = target
   dataset.action ||= target.name
@@ -1060,20 +1096,35 @@ function handleChange(event) {
     // update moreColors target color (with safety check)
     target.closest('.menu-list')?.querySelector('[name="toggle-more-colors"]')
       ?.setAttribute('data-color', color)
-    // update color of underline for widgets
+    // update color of underline & expander for widgets
     target.closest('.sniplet')?.querySelector('hr')
+      ?.setAttribute('class', color)
+    target.closest('.sniplet')?.querySelector('.content-collapser span')
       ?.setAttribute('class', color)
   }
 }
 
 function handleFocusOut(event) {
-  /** @type {Element} */
+  /** @type {{target:Element}} */
   const { target } = event
-  if (target.ariaLabel === i18n('label_folder_name')) {
-    // set back as button
-    target.type = `button`
-    target.dataset.action = `open-folder`
+
+  // return folder open button after rename
+  const setFolderButton = () => {
+    target.type = 'button'
+    target.dataset.action = 'open-folder'
   }
+
+  // adjust sniplet textAreas
+  const shrinkTextArea = () => {
+    if (settings.view.adjustTextArea) adjustTextArea(target)
+  }
+
+  const labelMap = new Map([
+    [i18n('label_folder_name'), setFolderButton],
+    [i18n('label_sniplet_content'), shrinkTextArea],
+  ])
+  const labelFunc = labelMap.get(target.ariaLabel)
+  if (typeof labelFunc === 'function') labelFunc(target)
 }
 
 /**
@@ -1253,10 +1304,10 @@ function handleDragDrop(event) {
 }
 
 /** Action handler for various inputs
- * @param {HTMLElement|object} target
+ * @param {HTMLElement} target
  */
 async function handleAction(target) {
-  // console.log('Handling action...', target, target.dataset, target.action)
+  console.log('Handling action...', target, target.dataset, target.action)
   const dataset = target.dataset || target
   dataset.action ||= target.name
 
@@ -1270,6 +1321,37 @@ async function handleAction(target) {
       ae.blur()
     }
   }
+
+  // expand/collapse content editors
+  const toggleContent = () => {
+    // get elements
+    const [contentDiv] = target.closest('form').getElementsByClassName('snip-content')
+    const span = target.firstChild
+
+    if (contentDiv.classList.contains('collapsed')) {
+      console.log(contentDiv.style.height, contentDiv.scrollHeight)
+      // remove class that hides content
+      contentDiv.classList.remove('collapsed')
+      // allow for collapse button
+      contentDiv.style.paddingBottom = '10px'
+      // flip arrow
+      span.textContent = '╱╲'
+    } else {
+      // flip arrow
+      span.textContent = '╲╱'
+      // add class that hides content
+      contentDiv.classList.add('collapsed')
+      // remove extra space for collapse button
+      contentDiv.style.paddingBottom = '0'
+    }
+  }
+
+  const actionMap = new Map([
+    ['toggle-content', toggleContent],
+  ])
+
+  const actionFunc = actionMap.get(dataset.action)
+  if (typeof actionFunc === 'function') actionFunc()
 
   switch (dataset.action) {
     // window open action
@@ -1526,7 +1608,7 @@ async function handleAction(target) {
     case 'toggle-adjust-editors':
       settings.view.adjustTextArea = !settings.view.adjustTextArea
       settings.save()
-      buildList()
+      adjustEditors()
       break
 
     case 'toggle-show-source':
@@ -1672,7 +1754,7 @@ async function handleAction(target) {
       break }
 
     case 'manage-counters': {
-    // eslint-disable-next-line no-unused-vars
+      // eslint-disable-next-line no-unused-vars
       const { startVal, ...counters } = space.data.counters
       const values = await showModal({
         title: i18n('title_counter_manage'),
@@ -1698,6 +1780,7 @@ async function handleAction(target) {
       const changes = JSON.parse(values)
       for (const key in changes) space.data.counters[key] = changes[key]
       saveSpace()
+      toast(i18n('toast_updated_counters'))
       break }
 
     case 'clear-counters': {

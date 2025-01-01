@@ -13,6 +13,7 @@ export default class Settings {
       this.action = action
       this.rememberPath = rememberPath
       this.sourceURL = sourceURL
+      this.maxEditorLines = 7 // currently not configurable
       this.adjustTextArea = adjustTextArea
       this.collapseEditors = collapseEditors
     }
@@ -60,9 +61,6 @@ export default class Settings {
       this.compress = compress
       this.moreColors = moreColors
     }
-  }
-
-  constructor() {
   }
 
   static #defaultSpace = KeyStore.defaultSpace

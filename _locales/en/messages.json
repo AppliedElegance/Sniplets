@@ -486,7 +486,7 @@
     "message": "Keep Incoming Data"
   },
   "menu_adjust_textarea": {
-    "message": "Resize editors automatically"
+    "message": "Auto-resize editors"
   },
   "menu_item": {
     "message": "Item"
@@ -654,5 +654,8 @@
   },
   "request_origins_all": {
     "message": "This functionality requires Sniplets to have general access to all the pages you visit. Please grant this permission to continue."
+  },
+  "toast_updated_counters": {
+    "message": "Counters Updated"
   }
 }
