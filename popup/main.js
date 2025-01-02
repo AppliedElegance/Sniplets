@@ -1319,7 +1319,7 @@ async function handleAction(target) {
   // expand/collapse content editors
   const toggleContent = () => {
     // get elements
-    const [contentDiv] = target.closest('form').getElementsByClassName('snip-content')
+    const contentDiv = target.closest('form').querySelector('.snip-content')
     const span = target.firstChild
 
     if (contentDiv.classList.contains('collapsed')) {
@@ -1329,6 +1329,9 @@ async function handleAction(target) {
       contentDiv.style.paddingBottom = '10px'
       // flip arrow
       span.textContent = '╱╲'
+      // readjust textArea just in case
+      const textArea = target.closest('form').querySelector('textarea')
+      adjustTextArea(textArea)
     } else {
       // flip arrow
       span.textContent = '╲╱'

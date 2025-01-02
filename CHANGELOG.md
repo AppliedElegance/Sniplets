@@ -1,10 +1,26 @@
 # Sniplets Changelog
 
-> NOTE: This extension was known as Snippets up to v0.10.3
+> [!NOTE]
+> This extension was known as Snippets up to v0.10.3
 
-## v0.10.4
+## v0.11.0
 
+> [!NOTE]
+> Special thanks again to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
+</>
+> Side panel support and many related features, as well as an automatic dark mode theme
+
+- Converted code to native modules now it's supported for web workers
 - Cleaned up icons
+- Added Side Panel and related options
+- Added more colours
+- Added dark mode
+- Added support for more editors
+- Added support for frames when not using the context menu
+- Added option to collapse editors fully
+- Added support for the new Clippings v7 `$[CLIPPING(Name)]` tag
+- Added success messages
+- Enhanced error handling
 
 ## v0.10.4 (2024-05-13)
 
@@ -15,8 +31,10 @@
 
 ## v0.10.3 (2024-05-10)
 
-> Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)
+> [!NOTE]
 > Special thanks to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
+</>
+> Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)
 
 - Added compression toggle in case of issues on certain platforms (try toggling off if paste commands don't work)
 - Added preliminary support for including html tags when snipping
