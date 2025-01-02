@@ -445,7 +445,7 @@ class Space {
    * @param {{path:number[],seq:number}} to
    */
   moveItem(from, to) {
-    // console.log(from, to);
+    // console.log('Moving item...', from, to)
     if (!from || !to || isNaN(from.seq)) return
     if (!Array.isArray(from.path)) from.path = this.path
     if (!Array.isArray(to.path)) to.path = this.path
@@ -812,7 +812,7 @@ class Space {
    */
   async init({ name, synced, data, path } = {}) {
     // check defaults if either name or synced are blank
-    if (!name || !synced) await settings.load()
+    if (!name || typeof synced !== 'boolean') await settings.load()
 
     // make sure data is parsed correctly
     if (!(data instanceof DataBucket)) data = new DataBucket(data)

@@ -12,7 +12,7 @@ import { getMainUrl, openSession } from '/modules/sessions.js'
  * @param {object} [args] Properties needed by the followup function
  */
 async function setFollowup(action, args = {}) {
-  console.log('Setting followup...', action, args)
+  // console.log('Setting followup...', action, args)
 
   const followup = {
     action: action,
@@ -33,7 +33,6 @@ async function setFollowup(action, args = {}) {
   ) || sessions.find(o =>
     !(new URL(o.documentUrl).searchParams.get('tabId')),
   )
-  console.log(session, sessions)
   if (session) {
     sendMessage('followup', followup, session)
       .catch(e => (console.warn(e, followup)))
@@ -175,7 +174,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 // handle context menu and keyboard shortcut commands
 async function handleCommand(command, args) {
-  console.log('Handling command...', command, args)
+  // console.log('Handling command...', command, args)
   // Get result and convert caught errors to serializable object for passing to window
   const result = await runCommand(command, args)
     .catch(e => ({ error: {
@@ -183,7 +182,6 @@ async function handleCommand(command, args) {
       message: e.message,
       cause: e.cause,
     } }))
-  console.log(result)
 
   // set followup if anything was returned
   if (result) setFollowup(command, {
@@ -247,7 +245,8 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
       // check if current space was changed
       const currentSpace = await KeyStore.currentSpace.get()
-      if (!currentSpace || (currentSpace.name === key && currentSpace.synced === synced)) {
+      const spaceKey = new StorageKey(currentSpace.key ?? currentSpace.name, currentSpace.area ?? currentSpace.synced)
+      if (!currentSpace || (spaceKey.key === key && spaceKey.area === areaName)) {
         const space = new Space()
         try {
           await space.init({

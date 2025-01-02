@@ -118,7 +118,7 @@ function parseContextMenuData(data) {
  * @param {{frameUrl:string,pageUrl:string}} info
  */
 async function injectScript(injection, info) {
-  console.log('Injecting script...', injection, info)
+  // console.log('Injecting script...', injection, info)
   // check for known blocked urls
   const url = info.frameUrl || info.pageUrl
   if (url) {
@@ -127,7 +127,6 @@ async function injectScript(injection, info) {
       'chrome:',
       'edge:',
     ].includes(testUrl.protocol)
-    // console.log(testUrl.protocol, isBlockedProtocol)
     const isBlockedOrigin = [
       'https://chromewebstore.google.com',
       'https://microsoftedge.microsoft.com',
@@ -138,7 +137,6 @@ async function injectScript(injection, info) {
   const { target } = injection
 
   const results = await chrome.scripting.executeScript(injection).catch(async (e) => {
-    console.log('Blocked', e)
     // only happens if aggressively blocked by browser, retry if it's just the frame
     if (target.allFrames || target.frameIds?.length) {
       const { frameUrl } = info
@@ -174,7 +172,6 @@ async function injectScript(injection, info) {
     }
   })
   const result = results?.at(0)?.result
-  console.log(results, result)
 
   if (result?.error?.name === 'SecurityError') {
     const frameOrigin = result.frameSrc && `${new URL(result.frameSrc).origin}/*`
@@ -369,7 +366,7 @@ async function injectScript(injection, info) {
  * @param {{target:chrome.scripting.InjectionTarget,spaceKey:StorageKey,path:number[],pageUrl:string,frameUrl:string}} args
  */
 async function snipSelection(args) {
-  console.log('Snipping selection...', args)
+  // console.log('Snipping selection...', args)
   const { target, spaceKey, path, ...info } = args
 
   // Make sure we have a space to return into
@@ -382,14 +379,13 @@ async function snipSelection(args) {
    * @param {{preserveTags:boolean, saveSource:boolean}} options
    */
   const returnSnip = ({ preserveTags, saveSource }) => {
-    console.log('Snipping selection...', preserveTags, saveSource)
+    // console.log('Snipping selection...', preserveTags, saveSource)
 
     /** Recursive for traversing embedded content - required for keyboard shortcuts
      * @param {Window} window
      */
     const getText = (window) => {
       const frame = window.document.activeElement.contentWindow
-      console.log(window, frame)
       try {
         // check if we're inside a frame and recurse
         if (frame) return getText(frame)
@@ -425,7 +421,6 @@ async function snipSelection(args) {
       } else {
         text = selection.toString()
       }
-      console.log(text, window.location.href)
       return {
         content: text,
         ...saveSource ? { sourceURL: window.location.href } : {},
@@ -433,9 +428,7 @@ async function snipSelection(args) {
     }
 
     // grab selection
-    const result = getText(window)
-    console.log(result)
-    return result
+    return getText(window)
   }
 
   await settings.load()
@@ -444,7 +437,6 @@ async function snipSelection(args) {
     func: returnSnip,
     args: [settings.snipping],
   }, info)).at(0)?.result
-  console.log(result)
 
   // console.log('Handling snip result...', result)
   if (!result || result.error) return result
@@ -467,7 +459,7 @@ async function snipSelection(args) {
  * @returns {Promise<void>}
  */
 async function pasteItem(args) {
-  // console.log('pasting', args)
+  // console.log('Pasting', args)
   /** Injection script for pasting.
    * @param {{content:string, richText:string}} snip
    */

@@ -156,7 +156,6 @@ async function handleError({ error, ...args }) {
         },
       ],
     }, (event) => {
-      // console.log(event)
       /** @type {HTMLInputElement|HTMLSelectElement|HTMLTextAreaElement} */
       const input = event.target
       const modal = input.closest('dialog')
@@ -244,11 +243,9 @@ async function handleFollowup({ action, args }) {
       i18n('action_keep_syncing'),
       i18n('action_use_local'),
     )
-    // console.log(args);
     if (typeof args.synced === 'boolean') {
       // if not currently working on the same data, make do with saving the data
       const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
-      // console.log(currentSpace);
       if (args.name !== currentSpace.name) {
         setStorageData(args.name, args.data, getStorageArea(args.synced))
         return
@@ -284,14 +281,12 @@ async function handleFollowup({ action, args }) {
     // handle errors first and retry if successfully handled
     if (result.error) {
       const errorResult = await handleError(result)
-      console.log(errorResult)
       if (errorResult) {
         delete result.error
         const retryResult = await runCommand('snip', {
           ...result,
           ...errorResult,
         })
-        console.log(retryResult)
         if (retryResult) return handleFollowup({ action: 'snip', args: {
           ...result,
           ...retryResult,
@@ -349,7 +344,6 @@ async function handleFollowup({ action, args }) {
   }
 
   // check if anythings loaded after handling the followup and close otherwise
-  console.log($('path'), !$('path'))
   if (!$('path')) window.close()
 }
 
@@ -542,7 +536,7 @@ function setHeaderPath() {
   // get list of path names (should always include space name)
   const pathNames = space.getPathNames()
   const pathNode = $('path')
-  // console.log(pathNames, pathNode.outerHTML);
+
   // add root
   pathNode.replaceChildren(
     buildNode('li', {
@@ -594,13 +588,11 @@ function setHeaderPath() {
       }),
     ],
   })))
-  // console.log(`Done!`);
 }
 
 function buildMenu() {
   const { startVal, ...counters } = space.data.counters
   const customStartVal = (startVal > 1 || startVal < 0)
-  // console.log(startVal, counters);
   return [
     buildSubMenu(i18n('menu_action'), 'settings-action', [
       buildMenuControl('radio', 'set-icon-action', 'popup', i18n('menu_set_view_action_popup'),
@@ -960,10 +952,8 @@ function adjustTextArea(target, maxLines = settings.view.maxEditorLines) {
  * @param {MouseEvent} event
  */
 function handleMouseDown(event) {
-  // console.log(event);
   // prevent focus pull on buttons but handle & indicate action
   const target = event.target.closest('[data-action]')
-  // console.log(target, target?.type, target.dataset?.action);
   if (target?.type === 'button' && target.dataset?.action !== 'open-folder') {
     event.stopPropagation()
     event.preventDefault()
@@ -1041,7 +1031,7 @@ function handleKeyup(event) {
 }
 
 function handleFocusIn(event) {
-  console.log(event)
+  // console.log(event)
   /** @type {{target:Element}} */
   const { target } = event
 
@@ -1058,7 +1048,7 @@ function handleFocusIn(event) {
 }
 
 function handleInput(event) {
-  console.log(event)
+  // console.log(event)
   /** @type {{target:Element}} */
   const { target } = event
 
@@ -1085,7 +1075,7 @@ function handleChange(event) {
   const { dataset } = target
   dataset.action ||= target.name
 
-  // console.log(target, dataset)
+  // Handle attached action
   handleAction(target)
 
   // update menu if needed
@@ -1142,20 +1132,20 @@ function handleDragDrop(event) {
     ['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
     && event.target.dataset?.action !== 'open-folder'
   ) {
-    // console.log('stopping');
     event.stopPropagation()
     event.preventDefault()
     return
   }
+
   // only allow moves
   event.dataTransfer.effectAllowed = 'move'
+
   // picked up item
   const item = event.target.closest('li')
   const list = item.parentElement
   event.dataTransfer.setData('text/html', item.toString())
   let dropTarget = item
   const dropClasses = [`folder-highlight`, `move-above`, `move-below`]
-  // console.log(item, list, dropTarget);
 
   // wait for browser to pick up the item with a nice outline before hiding anything
   setTimeout(() => {
@@ -1312,13 +1302,12 @@ function handleDragDrop(event) {
  * @param {HTMLElement} target
  */
 async function handleAction(target) {
-  console.log('Handling action...', target, target.dataset, target.action)
+  // console.log('Handling action...', target, target.dataset, target.action)
   const dataset = target.dataset || target
   dataset.action ||= target.name
 
   // handle change events first if needed (buttons do not pull focus)
   const ae = document.activeElement
-  // console.log(target, target.tagName, ae, ae.tagName)
   if (target.tagName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.tagName)) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae)
@@ -1334,7 +1323,6 @@ async function handleAction(target) {
     const span = target.firstChild
 
     if (contentDiv.classList.contains('collapsed')) {
-      console.log(contentDiv.style.height, contentDiv.scrollHeight)
       // remove class that hides content
       contentDiv.classList.remove('collapsed')
       // allow for collapse button
@@ -1387,7 +1375,6 @@ async function handleAction(target) {
       const t = $(dataset.target)
       // clean up submenus
       const topMenu = target.closest('.popover') || t
-      // console.log(t, topMenu)
       for (const submenu of topMenu.querySelectorAll('.menu-list')) {
         if (!(submenu.contains(t) || submenu === t)) {
           // console.log('Hiding submenu...', submenu, submenu === t)
@@ -1396,10 +1383,8 @@ async function handleAction(target) {
       }
       // open menu or submenu
       if (t.classList.contains('hidden')) {
-        // console.log('Showing menu...', t)
         t.classList.remove('hidden')
       } else {
-        // console.log('Hiding menu...', t)
         t.classList.add('hidden')
       }
       break }
@@ -1472,7 +1457,6 @@ async function handleAction(target) {
           break
       }
       try {
-      // console.log(backup);
         const f = await window.showSaveFilePicker({
           suggestedName: filename,
           types: [{
@@ -1729,7 +1713,6 @@ async function handleAction(target) {
 
       // counters
     case 'set-counter-init': {
-    // console.log(target.value);
       let startVal = +target.value
       if (target.id === `counter-init-x`) {
       // custom starting value, show modal
@@ -1817,7 +1800,6 @@ async function handleAction(target) {
     case 'delete':
       if (await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
         const deletedItem = space.deleteItem(+dataset.seq)
-        // console.log(deletedItem, deletedItem instanceof Folder);
         saveSpace()
         buildList()
         // console.log("should I build the tree");
@@ -1846,7 +1828,6 @@ async function handleAction(target) {
         field,
         value,
       )
-      // console.log(item, dataset);
       // update tree if changes were made to a folder
       if (item instanceof Folder) buildTree()
       // make sure the space is saved before exiting
@@ -1854,7 +1835,6 @@ async function handleAction(target) {
       break }
 
     case 'move':
-    // console.log(dataset);
       if (target.value) {
         const movedItem = space.moveItem(
           { seq: +dataset.seq },

@@ -33,7 +33,6 @@ async function showModal({ title, message, content, fields, buttons }, onChange)
       classList: ['fields'],
     })
     fields.forEach((field, i) => {
-      // console.log(field);
       field.id ||= field.name
       if (i > 0) {
         formFields.append(buildNode('div', {
