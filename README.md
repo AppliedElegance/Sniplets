@@ -2,30 +2,34 @@
 
 - Want to speed up your work with saved text templates?
 - Want to throw some info over from one of your computers to another?
-- Moving from Firefox to Edge and miss your Clippings extension?
+- Moving from Firefox to {Chrome|Edge} and miss your Clippings extension?
 
-This extension allows you to quickly 'snip' text from pages you visit (or you can create them manually) and saves them in your browser, allowing you to quickly insert them into forms and editors. Fully backup compatible with the Clippings extension for Firefox.
+This extension 'snips' text from pages you visit (or you can create them manually) and saves them in your browser, allowing you to quickly insert them into forms and editors. Fully backup compatible with the Clippings extension for Firefox.
 
 ## Main Features
 
-- Snip/clip text from a webpage using the context menu or Alt+Shift+C where available.
-- Insert saved text automatically using the context menu
-- Use standard and custom placeholders for each time a sniplet is pasted or sent to the clipboard
-- Easily organize sniplets with folder management, drag & drop and colour highlighting
-- Backup and restore from Clippings
+- Snip/clip text from a webpage using the context menu or Alt+Shift+C
+- Insert saved text automatically using the context menu or the insert button
+- Back up and restore from Clippings
+
+## Additional Features
+
+- Easily organize your sniplets with folder management, drag & drop and colour highlighting
+- Use placeholders and counters to dynamically update sniplets each time they're pasted or sent to the clipboard
 - Work locally, synchronize across logged in browsers or do both depending on your needs
+- Quickly access sniplets through the side panel option
+- Automatic dark mode to help with eye strain (follows OS setting)
 
 > [!TIP]
 > Translations can now be requested and worked on by the community on [GitLocalize](https://gitlocalize.com/repo/9628) or [Crowdin](https://crowdin.com/project/sniplets).
 
 ## Latest Version Highlights
 
-> The 0.10 release series is a major overhaul from previous releases as the extension approaches feature parity with Clippings. The name has also been changed from Snippets to Sniplets for ease of finding in the store and to avoid confusing it with [the Chrome DevTools Snippets feature](https://developer.chrome.com/docs/devtools/javascript/snippets/).
+> The 0.11 release series is again a major overhaul from previous releases as the extension approaches feature parity with Clippings. Code has been modularized and much work has been done under the hood to enhance usability (such as full embedded frame support, sped up actions, and support for more WYSIWYG editors)
 
-- Compression toggle in case of issues on a specific platform
-- Alt+Shift+C keyboard shortcut for clipping selections
-- All text moved to translation file
-- Enhanced options and behaviour when syncing between browsers
+- Side panel features and related options
+- Dark mode (OS dependant)
+- Support for embedded sniplets compatible with Clippings v7 (`$[CLIPPING(name)]`)
 - [Full release notes…](https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md)
 
 ## Roadmap
@@ -33,15 +37,13 @@ This extension allows you to quickly 'snip' text from pages you visit (or you ca
 1.0 -> Full feature parity with Clippings for Firefox; features remaining:
 
 - paste via keyboard shortcuts
-- buttons to add placeholders and counters manually into a new sniplet
+- editor buttons to add placeholders and counters into a new sniplet
+- import (not just restore) from backup
 
 1.1 -> Support for multiple "spaces" to better organize sniplets when doing different types of work.
 
 ## Features Under Consideration
 
-- dark theme
-- rtl toggle
-- rich text editing for inline rtl text
+- rtl enhancements
 - external file sync option with potential for interfacing with Clippings
 - markdown processing including check boxes
-- side panel view

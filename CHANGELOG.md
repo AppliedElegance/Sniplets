@@ -12,15 +12,18 @@
 
 - Converted code to native modules now it's supported for web workers
 - Cleaned up icons
+- Cleaned up menu
+- Updated wiki
 - Added Side Panel and related options
 - Added more colours
 - Added dark mode
 - Added support for more editors
 - Added support for frames when not using the context menu
 - Added option to collapse editors fully
-- Added support for the new Clippings v7 `$[CLIPPING(Name)]` tag
+- Added support for the new Clippings v7 `$[CLIPPING(name)]` tag
 - Added success messages
 - Enhanced error handling
+- Enhanced colour highlighting
 
 ## v0.10.4 (2024-05-13)
 
