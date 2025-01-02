@@ -654,7 +654,7 @@ function buildMenu() {
         ? [buildMenuItem(`${i18n('menu_count_manage')}…`, `manage-counters`)]
         : [],
       ...Object.keys(counters).length
-        ? [buildMenuItem(`${i18n('menu_count_clear')}…`, `clear-counters`)]
+        ? [buildMenuItem(i18n('menu_count_clear'), `clear-counters`)]
         : [],
     ]),
     buildSubMenu(i18n('menu_data'), `settings-data`, [

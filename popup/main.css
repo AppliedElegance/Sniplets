@@ -1,12 +1,27 @@
 :root {
   interpolate-size: allow-keywords;
+  color-scheme: light dark;
+  --dark-color: oklch(22.64% 0 0);
+  --dark-shadow-12: oklch(0% 0 0 / 0.12);
+  --dark-shadow-24: oklch(0% 0 0 / 0.24);
+  --bg-color: light-dark(oklch(97.02% 0 0), oklch(22.64% 0 0));
+  --fg-color: light-dark(oklch(22.64% 0 0), oklch(90% 0 0));
+  --ph-color: light-dark(oklch(91% 0.03 67.44), oklch(29% 0.03 67.44));
+  --hl-color: oklch(82% 0.16 83.95);
+  --shadow-12: light-dark(oklch(0% 0 0 / 0.12), oklch(100% 0 0 / 0.12));
+  --shadow-24: light-dark(oklch(0% 0 0 / 0.24), oklch(100% 0 0 / 0.24));
+  --shadow-80: light-dark(oklch(0.82 0.07 107.78 / 0.80), oklch(32% 0.07 107.78 / 0.80));
+  --metal: light-dark(oklch(33% 0 0), oklch(66% 0 0));
+  --trans-metal: light-dark(oklch(80% 0 0), oklch(33% 0 0));
+  --red: oklch(63.38% 0.2310 27.51);
+  --trans-red: oklch(63.38% 0.2310 27.51 / 0.3);
 }
 
 body {
   margin: 0;
   padding: 0;
-  color: oklch(22.64% 0 0);
-  background: oklch(97.02% 0 0);
+  color: var(--fg-color);
+  background: var(--bg-color);
   text-align: left;
   min-width: 300px;
   min-height: 200px;
@@ -18,8 +33,8 @@ body {
 header {
   display: flex;
   padding: 2px 8px;
-  background-color: oklch(0.82 0.16 83.95);
-  box-shadow: 0 0 3px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.24);
+  background-color: var(--hl-color);
+  box-shadow: 0 0 3px var(--shadow-12), 0 1px 2px var(--shadow-24);
 }
 
 #path {
@@ -34,6 +49,7 @@ header {
 #path button {
   margin: 2px 0;
   padding: 2px;
+  color: var(--dark-color);
 }
 
 #path .icon {
@@ -43,6 +59,7 @@ header {
 #path svg {
   width: 17px;
   height: 17px;
+  fill: var(--dark-color);
 }
 
 #path h1 {
@@ -67,18 +84,18 @@ hr {
   margin: 3px 0;
   border: 0;
   height: 1.5px;
-  background-image: linear-gradient(to right, oklch(85% 0 0), oklch(32% 0 0), oklch(85% 0 0));
+  background-image: linear-gradient(to right, var(--trans-metal), var(--metal), var(--trans-metal));
 }
 
 .sniplet hr {
-  box-shadow: 0 1px 4px rgba(0,0,0,0.12), 0 0 3px oklch(0 0 0 / 0.24);
+  box-shadow: 0 1px 4px var(--shadow-12), 0 0 3px var(--shadow-24);
 }
 
 .red{
-  color: oklch(63.38% 0.2310 27.51);
+  color: var(--red);
 }
 hr.red {
-  background-image: linear-gradient(to right, oklch(63.38% 0.2310 27.51 / 0.3), oklch(63.38% 0.2310 27.51), oklch(63.38% 0.2310 27.51 / 0.3));
+  background-image: linear-gradient(to right, var(--trans-red), var(--red), var(--trans-red));
 }
 
 .pink {
@@ -162,7 +179,7 @@ hr.vr {
   margin: 0;
   height: auto;
   width: 1.5px;
-  background-image: linear-gradient(to bottom, oklch(85% 0 0), oklch(32% 0 0), oklch(85% 0 0));
+  background-image: linear-gradient(to bottom, var(--trans-metal), var(--metal), var(--trans-metal));
 }
 
 #sniplets {
@@ -230,7 +247,13 @@ button {
 button:not([disabled]):hover,
 [type="button"]:not([disabled]):hover {
   border-radius: 3px;
-  box-shadow: 0 0 3px oklch(0 0 0 / 0.12), 0 1px 2px oklch(0 0 0 / 0.24);
+  box-shadow: 0 0 3px var(--shadow-12), 0 1px 2px var(--shadow-24);
+}
+
+#path button:not([disabled]):hover,
+[type="button"]:not([disabled]):hover {
+  border-radius: 3px;
+  box-shadow: 0 0 3px var(--dark-shadow-12), 0 1px 2px var(--dark-shadow-24);
 }
 
 button:active,
@@ -239,7 +262,11 @@ button:active,
 }
 
 [type="button"]:not([disabled]):focus:hover {
-  filter: drop-shadow(0 1px 2px oklch(0 0 0 / 0.24));
+  filter: drop-shadow(0 1px 2px var(--shadow-24));
+}
+
+#path [type="button"]:not([disabled]):focus:hover {
+  filter: drop-shadow(0 1px 2px var(--dark-shadow-24));
 }
 
 [type="button"]:not([disabled]):focus:active {
@@ -264,6 +291,7 @@ header .icon {
 header .icon svg {
   width: 24px;
   height: 24px;
+  fill: var(--dark-color);
 }
 
 nav {
@@ -278,6 +306,7 @@ svg {
   height: 100%;
   width: 100%;
   transition-duration: 300ms;
+  fill: var(--fg-color);
 }
 
 svg.chevron {
@@ -320,7 +349,7 @@ main,
 }
 
 .content-collapser span {
-  background-color: white;
+  background-color: var(--bg-color);
   padding: 0 10px;
 }
 
@@ -339,8 +368,8 @@ header {
   margin: 8px 9px 10px;
   border-radius: 3px;
   padding: 3px;
-  background: oklch(1 0 0);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px oklch(0 0 0 / 0.24);
+  background: var(--bg-color);
+  box-shadow: 0 1px 3px var(--shadow-12), 0 1px 2px var(--shadow-24);
   transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
@@ -355,7 +384,7 @@ header {
   border: 3px dashed;
   border-radius: 4px;
   height: 20px;
-  background: oklch(0.91 0.03 67.44);
+  background: var(--ph-color);
 }
 
 input, select {
@@ -460,6 +489,7 @@ label .icon {
 label .icon svg {
   width: 16px;
   height: 16px;
+  fill: var(--fg-color);
 }
 
 input:focus + label,
@@ -485,7 +515,7 @@ input:focus + label,
   scrollbar-gutter: stable;
   font-size: 15px;
   line-height: 19px;
-  background: oklch(100% 0 0);
+  background: var(--bg-color);
   transition: height 125ms;
 }
 
@@ -560,7 +590,7 @@ dialog .buttons {
   box-sizing: border-box;
   padding: 2px 4px;
   width: 100%;
-  border-bottom: 1px solid black;
+  border-bottom: 1px solid var(--fg-color);
 }
 
 select {
@@ -579,7 +609,7 @@ select {
   right: 0;
   text-align: center;
   align-content: center;
-  background: white;
+  background: var(--bg-color);
   font-size: large;
 }
 
@@ -658,13 +688,13 @@ figure {
 }
 
 .folder-highlight {
-  box-shadow: 1px 3px oklch(0.82 0.07 107.78 / 0.80), 0 3px 5px oklch(0.82 0.07 107.78 / 0.80)
+  box-shadow: 1px 3px var(--shadow-80), 0 3px 5px var(--shadow-80);
 }
 .move-above {
-  border-top: 3px solid oklch(0% 0 0 / 0.24);
+  border-top: 3px solid var(--shadow-24);
 }
 .move-below {
-  border-bottom: 3px solid oklch(0% 0 0 / 0.24);
+  border-bottom: 3px solid var(--shadow-24);
 }
 
 .hidden {
@@ -675,7 +705,4 @@ figure {
   .tree {
     display: none;
   }
-}
-
-@media (prefers-color-scheme: dark) {
 }
