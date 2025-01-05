@@ -1,3 +1,5 @@
+import styles from '../popup/main.css' with { type: 'css' }
+
 /** chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} messageName
  * @param {string|string[]} substitutions
@@ -60,21 +62,25 @@ class Color {
   set sniplet(sniplet) { this.#sniplet = sniplet }
 }
 
+/** Helper to pull color values from main stylesheet
+ * @param {string} name
+ */
+const getColor = name => styles.cssRules[0].style.getPropertyValue(`--${name}`)
 /** Available colours based on the Windows heart emoji spectrum rather than named css colors */
 class Colors {
   // Enum based on heart colors on Windows: ❤️🩷🧡💛💚💙🩵💜🤎🖤🤍🩶
-  static get RED() { return 'oklch(63.38% 0.2310 27.51)' }
-  static get PINK() { return 'oklch(72.46% 0.1866 0.08)' }
-  static get ORANGE() { return 'oklch(70.08% 0.1978 41.49)' }
-  static get YELLOW() { return 'oklch(88.59% 0.1641 94.67)' }
-  static get GREEN() { return 'oklch(75.34% 0.2006 151.44)' }
-  static get BLUE() { return 'oklch(53.93% 0.1398 246.4)' }
-  static get LIGHTBLUE() { return 'oklch(81.37% 0.1038 240.72)' }
-  static get PURPLE() { return 'oklch(58.64% 0.1462 301.27)' }
-  static get BROWN() { return 'oklch(43.57% 0.0616 43.74)' }
-  static get BLACK() { return 'oklch(22.64% 0 0)' }
-  static get WHITE() { return 'oklch(97.02% 0 0)' }
-  static get GREY() { return 'oklch(69.27% 0 0)' }
+  static get RED() { return getColor('red') }
+  static get PINK() { return getColor('pink') }
+  static get ORANGE() { return getColor('orange') }
+  static get YELLOW() { return getColor('yellow') }
+  static get GREEN() { return getColor('green') }
+  static get LIGHTBLUE() { return getColor('lightblue') }
+  static get BLUE() { return getColor('blue') }
+  static get PURPLE() { return getColor('purple') }
+  static get BROWN() { return getColor('brown') }
+  static get BLACK() { return getColor('black') }
+  static get WHITE() { return getColor('white') }
+  static get GREY() { return getColor('grey') }
 
   // All colors have hearts, all but pink & lightblue have squares and circles, some have books
   static #map = new Map([
@@ -93,11 +99,11 @@ class Colors {
     ['green', new Color(i18n('color_green'), this.GREEN, {
       heart: '💚', square: '🟩', circle: '🟢', book: '📗',
     })],
-    ['blue', new Color(i18n('color_blue'), this.BLUE, {
-      heart: '💙', square: '🟦', circle: '🔵', book: '📘',
-    })],
     ['lightblue', new Color(i18n('color_lightblue'), this.LIGHTBLUE, {
       heart: '🩵',
+    })],
+    ['blue', new Color(i18n('color_blue'), this.BLUE, {
+      heart: '💙', square: '🟦', circle: '🔵', book: '📘',
     })],
     ['purple', new Color(i18n('color_purple'), this.PURPLE, {
       heart: '💜', square: '🟪', circle: '🟣',

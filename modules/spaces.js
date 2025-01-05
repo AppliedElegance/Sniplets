@@ -250,7 +250,7 @@ class DataBucket {
             seq: o.seq - 1,
           })
     return {
-      version: '6.1',
+      version: '6.2',
       createdBy: 'Clippings/wx',
       userClippingsRoot: mapData(this.children),
     }

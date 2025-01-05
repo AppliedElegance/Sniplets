@@ -217,7 +217,8 @@ function buildSubMenu(label, id, items) {
   return buildNode('fieldset', {
     classList: ['menu-item'],
     children: [
-      buildNode('legend', {
+      buildNode('div', {
+        classList: ['legend'],
         children: [buildNode('button', {
           type: 'button',
           textContent: `${label}…`,
@@ -303,7 +304,7 @@ function buildColorMenu(item, moreColors) {
       },
     ),
     ...colorList.map((color, i) => buildMenuControl('radio',
-      `item-${item.seq}-color`, color, Colors.get(color).label, color === item.color, {
+      `item-${item.seq}-color`, color, `${Colors.get(color).heart} ${Colors.get(color).label}`, color === item.color, {
         id: `item-${item.seq}-color-${i}`,
         dataset: { action: 'edit', field: 'color', seq: item.seq },
       },

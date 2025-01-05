@@ -2,7 +2,6 @@ import globals from 'globals'
 import js from '@eslint/js'
 import jsdoc from 'eslint-plugin-jsdoc'
 import stylistic from '@stylistic/eslint-plugin'
-import * as css from 'eslint-plugin-css'
 
 export default [
   js.configs.recommended,
@@ -10,7 +9,6 @@ export default [
   stylistic.configs.customize({
     braceStyle: '1tbs',
   }),
-  css.configs['flat/standard'],
   {
     files: ['/service_worker.js'],
     languageOptions: {
