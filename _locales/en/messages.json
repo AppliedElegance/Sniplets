@@ -657,5 +657,14 @@
   },
   "toast_updated_counters": {
     "message": "Counters Updated"
+  },
+  "toast_import_cancelled": {
+    "message": "Import Cancelled"
+  },
+  "toast_import_failed": {
+    "message": "Import Failed"
+  },
+  "menu_import": {
+    "message": "Import items"
   }
 }

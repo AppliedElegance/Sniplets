@@ -266,6 +266,7 @@ button:not([disabled]):hover,
 
 .red{
   color: var(--red);
+  fill: var(--red);
 }
 
 hr.red {
@@ -274,6 +275,7 @@ hr.red {
 
 .pink {
   color: var(--pink);
+  fill: var(--pink);
 }
 
 hr.pink {
@@ -282,6 +284,7 @@ hr.pink {
 
 .orange {
   color: var(--orange);
+  fill: var(--orange);
 }
 
 hr.orange {
@@ -290,6 +293,7 @@ hr.orange {
 
 .yellow {
   color: var(--yellow);
+  fill: var(--yellow);
 }
 
 hr.yellow {
@@ -298,6 +302,7 @@ hr.yellow {
 
 .green {
   color: var(--green);
+  fill: var(--green);
 }
 
 hr.green {
@@ -306,6 +311,7 @@ hr.green {
 
 .lightblue {
   color: var(--lightblue);
+  fill: var(--lightblue);
 }
 
 hr.lightblue {
@@ -314,6 +320,7 @@ hr.lightblue {
 
 .blue {
   color: var(--blue);
+  fill: var(--blue);
 }
 
 hr.blue {
@@ -322,6 +329,7 @@ hr.blue {
 
 .purple {
   color: var(--purple);
+  fill: var(--purple);
 }
 
 hr.purple {
@@ -330,6 +338,7 @@ hr.purple {
 
 .brown {
   color: var(--brown);
+  fill: var(--brown);
 }
 
 hr.brown {
@@ -338,6 +347,8 @@ hr.brown {
 
 .black {
   color: var(--black);
+  filter: drop-shadow(var(--white) 0 0 1px);
+  fill: var(--black);
 }
 
 hr.black {
@@ -346,6 +357,8 @@ hr.black {
 
 .white {
   color: var(--white);
+  filter: drop-shadow(var(--black) 0 0 1px);
+  fill: var(--white);
 }
 
 hr.white {
@@ -354,6 +367,7 @@ hr.white {
 
 .gray, .grey {
   color: var(--grey);
+  fill: var(--grey);
 }
 
 hr.gray, hr.grey {

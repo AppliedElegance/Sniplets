@@ -1,13 +1,12 @@
 import settings from '/modules/settings.js'
 import { getCurrentTab, openWindow } from '/modules/sessions.js'
-import { i18n, locale, i18nNum, Colors } from '/modules/refs.js'
+import { i18n, locale, i18nNum } from '/modules/refs.js'
 import { setStorageData, getStorageData, removeStorageData, KeyStore, setClipboard } from '/modules/storage.js'
 import { Folder, Sniplet, DataBucket, Space, getStorageArea, getRichText, parseStringPath } from '/modules/spaces.js'
 import {
   buildNode,
   buildSvg,
   setSvgSprite,
-  setSvgFill,
   buildActionIcon,
   buildPopoverMenu,
   buildMenuItem,
@@ -540,23 +539,23 @@ function setHeaderPath() {
   // add root
   pathNode.replaceChildren(
     buildNode('li', {
-      id: `folder-up`,
-      classList: [`folder`],
-      style: { display: `none` }, // only display when out of room
-      dataset: { path: `` },
-      children: [buildActionIcon(`Back`, `path-back`, `inherit`, {
+      id: 'folder-up',
+      classList: ['folder'],
+      style: { display: 'none' }, // only display when out of room
+      dataset: { path: '' },
+      children: [buildActionIcon('Back', 'path-back', {
         action: 'open-folder',
-        target: ``,
+        target: '',
       })],
     }),
     buildNode('li', {
-      classList: [`folder`],
-      dataset: { path: `root` },
+      classList: ['folder'],
+      dataset: { path: 'root' },
       children: [buildNode('button', {
-        type: `button`,
+        type: 'button',
         dataset: {
-          action: `open-folder`,
-          target: ``,
+          action: 'open-folder',
+          target: '',
         },
         children: [buildNode('h1', {
           textContent: pathNames.shift(),
@@ -568,7 +567,7 @@ function setHeaderPath() {
   const separator = buildSvg(i18n('path_separator'), 'path-separator')
   separator.setAttribute('class', 'chevron')
   pathNames.forEach((name, i) => pathNode.append(buildNode('li', {
-    classList: [`folder`],
+    classList: ['folder'],
     dataset: {
       seq: space.path.slice(i, i + 1),
       path: space.path.slice(0, i),
@@ -662,15 +661,16 @@ function buildMenu() {
       buildMenuItem(i18n('menu_bak_full'), `backup-full`, `full`, { action: 'backup' }),
       buildMenuItem(i18n('menu_bak_clip'), `backup-clippings`, `clippings61`, { action: 'backup' }),
       buildMenuSeparator(),
-      buildMenuItem(i18n('menu_restore'), `restore`),
+      buildMenuItem(i18n('menu_import'), 'import-data'),
+      buildMenuItem(i18n('menu_restore'), 'restore'),
     ]),
-    buildMenuItem(`${i18n('menu_about')}…`, `about`),
+    buildMenuItem(`${i18n('menu_about')}…`, 'about'),
   ]
 }
 
 function buildHeader() {
   // popover settings menu
-  const settingsMenu = buildPopoverMenu('settings', i18n('menu_settings'), 'menu-settings', 'inherit', buildMenu())
+  const settingsMenu = buildPopoverMenu('settings', i18n('menu_settings'), 'menu-settings', buildMenu())
 
   // add path navigation element
   const path = buildNode('nav', {
@@ -683,17 +683,17 @@ function buildHeader() {
     children: [
       buildActionIcon(
         space.synced ? i18n('action_stop_sync') : i18n('action_start_sync'),
-        `icon-${getStorageArea(space.synced)}`,
-        'inherit', {
+        `icon-${getStorageArea(space.synced)}`, {
           action: 'toggle-sync',
-        }),
-      buildPopoverMenu('add-new', i18n('menu_add_item'), 'menu-add-new', 'inherit', [
+        },
+      ),
+      buildPopoverMenu('add-new', i18n('menu_add_item'), 'menu-add-new', [
         buildMenuItem(i18n('action_add_folder'), 'new-folder'),
         buildMenuItem(i18n('action_add_sniplet'), 'new-sniplet'),
       ]),
       ...(window.params.view !== 'window')
         ? [
-            buildActionIcon(i18n('open_new_window'), 'menu-pop-out', 'inherit', {
+            buildActionIcon(i18n('open_new_window'), 'menu-pop-out', {
               action: 'open-window',
             }),
           ]
@@ -789,7 +789,7 @@ function buildTree() {
       // add folder details
       folderItem.append(buildTreeWidget(
         !!subFolders,
-        Colors.get(folder.color).value,
+        folder.color,
         (isRoot) ? '' : path.concat([folder.seq]),
         (isRoot) ? space.name : folder.name,
       ))
@@ -1082,11 +1082,12 @@ function handleChange(event) {
   if (dataset.field === 'color') {
     // update svg color
     const color = dataset.value || target.value
-    const { value } = Colors.get(color)
-    setSvgFill(
-      target.closest('.menu'),
-      value,
-    )
+    /** @type {SVGElement} */
+    const svgTag = target.closest('.menu')?.querySelector('svg')
+    if (svgTag) {
+      svgTag.setAttribute('class', color)
+    }
+
     // update moreColors target color (with safety check)
     target.closest('.menu-list')?.querySelector('[name="toggle-more-colors"]')
       ?.setAttribute('data-color', color)
@@ -1342,12 +1343,90 @@ async function handleAction(target) {
     }
   }
 
+  const getBackupFileData = async () => {
+    // TODO: accept other Clippings export filetypes (html, csv... rdf?)
+    // get file handle for JSON backup
+    /** @type {FileSystemFileHandle[]} */
+    const [fileHandle] = await window.showOpenFilePicker({ types: [{
+      description: i18n('file_save_type'),
+      accept: { 'application/json': '.json' },
+    }] }).catch(e => console.warn(e))
+    if (!fileHandle) return
+
+    // Read the file
+    const file = await fileHandle.getFile().catch(e => console.warn(e))
+    if (!file) return
+    const fileData = await file.text().catch(e => console.warn(e))
+    if (!fileData) return
+
+    // Try to parse and return the backup data
+    return JSON.parse(fileData)
+  }
+
+  const importFileData = async (data) => {
+    const bucket = new DataBucket(data)
+
+    // parse for import
+    if (!(await bucket.parse())) {
+      toast(i18n('toast_import_failed'))
+      return
+    }
+
+    // add items to current space
+    for (const item of bucket.children) {
+      space.addItem(item, [])
+    }
+  }
+
+  const importData = async () => {
+    const fileData = await getBackupFileData().catch(e => console.warn(e))
+    if (!fileData) {
+      toast(i18n('toast_import_cancelled'), 'warning')
+      return
+    }
+
+    // import based on where the data is
+    if (fileData.userClippingsRoot) {
+      // Clippings data
+      await importFileData({ children: fileData.userClippingsRoot })
+    } else if (fileData.data) {
+      // Simple data backup (legacy)
+      await importFileData(fileData.data)
+    } else if (fileData.space) {
+      // Full data backup
+      await importFileData(fileData.space.data)
+    } else if (fileData.spaces) {
+      // Complete backup, multiple spaces possible
+      for (const { data } of fileData.spaces) {
+        await importFileData(data)
+      }
+    }
+
+    saveSpace()
+    loadSniplets()
+  }
+
+  // regular synchronous actions that don't require await
   const actionMap = new Map([
     ['toggle-content', toggleContent],
   ])
 
   const actionFunc = actionMap.get(dataset.action)
-  if (typeof actionFunc === 'function') actionFunc()
+  if (typeof actionFunc === 'function') {
+    actionFunc()
+    return
+  }
+
+  // async actions
+  const asyncActionMap = new Map([
+    ['import-data', importData],
+  ])
+
+  const asyncActionFunc = asyncActionMap.get(dataset.action)
+  if (typeof asyncActionFunc === 'function') {
+    await asyncActionFunc()
+    return
+  }
 
   switch (dataset.action) {
     // window open action

@@ -1,4 +1,4 @@
-import styles from '../popup/main.css' with { type: 'css' }
+// currently unable to import styles using with keyword in web worker
 
 /** chrome.i18n helper to pull strings from _locales/[locale]/messages.json
  * @param {string} messageName
@@ -37,7 +37,7 @@ class Tasks {
   static get PASTE() { return 'paste' }
 }
 
-class Color {
+class ColorIconSet {
   /**
    * @param {string} label An internationalized name for the color
    * @param {string} value A valid css color
@@ -62,83 +62,59 @@ class Color {
   set sniplet(sniplet) { this.#sniplet = sniplet }
 }
 
-/** Helper to pull color values from main stylesheet
- * @param {string} name
+/** Available colours based on the Windows heart emoji spectrum rather than named css colors
+ * ❤️🩷🧡💛💚💙🩵💜🤎🖤🤍🩶
+ * See the css ':root' variables for actual values
  */
-const getColor = name => styles.cssRules[0].style.getPropertyValue(`--${name}`)
-/** Available colours based on the Windows heart emoji spectrum rather than named css colors */
 class Colors {
-  // Enum based on heart colors on Windows: ❤️🩷🧡💛💚💙🩵💜🤎🖤🤍🩶
-  static get RED() { return getColor('red') }
-  static get PINK() { return getColor('pink') }
-  static get ORANGE() { return getColor('orange') }
-  static get YELLOW() { return getColor('yellow') }
-  static get GREEN() { return getColor('green') }
-  static get LIGHTBLUE() { return getColor('lightblue') }
-  static get BLUE() { return getColor('blue') }
-  static get PURPLE() { return getColor('purple') }
-  static get BROWN() { return getColor('brown') }
-  static get BLACK() { return getColor('black') }
-  static get WHITE() { return getColor('white') }
-  static get GREY() { return getColor('grey') }
-
   // All colors have hearts, all but pink & lightblue have squares and circles, some have books
   static #map = new Map([
-    ['red', new Color(i18n('color_red'), this.RED, {
+    ['red', new ColorIconSet(i18n('color_red'), {
       heart: '❤️', square: '🟥', circle: '🔴', book: '📕',
     })],
-    ['pink', new Color(i18n('color_pink'), this.PINK, {
+    ['pink', new ColorIconSet(i18n('color_pink'), {
       heart: '🩷',
     })],
-    ['orange', new Color(i18n('color_orange'), this.ORANGE, {
+    ['orange', new ColorIconSet(i18n('color_orange'), {
       heart: '🧡', square: '🟧', circle: '🟠', book: '📙',
     })],
-    ['yellow', new Color(i18n('color_yellow'), this.YELLOW, {
+    ['yellow', new ColorIconSet(i18n('color_yellow'), {
       heart: '💛', square: '🟨', circle: '🟡', book: '📒',
     })],
-    ['green', new Color(i18n('color_green'), this.GREEN, {
+    ['green', new ColorIconSet(i18n('color_green'), {
       heart: '💚', square: '🟩', circle: '🟢', book: '📗',
     })],
-    ['lightblue', new Color(i18n('color_lightblue'), this.LIGHTBLUE, {
+    ['lightblue', new ColorIconSet(i18n('color_lightblue'), {
       heart: '🩵',
     })],
-    ['blue', new Color(i18n('color_blue'), this.BLUE, {
+    ['blue', new ColorIconSet(i18n('color_blue'), {
       heart: '💙', square: '🟦', circle: '🔵', book: '📘',
     })],
-    ['purple', new Color(i18n('color_purple'), this.PURPLE, {
+    ['purple', new ColorIconSet(i18n('color_purple'), {
       heart: '💜', square: '🟪', circle: '🟣',
     })],
-    ['brown', new Color(i18n('color_brown'), this.BROWN, {
+    ['brown', new ColorIconSet(i18n('color_brown'), {
       heart: '🤎', square: '🟫', circle: '🟤',
     })],
-    ['black', new Color(i18n('color_black'), this.BLACK, {
+    ['black', new ColorIconSet(i18n('color_black'), {
       heart: '🖤', square: '⬛️', circle: '⚫️',
     })],
-    ['white', new Color(i18n('color_white'), this.WHITE, {
+    ['white', new ColorIconSet(i18n('color_white'), {
       heart: '🤍', square: '⬜️', circle: '⚪️',
     })],
-    ['gray', new Color(i18n('color_gray'), this.GREY, {
+    ['gray', new ColorIconSet(i18n('color_gray'), {
       heart: '🩶', square: '🌫️', circle: '🪨',
     })],
   ])
 
   /** Retrieve properties of a color
    * @param {string=} color The internal name of the color. If left blank, a default color object will be returned
-   * @returns {Color}
+   * @returns {ColorIconSet}
    */
   static get(color) {
-    return Colors.#map.get(color) || new Color(i18n('color_default'), '', {
+    return Colors.#map.get(color) || new ColorIconSet(i18n('color_default'), '', {
       folder: '📁', sniplet: '📝',
     })
-  }
-
-  /** Retrieve a color with a given translucency value
-   * @param {string=} color The internal name of the color.
-   * @param {number} alpha The opacity level between 0 and 1
-   */
-  static getWithAlpha(color, alpha) {
-    const { value } = this.get(color)
-    return `${value.slice(0, -1)} / ${alpha})`
   }
 
   // full list of selectable colours

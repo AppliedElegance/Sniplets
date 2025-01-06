@@ -16,11 +16,12 @@ const parseStringPath = path => (path && (path !== 'root')) ? path.split(',').ma
 
 /** Base constructor for folders, sniplets and any future items */
 class TreeItem {
+  /**
+   * @param {{name:string,seq:number,color:string}} [details]
+   */
   constructor({ name = i18n('title_new_generic'), seq, color } = {}) {
-    /** @type {string} */
     this.name = name
-    /** @type {number} */
-    this.seq = seq
+    if (!isNaN(seq)) this.seq = seq
 
     /** legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files) */
     const legacyColors = new Map([
@@ -33,8 +34,8 @@ class TreeItem {
       ['Grey', 'gray'],
     ])
 
-    /** @type {string} */
-    this.color = legacyColors.get(color) || color // legacy color mapping check
+    if (color) this.color = legacyColors.get(color) // legacy color mapping check
+      || (Colors.list.includes(color) ? color : undefined)
   }
 }
 /** Folders contain tree items and can be nested. */
@@ -207,12 +208,14 @@ class DataBucket {
    * @param {number[]} path
    */
   getItem(path) {
-    // console.log('Getting item...', path)
+    console.log('Getting item...', path)
     let item = this
+    console.log(structuredClone(item))
     for (const seq of path) {
       if (!(item.children)) return // path broken
       item = item.children.find(v => v.seq === seq)
     }
+    console.log(structuredClone(item))
     return item
   }
 

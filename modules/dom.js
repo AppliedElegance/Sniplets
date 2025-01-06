@@ -76,13 +76,14 @@ function buildNode(tagName, attributes) {
  * Accessible SVG element builder
  * @param {string} title - Accessible descriptor
  * @param {string} sprite - Name of sprite as found in spritesheet
- * @param {string} fill - Optional fill color to apply to the sprite
+ * @param {string} color - Optional color class to apply to the sprite
  */
-function buildSvg(title, sprite, fill) {
+function buildSvg(title, sprite, color) {
   // Create inline SVG element with the correct namespace
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   svg.setAttribute('role', 'img')
   svg.setAttribute('focusable', false)
+  if (color) svg.setAttribute('class', color)
 
   // Add an accessible title field for screen readers
   const svgTitle = document.createElementNS('http://www.w3.org/2000/svg', 'title')
@@ -91,12 +92,10 @@ function buildSvg(title, sprite, fill) {
   // Add a use element referencing the spritesheet
   const svgUse = document.createElementNS('http://www.w3.org/2000/svg', 'use')
   svgUse.setAttribute('href', `/icons/sprites.svg#${sprite}`)
+  svgUse.setAttribute('fill', 'inherit')
 
   // Append the title and sprite to the SVG element
   svg.append(svgTitle, svgUse)
-
-  // Set the sprite colour if requested
-  if (fill) setSvgFill(svg, fill)
 
   // return the completed SVG element
   return svg
@@ -112,34 +111,14 @@ function setSvgSprite(target, sprite) {
 }
 
 /**
- * Replace the fill color of a contained icon
- * @param {HTMLElement} target - Element containing the icon's `use` tag
- * @param {string} fill - color to use for the icon
- */
-function setSvgFill(target, fill) {
-  const useTag = target.querySelector('use')
-  useTag.setAttribute('fill', fill)
-
-  // add outline to black and white icons
-  const svgTag = useTag.closest('svg')
-  if (fill === Colors.WHITE) {
-    svgTag.style.filter = `drop-shadow(${Colors.BLACK} 0 0 1px)`
-  } else if (fill === Colors.BLACK) {
-    svgTag.style.filter = `drop-shadow(${Colors.WHITE} 0 0 1px)`
-  } else {
-    svgTag.style.removeProperty('filter')
-  }
-}
-
-/**
  * builder for icon buttons
  * @param {string} name
  * @param {string} sprite
- * @param {string} color
  * @param {object} dataset
+ * @param {string} color
  * @returns {HTMLButtonElement}
  */
-function buildActionIcon(name, sprite, color, dataset) {
+function buildActionIcon(name, sprite, dataset, color) {
   return buildNode('button', {
     type: 'button',
     classList: ['icon'],
@@ -157,17 +136,17 @@ function buildActionIcon(name, sprite, color, dataset) {
  * @param {string} id
  * @param {string} name
  * @param {string} sprite
- * @param {string} color
  * @param {HTMLElement[]} list
+ * @param {string} color
  */
-function buildPopoverMenu(id, name, sprite, color, list) {
+function buildPopoverMenu(id, name, sprite, list, color) {
   return buildNode('div', {
     classList: ['menu'],
     children: [
-      buildActionIcon(`Open ${name} Menu`, sprite, color, {
+      buildActionIcon(`Open ${name} Menu`, sprite, {
         action: 'open-popover',
         target: id,
-      }),
+      }, color),
       buildNode('div', {
         id: id,
         classList: ['card', 'menu-list', 'popover', 'hidden'],
@@ -338,7 +317,6 @@ function buildItemWidget(item, list, path, { view, data }) {
     `item-menu-${item.seq}`,
     i18n('menu_item'),
     `icon-${item.constructor.name.toLowerCase()}`,
-    Colors.get(item.color).value,
     [
       buildColorMenu(item, data.moreColors),
       buildSubMenu(i18n('action_move'), `item-${item.seq}-move-menu`, list.reduce((a, o, i) => {
@@ -357,6 +335,7 @@ function buildItemWidget(item, list, path, { view, data }) {
         return a
       }, [])),
     ],
+    item.color,
   )
 
   // only folders can be 'opened'
@@ -380,26 +359,26 @@ function buildItemWidget(item, list, path, { view, data }) {
     children: [
       ...isFolder
         ? [
-            buildActionIcon(i18n('action_rename'), 'icon-rename', 'inherit', {
+            buildActionIcon(i18n('action_rename'), 'icon-rename', {
               action: 'rename',
               seq: item.seq,
             }),
           ]
         : [
-            buildActionIcon(i18n('action_insert'), 'icon-insert', 'inherit', {
+            buildActionIcon(i18n('action_insert'), 'icon-insert', {
               action: 'paste',
               seq: item.seq,
             }),
-            buildActionIcon(i18n('action_copy'), 'icon-copy', 'inherit', {
+            buildActionIcon(i18n('action_copy'), 'icon-copy', {
               action: 'copy',
               field: 'copy', // so it can be focused
               seq: item.seq,
             }),
           ],
-      buildActionIcon(i18n('action_delete'), 'icon-delete', Colors.RED, {
+      buildActionIcon(i18n('action_delete'), 'icon-delete', {
         action: 'delete',
         seq: item.seq,
-      }),
+      }, 'red'),
     ],
   })
 
@@ -559,7 +538,6 @@ export {
   buildNode,
   buildSvg,
   setSvgSprite,
-  setSvgFill,
   buildActionIcon,
   buildPopoverMenu,
   buildMenuItem,

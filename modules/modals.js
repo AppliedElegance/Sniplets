@@ -1,4 +1,4 @@
-import { i18n, Colors } from '/modules/refs.js'
+import { i18n } from '/modules/refs.js'
 import { buildNode, buildActionIcon, buildMenuControl } from '/modules/dom.js'
 
 /** Builder for modal dialogue.
@@ -124,7 +124,7 @@ async function showModal({ title, message, content, fields, buttons }, onChange)
   }
 
   // console.log("Adding cancel button...");
-  const cancelButton = buildActionIcon(i18n('cancel'), 'icon-close', Colors.RED)
+  const cancelButton = buildActionIcon(i18n('cancel'), 'icon-close', null, 'red')
   cancelButton.type = 'submit'
   cancelButton.value = 'esc'
   form.append(buildNode('div', {
