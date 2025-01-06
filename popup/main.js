@@ -421,7 +421,7 @@ chrome.runtime.onMessage.addListener(async (message) => {
       await space.load()
       loadSniplets()
     }
-  } else if ((to.documentUrl === location.href) && (subject === 'followup')) {
+  } else if ((!to || to.documentUrl === location.href) && (subject === 'followup')) {
     handleFollowup(body)
   }
 })
@@ -1479,17 +1479,12 @@ async function handleAction(target) {
       await chrome.storage.local.clear()
       await chrome.storage.sync.clear()
       // reinitialize
-      try {
-        settings.init()
-        await settings.save()
-        await space.init(settings.defaultSpace)
-        await saveSpace()
-        setCurrentSpace()
-        loadPopup()
-      } catch (e) {
-      // well and truly borked
-        console.error(e)
-      }
+      settings.init()
+      await settings.save()
+      await space.init(settings.defaultSpace)
+      await saveSpace()
+      await setCurrentSpace()
+      loadPopup()
       break
 
     case 'backup': {

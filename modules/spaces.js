@@ -208,14 +208,11 @@ class DataBucket {
    * @param {number[]} path
    */
   getItem(path) {
-    console.log('Getting item...', path)
     let item = this
-    console.log(structuredClone(item))
     for (const seq of path) {
       if (!(item.children)) return // path broken
       item = item.children.find(v => v.seq === seq)
     }
-    console.log(structuredClone(item))
     return item
   }
 

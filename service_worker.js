@@ -270,9 +270,17 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       // double-check we don't have a local space with the same name
       if (!(await getStorageData(key, 'local'))) {
         // don't lose the data on other synced instances without confirming first
-        setFollowup('unsynced', {
-          name: key,
-          data: change.oldValue,
+        const followup = {
+          action: 'unsynced',
+          args: {
+            name: key,
+            data: change.oldValue,
+          },
+        }
+        sendMessage('followup', followup).catch(async () => {
+          await KeyStore.followup.set(followup)
+          await settings.load()
+          openSession(Contexts.get(settings.view.action))
         })
       }
     }

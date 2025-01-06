@@ -72,46 +72,31 @@ export default class Settings {
   static #view = new Settings.View()
   static get view() { return Settings.#view }
   static set view(settings) {
-    Settings.#view = new Settings.View({
-      ...Settings.#view,
-      ...settings,
-    })
+    Settings.#view = new Settings.View(settings)
   }
 
   static #sort = new Settings.Sort()
   static get sort() { return Settings.#sort }
   static set sort(settings) {
-    Settings.#sort = new Settings.Sort({
-      ...Settings.#sort,
-      ...settings,
-    })
+    Settings.#sort = new Settings.Sort(settings)
   }
 
   static #snipping = new Settings.Snipping()
   static get snipping() { return Settings.#snipping }
   static set snipping(settings) {
-    Settings.#snipping = new Settings.Snipping({
-      ...Settings.#snipping,
-      ...settings,
-    })
+    Settings.#snipping = new Settings.Snipping(settings)
   }
 
   static #pasting = new Settings.Pasting()
   static get pasting() { return Settings.#pasting }
   static set pasting(settings) {
-    Settings.#pasting = new Settings.Pasting({
-      ...Settings.#pasting,
-      ...settings,
-    })
+    Settings.#pasting = new Settings.Pasting(settings)
   }
 
   static #data = new Settings.Data()
   static get data() { return Settings.#data }
   static set data(settings) {
-    Settings.#data = new Settings.Data({
-      ...Settings.#data,
-      ...settings,
-    })
+    Settings.#data = new Settings.Data(settings)
   }
 
   /** Optionally take provided settings and initialize the remaining settings

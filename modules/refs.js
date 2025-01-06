@@ -40,12 +40,10 @@ class Tasks {
 class ColorIconSet {
   /**
    * @param {string} label An internationalized name for the color
-   * @param {string} value A valid css color
    * @param {{[name:string]:string}} icons
    */
-  constructor(label, value, icons) {
+  constructor(label, icons) {
     this.label = label
-    this.value = value
     Object.assign(this, icons)
   }
 
