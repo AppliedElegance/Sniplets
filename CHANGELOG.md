@@ -8,22 +8,22 @@
 > [!NOTE]
 > Special thanks again to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
 </>
-> Side panel support and many related features, as well as an automatic dark mode theme
+> Side panel support and many related features, enhanced site compatibility and themes along with some smaller features
 
-- Converted code to native modules now it's supported for web workers
-- Cleaned up icons
-- Cleaned up menu
-- Updated wiki
+- Converted code to native modules now that it's supported for web workers (large overhaul)
 - Added Side Panel and related options
+- Added ability to import backup data without overwriting the current ones
 - Added more colours
 - Added dark mode
-- Added support for more editors
+- Added support for more WYSIWYG editors
 - Added support for frames when not using the context menu
 - Added option to collapse editors fully
 - Added support for the new Clippings v7 `$[CLIPPING(name)]` tag
-- Added success messages
+- Added success/warning/failure messages for some actions
 - Enhanced error handling
 - Enhanced colour highlighting
+- Cleaned up icons
+- Cleaned up menus
 
 ## v0.10.4 (2024-05-13)
 

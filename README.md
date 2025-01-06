@@ -28,6 +28,7 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 > The 0.11 release series is again a major overhaul from previous releases as the extension approaches feature parity with Clippings. Code has been modularized and much work has been done under the hood to enhance usability (such as full embedded frame support, sped up actions, and support for more WYSIWYG editors)
 
 - Side panel features and related options
+- Additional feature to import backups without overwriting current ones
 - Dark mode (OS dependant)
 - Support for embedded sniplets compatible with Clippings v7 (`$[CLIPPING(name)]`)
 - [Full release notes…](https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md)
