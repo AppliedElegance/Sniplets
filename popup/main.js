@@ -940,7 +940,7 @@ function loadSniplets() {
  * @param {number} maxLines The maximum number of lines to show when adjusting (0 = infinite)
  */
 function adjustTextArea(target, maxLines = settings.view.maxEditorLines) {
-  if (target.tagName !== 'TEXTAREA') return
+  if (target.nodeName !== 'TEXTAREA') return
 
   // focus set on focusin and removed on focusout before running this function
   const { focused } = target.dataset
@@ -996,7 +996,7 @@ function handleClick(event) {
   const button = event.target.closest('[type="button"]')
 
   // ignore hidden input clicks as handled by labels and changes
-  if (!button && event.target.tagName === 'INPUT') return
+  if (!button && event.target.nodeName === 'INPUT') return
 
   // Don't close menu if an input control label in it was clicked
   /** @type {HTMLInputElement} */
@@ -1027,7 +1027,7 @@ function handleClick(event) {
  */
 function handleKeydown(event) {
   // console.log(event);
-  if (event.target.tagName === 'LABEL' && event.key === ' ') {
+  if (event.target.nodeName === 'LABEL' && event.key === ' ') {
     // prevent scroll behaviour when a label is 'clicked' with a spacebar
     event.preventDefault()
   } else if (event.target.name === 'name' && event.key === 'Enter') {
@@ -1041,7 +1041,7 @@ function handleKeydown(event) {
  */
 function handleKeyup(event) {
   // console.log(event);
-  if (event.target.tagName === 'LABEL' && event.key === ' ') {
+  if (event.target.nodeName === 'LABEL' && event.key === ' ') {
     // accept spacebar input on label as if it was clicked
     event.target.click()
   }
@@ -1147,7 +1147,7 @@ function handleFocusOut(event) {
 function handleDragDrop(event) {
   // ignore text drags
   if (
-    ['input', 'textarea'].includes(event.target.tagName?.toLowerCase())
+    ['input', 'textarea'].includes(event.target.nodeName?.toLowerCase())
     && event.target.dataset?.action !== 'open-folder'
   ) {
     event.stopPropagation()
@@ -1187,7 +1187,7 @@ function handleDragDrop(event) {
   const dragEnter = function (event) {
     // make sure there's another list item to drop on
     let { target } = event
-    while (target && target.tagName !== 'LI')
+    while (target && target.nodeName !== 'LI')
       target = target.parentElement
     if (target)
       event.preventDefault()
@@ -1196,7 +1196,7 @@ function handleDragDrop(event) {
   const dragOver = function (event) {
     // make sure there's another list item to drop on
     let { target } = event
-    while (target && target.tagName !== 'LI')
+    while (target && target.nodeName !== 'LI')
       target = target.parentElement
     if (target) {
       // check if we're in a new place
@@ -1326,7 +1326,7 @@ async function handleAction(target) {
 
   // handle change events first if needed (buttons do not pull focus)
   const ae = document.activeElement
-  if (target.tagName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.tagName)) {
+  if (target.nodeName === `BUTTON` && [`INPUT`, `TEXTAREA`].includes(ae?.nodeName)) {
     if (target.dataset.seq === ae.dataset.seq) {
       await handleAction(ae)
     } else {
@@ -1475,6 +1475,8 @@ async function handleAction(target) {
       }
     }
 
+    console.log(fileData)
+
     // restore based on where the data is
     if (fileData.userClippingsRoot) {
       // Clippings data
@@ -1484,7 +1486,7 @@ async function handleAction(target) {
         data: { children: fileData.userClippingsRoot },
       })
     } else if (fileData.data) {
-      // Simple data backup (legacy)
+      // Simple data backup
       await restoreFileData({
         name: space.name,
         synced: space.synced,

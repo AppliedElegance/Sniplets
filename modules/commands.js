@@ -441,7 +441,7 @@ async function snipSelection(args) {
         const range = selection.getRangeAt(0)
         const content = range.cloneContents()
         const container = range.commonAncestorContainer
-        if (['UL', 'OL'].includes(container.tagName)) {
+        if (['UL', 'OL'].includes(container.nodeName)) {
           const list = container.cloneNode()
           list.append(content)
           text = list.outerHTML
@@ -526,9 +526,6 @@ async function pasteItem(args) {
        * @type {HTMLInputElement|HTMLTextAreaElement|HTMLElement}
        */
       const input = window.document.activeElement
-
-      // skip inserting if no input selection found
-      // if (!(input?.value || ['true', 'plaintext-only'].includes(input?.contentEditable))) return
 
       // some custom editors require special handling
       if (input.classList.contains('ck')) {
@@ -644,6 +641,22 @@ async function pasteItem(args) {
       })()
 
       if (!pasted) {
+        // return error if the selection is not editable
+        if (!(['TEXTAREA', 'INPUT'].includes(input.nodeName) || input.isContentEditable)) return {
+          error: {
+            name: 'NoSelectionError',
+            message: 'No selection found on active page or frame.',
+            cause: {
+              nodeName: input.nodeName,
+              isContentEditable: input.isContentEditable,
+              value: input.value,
+              textContent: input.textContent,
+            },
+          },
+          pageSrc: window.location.href,
+          frameSrc: window.document.activeElement.src,
+        }
+
         // forward-compatible manual cut paste code that kills the undo stack
         if (input.value === 'undefined') {
           const selection = window.getSelection()
@@ -659,15 +672,6 @@ async function pasteItem(args) {
           selection.collapseToEnd()
         } else {
           const { value } = input
-          if (!value) return {
-            error: {
-              name: 'NoSelectionError',
-              message: 'No selection found on active page or frame.',
-            },
-            pageSrc: window.location.href,
-            frameSrc: window.document.activeElement.src,
-          }
-
           const start = input.selectionStart
           const end = input.selectionEnd
           input.value = value.slice(0, start) + snip.content + value.slice(end)

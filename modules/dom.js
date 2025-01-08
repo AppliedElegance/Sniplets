@@ -3,11 +3,11 @@ import { Folder, Sniplet } from '/modules/spaces.js'
 
 /**
  * DOM helper for element creation including sub-elements
- * @param {string} tagName
+ * @param {string} nodeName
  * @param {{[key:string]:string}} attributes
  */
-function buildNode(tagName, attributes) {
-  const element = document.createElement(tagName)
+function buildNode(nodeName, attributes) {
+  const element = document.createElement(nodeName)
 
   for (const a in attributes) {
     // ignores falsy values (false must be a string value for attributes)
