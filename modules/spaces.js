@@ -21,7 +21,7 @@ class TreeItem {
    */
   constructor({ name = i18n('title_new_generic'), seq, color } = {}) {
     this.name = name
-    if (!isNaN(seq)) this.seq = seq
+    if (!isNaN(seq)) this.seq = +seq
 
     /** legacy colorMap for upgrading to newest version (these values are deprecated but may be in backup files) */
     const legacyColors = new Map([

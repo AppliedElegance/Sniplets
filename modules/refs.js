@@ -110,7 +110,7 @@ class Colors {
    * @returns {ColorIconSet}
    */
   static get(color) {
-    return Colors.#map.get(color) || new ColorIconSet(i18n('color_default'), '', {
+    return Colors.#map.get(color) || new ColorIconSet(i18n('color_default'), {
       folder: '📁', sniplet: '📝',
     })
   }
