@@ -1,7 +1,7 @@
 import settings from '/modules/settings.js'
 import { getCurrentTab, openWindow } from '/modules/sessions.js'
 import { i18n, locale, i18nNum } from '/modules/refs.js'
-import { setStorageData, getStorageData, removeStorageData, KeyStore, setClipboard } from '/modules/storage.js'
+import { setStorageData, getStorageData, removeStorageData, KeyStore, setClipboard, StorageKey } from '/modules/storage.js'
 import { Folder, Sniplet, DataBucket, Space, getStorageArea, getRichText, parseStringPath } from '/modules/spaces.js'
 import {
   buildNode,
@@ -44,8 +44,8 @@ const qa$ = query => document.querySelectorAll(query)
 
 // globals for settings and keeping track of the current folder
 const space = new Space()
-const saveSpace = async () => space.save(settings.data)
-const setCurrentSpace = async () => space.setAsCurrent(settings.view.rememberPath)
+const saveSpace = async () => space.save(settings.data.compress)
+const setCurrentSpace = async () => space.setAsCurrent()
 
 // resize helper for editors
 const adjustEditors = () => {
@@ -127,9 +127,16 @@ async function handleError({ error, ...args }) {
   async function handleSnipNotFoundError({ cause }) {
     // console.log('Handling Snip Not Found Error', cause)
     const { name, synced, path, seq } = cause
-    showAlert(
+    await showAlert(
       i18n('warning_snip_not_found', [name, synced, path, seq]),
       i18n('title_snip_not_found'),
+    )
+  }
+
+  async function handleNoSelectionError() {
+    await showAlert(
+      i18n('warning_selection_not_found'),
+      i18n('title_selection_not_found'),
     )
   }
 
@@ -209,6 +216,7 @@ async function handleError({ error, ...args }) {
     CrossOriginError: handleCrossOriginError,
     MissingPermissionsError: handleMissingPermissionsError,
     SnipNotFoundError: handleSnipNotFoundError,
+    NoSelectionError: handleNoSelectionError,
     CustomPlaceholderError: handleCustomPlaceholderError,
     handleCustomEditorError: handleCustomEditorError,
   }
@@ -370,7 +378,7 @@ async function copySniplet(args) {
     // rebuild settings menu in case there was an update to counters
     if (snip.counters) {
       space.setCounters(snip.counters, true)
-      space.save(settings.data)
+      saveSpace()
       $('settings').replaceChildren(...buildMenu())
     }
 
@@ -444,8 +452,8 @@ const loadPopup = async () => {
 
   // check if opened as popup and set style accordingly
   if (window.params.view === 'popup') {
-    document.body.style.width = '360px' // column flex collapses width unless set
-    document.body.style.height = '540px'
+    document.body.style.width = '370px' // column flex collapses width unless set
+    document.body.style.height = '560px'
   }
 
   // set up listeners
@@ -464,7 +472,7 @@ const loadPopup = async () => {
   onResize.observe($('sniplets'))
 
   // load up the current space
-  if (!(await space.loadCurrent())) {
+  if (!(await space.loadCurrent(settings.view.rememberPath))) {
     // should hopefully never happen
     if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
       try {
@@ -497,6 +505,13 @@ const loadPopup = async () => {
 
   loadSniplets()
 
+  // check for a notice that need to be posted
+  const notice = await KeyStore.notice.get()
+  if (notice) {
+    await showAbout(notice)
+    KeyStore.notice.clear()
+  }
+
   // check and action URL parameters accordingly (okay to ignore in case of followups)
   if (window.params.action?.length) handleAction(window.params)
 }
@@ -513,13 +528,15 @@ document.addEventListener('DOMContentLoaded', loadPopup, false)
  * const itemGroups = groupItems(space.children, 'type');
  */
 const groupItems = (list, by = settings.sort.groupBy) => list.reduce((groups, item) => {
-  if (!by) {
-    (groups.all ||= []).push(item)
-  }
-  const group = by === 'type'
+  groups.all ||= []
+  groups.all.push(item)
+  if (!by) return groups
+
+  const group = (by === 'type')
     ? item.constructor.name.toLowerCase()
-    : item[by];
-  (groups[group] ||= []).push(item)
+    : item[by]
+  groups[group] ||= []
+  groups[group].push(item)
   return groups
 }, {})
 
@@ -659,7 +676,7 @@ function buildMenu() {
     buildSubMenu(i18n('menu_backups'), `settings-backup`, [
       buildMenuItem(i18n('menu_bak_data'), `backup-data`, `data`, { action: 'backup' }),
       buildMenuItem(i18n('menu_bak_full'), `backup-full`, `full`, { action: 'backup' }),
-      buildMenuItem(i18n('menu_bak_clip'), `backup-clippings`, `clippings61`, { action: 'backup' }),
+      buildMenuItem(i18n('menu_bak_clip'), `backup-clippings`, 'clippings', { action: 'backup' }),
       buildMenuSeparator(),
       buildMenuItem(i18n('menu_import'), 'import-data'),
       buildMenuItem(i18n('menu_restore'), 'restore'),
@@ -1350,8 +1367,9 @@ async function handleAction(target) {
     const [fileHandle] = await window.showOpenFilePicker({ types: [{
       description: i18n('file_save_type'),
       accept: { 'application/json': '.json' },
-    }] }).catch(e => console.warn(e))
-    if (!fileHandle) return
+    }] }).catch(e => [e]) || []
+    // console.log(fileHandle)
+    if (!fileHandle || fileHandle instanceof Error) return
 
     // Read the file
     const file = await fileHandle.getFile().catch(e => console.warn(e))
@@ -1363,26 +1381,26 @@ async function handleAction(target) {
     return JSON.parse(fileData)
   }
 
-  const importFileData = async (data) => {
-    const bucket = new DataBucket(data)
-
-    // parse for import
-    if (!(await bucket.parse())) {
-      toast(i18n('toast_import_failed'))
-      return
-    }
-
-    // add items to current space
-    for (const item of bucket.children) {
-      space.addItem(item, [])
-    }
-  }
-
   const importData = async () => {
     const fileData = await getBackupFileData().catch(e => console.warn(e))
     if (!fileData) {
       toast(i18n('toast_import_cancelled'), 'warning')
       return
+    }
+
+    const importFileData = async (data) => {
+      const bucket = new DataBucket(data)
+
+      // parse for import
+      if (!(await bucket.parse())) {
+        toast(i18n('toast_import_failed'))
+        return
+      }
+
+      // add items to current space
+      for (const item of bucket.children) {
+        space.addItem(item, [])
+      }
     }
 
     // import based on where the data is
@@ -1406,6 +1424,86 @@ async function handleAction(target) {
     loadSniplets()
   }
 
+  const restoreData = async () => {
+    if (space.data.children?.length && !(await confirmAction(
+      i18n('warning_restore_bak'),
+      i18n('action_restore'),
+    ))) return
+
+    // request a backup file
+    const fileData = await getBackupFileData().catch(e => console.warn(e))
+    // console.log('got backup file', fileData)
+    if (!fileData) {
+      toast(i18n('toast_restore_cancelled'), 'warning')
+      return
+    }
+
+    // check for settings
+    if (fileData.settings) {
+      settings.init({
+        ...settings.entries,
+        ...fileData.settings,
+      })
+      settings.save()
+      toast(i18n('toast_settings_restored'))
+    }
+
+    const restoreFileData = async (backupSpace, overwrite = true) => {
+      const restoreSpace = overwrite ? space : new Space()
+
+      // attempt to reinitialize the space with the backup data
+      if (!(await restoreSpace.init(backupSpace))) {
+        toast(i18n('toast_restore_failed'), 'error')
+
+        // rollback just in case
+        space.loadCurrent()
+        return
+      }
+
+      // resort based on current settings
+      restoreSpace.sort(settings.sort)
+
+      // make sure synced spaces are syncable and fall back otherwise to avoid failing
+      if (restoreSpace.synced && !restoreSpace.isSyncable(settings.data.compress)) {
+        restoreSpace.synced = false
+      }
+
+      if (await restoreSpace.save()) {
+        // check for existing data to remove
+        const altSpaceKey = new StorageKey(backupSpace.name, backupSpace.synced)
+        altSpaceKey.clear()
+      }
+    }
+
+    // restore based on where the data is
+    if (fileData.userClippingsRoot) {
+      // Clippings data
+      await restoreFileData({
+        name: space.name,
+        synced: space.synced,
+        data: { children: fileData.userClippingsRoot },
+      })
+    } else if (fileData.data) {
+      // Simple data backup (legacy)
+      await restoreFileData({
+        name: space.name,
+        synced: space.synced,
+        data: fileData.data,
+      })
+    } else if (fileData.space) {
+      // Full data backup
+      await restoreFileData(fileData.space)
+    } else if (fileData.spaces) {
+      // Complete backup, multiple spaces possible
+      for (const subspace of fileData.spaces) {
+        await restoreFileData(subspace, false)
+      }
+    }
+
+    // reload sniplets
+    loadSniplets()
+  }
+
   // regular synchronous actions that don't require await
   const actionMap = new Map([
     ['toggle-content', toggleContent],
@@ -1420,6 +1518,7 @@ async function handleAction(target) {
   // async actions
   const asyncActionMap = new Map([
     ['import-data', importData],
+    ['restore', restoreData],
   ])
 
   const asyncActionFunc = asyncActionMap.get(dataset.action)
@@ -1435,8 +1534,6 @@ async function handleAction(target) {
       target = q$(`#sniplets [data-field="${dataset.field}"][data-seq="${dataset.seq}"]`)
       // console.log("Focusing field", target, `#sniplets [data-field="${dataset.field || `content`}"][data-seq="${dataset.seq}"]`);
       if (!target) break
-      // scroll entire card into view
-      target.closest('li')?.scrollIntoView()
       // check for folder renaming
       if (target.type === 'button' && dataset.field === 'name') {
         target.parentElement.querySelector('[action="rename"]').click()
@@ -1449,6 +1546,9 @@ async function handleAction(target) {
           target.select()
         }
       }
+      console.log(target.closest('li'))
+      // scroll entire card into view (timeout waits for render)
+      setTimeout(target.closest('li')?.scrollIntoView, 1000)
       break
 
     // open menus
@@ -1493,7 +1593,7 @@ async function handleAction(target) {
       let backup = {}
       let filename = `backup-${now.toISOString().slice(0, 16)}.json`
       switch (target.value) {
-        case 'clippings61':
+        case 'clippings':
           filename = `clippings-${filename}`
           backup = space.data.toClippings()
           break
@@ -1545,91 +1645,6 @@ async function handleAction(target) {
         await ws.write(JSON.stringify(backup, null, 2)) // pretty print
         await ws.close()
       } catch { /* assume cancelled */ }
-      break }
-
-    case 'restore': {
-    // console.log("Checking current data", space.data);
-      if (space.data.children.length && !(await confirmAction(i18n('warning_restore_bak', i18n('action_restore')))))
-        break
-      try {
-      // console.log("Getting file...");
-        const failAlert = () => showAlert(i18n('error_restore_failed'))
-
-        // get file
-        const [fileHandle] = await window.showOpenFilePicker({ types: [{
-          description: i18n('file_save_type'),
-          accept: { 'application/json': '.json' },
-        }] })
-        // console.log('Grabbed file', fileHandle);
-        const fileData = await fileHandle.getFile()
-        // console.log('Grabbed data', fileData);
-        const fileContents = await fileData.text()
-        // console.log('Grabbed contents', fileContents);
-        const backup = JSON.parse(fileContents)
-        // console.log('Parsed data', backup);
-
-        // restore current space and settings if present
-        // console.log("Starting restore...");
-        if (backup.settings) {
-          settings.init(backup.settings)
-          settings.save()
-        // showAlert("Settings have been restored.");
-        }
-        space.path.length = 0
-        if (backup.currentSpace) {
-        // console.log('updating current space', backup.currentSpace);
-          KeyStore.currentSpace.set(backup.currentSpace)
-        }
-
-        // restore data
-        if (backup.userClippingsRoot) { // check for clippings data
-        // console.log("Creating new DataBucket...");
-          const newData = new DataBucket({ children: backup.userClippingsRoot })
-          // console.log("Parsing data...", structuredClone(newData), newData);
-          if (await newData.parse()) {
-          // console.log("Updated data", space.data);
-            space.data = newData
-            space.sort()
-            saveSpace()
-          } else {
-            failAlert()
-            break
-          }
-        } else if (backup.data) {
-          const data = new DataBucket(backup.data)
-          space.data = await data.parse()
-          saveSpace()
-        } else if (backup.space) {
-          try {
-            await space.init(backup.space)
-            space.sort()
-            await saveSpace()
-            await setCurrentSpace()
-          } catch (e) {
-            console.error(e)
-            failAlert()
-            break
-          }
-        } else if (backup.spaces) {
-          for (const backupSpace of backup.spaces) {
-            try {
-              const tempSpace = new Space()
-              await tempSpace.init(backupSpace)
-              await tempSpace.save(settings.data)
-            } catch (e) {
-              console.error(e)
-            }
-          }
-          await space.load(backup.currentSpace || settings.defaultSpace)
-        } else {
-          failAlert()
-          break
-        }
-        // console.log("Loading sniplets...");
-        loadSniplets()
-      } catch {
-      /* assume cancelled */
-      }
       break }
 
     // copy processed sniplet

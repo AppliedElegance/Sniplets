@@ -217,9 +217,15 @@ async function injectScript(injection, info) {
 
             // Set timeout error
             const frameSrc = document.activeElement.src
+            try {
+              // about pages come up not valid
+              origins.push(new URL(frameSrc).origin)
+            } catch {
+              origins.push(null)
+            }
             setTimeout(reject, ms, new Error(`Failed to receive a response from the frame within ${ms}ms`, { cause: {
               frameSrc: frameSrc,
-              origins: origins.concat(new URL(frameSrc).origin),
+              origins: origins,
               lastError: 'TimeoutError',
             } }))
           })
@@ -235,7 +241,14 @@ async function injectScript(injection, info) {
 
           // update the list of origins
           const { origins } = data
-          if (Array.isArray(origins)) origins.push(new URL(window.location.href).origin)
+          if (Array.isArray(origins)) {
+            try {
+              // about pages come up not valid
+              origins.push(new URL(window.location.href).origin)
+            } catch {
+              origins.push(null)
+            }
+          }
 
           // check if we're in the final frame yet
           const frame = document.activeElement.contentWindow
@@ -257,7 +270,13 @@ async function injectScript(injection, info) {
         const frame = document.activeElement.contentWindow
 
         // start an origin chain
-        const origins = [new URL(window.location.href).origin]
+        const origins = []
+        try {
+          // in case the page url comes up not valid (should only happen on frames)
+          origins.push(new URL(window.location.href).origin)
+        } catch {
+          origins.push(null)
+        }
 
         // finish here if there's no active frame
         if (!frame) {
@@ -267,6 +286,7 @@ async function injectScript(injection, info) {
 
         // ping the frame (serialize errors for return)
         const response = await window[xId].pingFrame(frame, origins).catch(e => e)
+        // console.log(response)
         if (response instanceof Error) {
           return ({ error: {
             name: response.name,
@@ -299,6 +319,7 @@ async function injectScript(injection, info) {
         func: injectRelay,
         args: [xId],
       }).catch(e => e)
+      console.log(injectRelayResults)
       if (injectRelayResults instanceof Error) return result
 
       // fire the relay from the top level
@@ -310,12 +331,14 @@ async function injectScript(injection, info) {
         func: markFrame,
         args: [xId],
       }).catch(e => e)
+      console.log(markFrameResults)
       if (markFrameResults instanceof Error) return result
 
       // check for TimeoutError indicating a blocked frame
       const markFrameError = markFrameResults.at(0).result?.error
       if (markFrameError) {
         const { cause, string } = markFrameError
+        console.log(cause, string, markFrameError)
         if (cause.lastError === 'TimeoutError') {
           throw new MissingPermissionsError({ origins:
             [`${cause.origins.at(-1)}/*`],
@@ -403,6 +426,15 @@ async function snipSelection(args) {
       }
 
       const selection = window.getSelection()
+      if (selection.isCollapsed) return {
+        error: {
+          name: 'NoSelectionError',
+          message: 'No selection found on active page or frame.',
+        },
+        pageSrc: window.location.href,
+        frameSrc: window.document.activeElement.src,
+      }
+
       let text
       // TODO: add option to convert lists to numbers/bullets
       if (preserveTags) {
@@ -444,7 +476,7 @@ async function snipSelection(args) {
   // add snip to space and return result
   const newSnip = space.addItem(new Sniplet(result))
   space.sort(settings.sort)
-  await space.save(settings.data)
+  await space.save(settings.data.compress)
   return {
     target: target,
     spaceKey: space.storageKey,
@@ -627,6 +659,15 @@ async function pasteItem(args) {
           selection.collapseToEnd()
         } else {
           const { value } = input
+          if (!value) return {
+            error: {
+              name: 'NoSelectionError',
+              message: 'No selection found on active page or frame.',
+            },
+            pageSrc: window.location.href,
+            frameSrc: window.document.activeElement.src,
+          }
+
           const start = input.selectionStart
           const end = input.selectionEnd
           input.value = value.slice(0, start) + snip.content + value.slice(end)
@@ -658,7 +699,7 @@ async function pasteItem(args) {
   if (!args.snip) {
     const { spaceKey, path, seq } = args
     const space = new Space()
-    if (!(spaceKey?.name ? await space.load(spaceKey, path) : await space.loadCurrent())) {
+    if (!(spaceKey?.name ? await space.load(spaceKey) : await space.loadCurrent())) {
       throw new SnipNotFoundError(spaceKey, path, seq)
     }
     const sniplet = space.getProcessedSniplet(seq, path)
@@ -683,7 +724,7 @@ async function pasteItem(args) {
     if (await space.load(args.spaceKey, args.path)) {
       space.setCounters(snip.counters, true)
       await settings.load()
-      space.save(settings.data)
+      space.save(settings.data.compress)
     }
   }
 

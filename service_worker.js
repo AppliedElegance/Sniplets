@@ -34,8 +34,9 @@ async function setFollowup(action, args = {}) {
     !(new URL(o.documentUrl).searchParams.get('tabId')),
   )
   if (session) {
-    sendMessage('followup', followup, session)
-      .catch(e => (console.warn(e, followup)))
+    const sendResult = sendMessage('followup', followup, session).catch(e => e)
+    // console.log(sendResult)
+    if (sendResult instanceof Error) return
   } else {
     // save followup as session data and open a new session to action it
     await KeyStore.followup.set(followup)
@@ -101,9 +102,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
     settings.save()
   }
+  const { defaultSpace, view: { action }, data: { compress } } = settings
 
   // set default action as needed
-  setDefaultAction(settings.view.action)
+  setDefaultAction(action)
 
   // prepare space for init
   const space = new Space()
@@ -111,9 +113,9 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // check for current space in case of reinstall
   const legacyCurrentSpace = new StorageKey('currentSpace', 'local')
   const currentSpace = await KeyStore.currentSpace.get() || await legacyCurrentSpace.get()
-  if (!(await space.load(currentSpace || settings.defaultSpace))) {
+  if (!(await space.load(currentSpace || defaultSpace))) {
     // no space data found, create new space
-    await space.init(currentSpace || settings.defaultSpace)
+    await space.init(defaultSpace)
 
     // if initial install add tutorial
     if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
@@ -129,10 +131,30 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
 
     // save new space
-    await space.save(settings.data)
+    await space.save(compress)
+  } else if (details.reason === 'update' && space.name === 'Snippets') {
+    // update branding
+    space.name = defaultSpace.name
+    await space.save(compress)
   }
-  await space.setAsCurrent(settings.view.rememberPath)
+  await space.setAsCurrent()
+
+  // build context menu for current data
   buildContextMenus(space)
+
+  // add update notice on next use
+  if (details.reason === 'update') {
+    // Set update details for next loads
+    KeyStore.notice.set({
+      tagline: i18n('update_tagline'),
+      highlights: [
+        i18n('update_highlight_1'),
+        i18n('update_highlight_2'),
+        i18n('update_highlight_3'),
+        i18n('update_highlight_4'),
+      ],
+    })
+  }
 })
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -254,6 +276,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
             synced: synced,
             data: change.newValue,
           })
+          // console.log('rebuilding context menus', structuredClone(space))
           buildContextMenus(space)
         } catch (e) {
           console.error(e)

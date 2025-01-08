@@ -299,35 +299,35 @@ class Space {
     return (size <= chrome.storage.sync.QUOTA_BYTES_PER_ITEM)
   }
 
-  /** Set this space as the current space in the local browser
-   * @param {boolean} rememberPath
-   */
-  async setAsCurrent(rememberPath) {
+  /** Set this space as the current space in the local browser */
+  async setAsCurrent() {
     return KeyStore.currentSpace.set({
       ...this.storageKey,
-      ...(rememberPath ? { path: this.path } : {}),
+      path: this.path,
     })
   }
 
-  /** load last used space or fall back to default */
-  async loadCurrent() {
+  /** load last used space or fall back to default
+   * @param {boolean} [rememberPath] Whether to set the current path to the saved one
+   */
+  async loadCurrent(rememberPath = false) {
     const { path, ...key } = await KeyStore.currentSpace.get()
-    if (!(await this.load(key, path))) {
+    if (!(await this.load(key, rememberPath ? path : []))) {
       await settings.load()
       if (!(await this.load(settings.defaultSpace))) {
         // should never happen unless memory is corrupt
         return
       } else {
-        this.setAsCurrent(settings.view.rememberPath)
+        this.setAsCurrent()
       }
     }
     return true
   }
 
   /** Save the space's DataBucket into the appropriate storage
-   * @param {{compress:boolean}} options External save options
+   * @param {boolean} compress Whether to use compression
    */
-  async save({ compress = true } = {}) {
+  async save(compress = true) {
     // make sure the space has been initialized
     if (!this.name?.length) return
 

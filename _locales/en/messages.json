@@ -188,7 +188,7 @@
     "message": "Backup File"
   },
   "warning_restore_bak": {
-    "message": "Careful, this may overwrite your current data and cannot be undone. Continue?"
+    "message": "Careful, this will overwrite your current data and cannot be undone. Continue?"
   },
   "error_restore_failed": {
     "message": "The data could not be restored, please check the file and try again."
@@ -218,7 +218,7 @@
     "message": "Submit"
   },
   "warning_delete_sniplet": {
-    "message": "Would you would like to delete this sniplet? This action cannot be undone."
+    "message": "Permanently delete this item? This action cannot be undone."
   },
   "app_report_issue": {
     "message": "Report an issue"
@@ -666,5 +666,44 @@
   },
   "menu_import": {
     "message": "Import items"
+  },
+  "app_updated": {
+    "message": "Extension Update"
+  },
+  "toast_restore_failed": {
+    "message": "Restore Failed"
+  },
+  "toast_restore_current_space_failed": {
+    "message": "Restoring Current Space Failed"
+  },
+  "toast_restore_cancelled": {
+    "message": "Restore Cancelled"
+  },
+  "toast_settings_restored": {
+    "message": "Settings Restored"
+  },
+  "update_tagline": {
+    "message": "Many new features have been added. Please see the highlights below and review the settings menu for new options."
+  },
+  "update_highlight_1": {
+    "message": "Side panel features and related options"
+  },
+  "update_link": {
+    "message": "Full release notes…"
+  },
+  "update_highlight_2": {
+    "message": "Import feature & safer restore function"
+  },
+  "update_highlight_3": {
+    "message": "Theme updates & dark mode (OS dependant)"
+  },
+  "update_highlight_4": {
+    "message": "Support for more web editors and tags"
+  },
+  "warning_selection_not_found": {
+    "message": "No active selection was found on the page. Please make a selection or reselect the appropriate frame and try again."
+  },
+  "title_selection_not_found": {
+    "message": "No Selection Found"
   }
 }

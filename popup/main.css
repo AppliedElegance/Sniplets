@@ -25,8 +25,8 @@
   --grey-30: oklch(69.27% 0 0 / 0.3);
   --metal: light-dark(oklch(33% 0 0), oklch(67% 0 0));
   --metal-30: light-dark(oklch(33% 0 0 / 0.3), oklch(67% 0 0 / 0.3));
-  --bg-color: light-dark(var(--white), oklch(30% 0 0));
-  --fg-color: light-dark(var(--black), oklch(90% 0 0));
+  --bg-color: light-dark(var(--white), var(--black));
+  --fg-color: light-dark(var(--black), var(--white));
   --ph-color: light-dark(oklch(91% 0.03 67.44), oklch(29% 0.03 67.44));
   --hl-color: oklch(82% 0.16 83.95);
   --shadow-12-black: oklch(0% 0 0 / 0.12);
@@ -673,6 +673,21 @@ input:checked + label .icon {
 
 input:checked + label .icon.checked {
   display: unset;
+}
+
+h1.notice {
+  font-size: 24px;
+  line-height: 34px;
+
+  background: var(--yellow-30);
+  border-top: 2px solid var(--fg-color);
+  border-bottom: 2px solid var(--fg-color);
+}
+
+ul.notice {
+  margin: revert;
+  padding: revert;
+  list-style-type: disclosure-closed;
 }
 
 #toast {

@@ -100,6 +100,7 @@ class KeyStore {
   static get settings() { return new StorageKey('_Settings', 'sync') }
   static get currentSpace() { return new StorageKey('_CurrentSpace', 'local') }
   static get defaultSpace() { return new StorageKey(i18n('app_name'), 'sync') }
+  static get notice() { return new StorageKey('_Notice', 'local') }
   static get followup() { return new StorageKey('_Followup', 'session') }
 }
 

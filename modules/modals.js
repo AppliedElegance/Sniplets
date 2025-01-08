@@ -220,8 +220,11 @@ function confirmSelection(message, selections, okLabel = i18n('ok'), cancelLabel
   })
 }
 
-/** Show the About page as a modal */
-function showAbout() {
+/**
+ * Show the About page as a modal
+ * @param {{tagline:string,highlights:string[]}} update
+ */
+function showAbout(update) {
   return showModal({
     content: [
       buildNode('div', {
@@ -236,14 +239,39 @@ function showAbout() {
           }),
         ],
       }),
-      buildNode('p', {
-        textContent: i18n('app_description'),
-      }),
+      ...update
+        ? [
+            buildNode('h1', {
+              classList: ['notice'],
+              textContent: i18n('app_updated'),
+            }),
+            buildNode('p', {
+              classList: ['notice'],
+              textContent: update.tagline,
+            }),
+            buildNode('ul', {
+              classList: ['notice'],
+              children: [
+                ...update.highlights.map(s => buildNode('li', {
+                  textContent: s,
+                })),
+                buildNode('a', {
+                  href: 'https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md',
+                  textContent: i18n('update_link'),
+                }),
+              ],
+            }),
+          ]
+        : [
+            buildNode('p', {
+              textContent: i18n('app_description'),
+            }),
+          ],
       buildNode('hr'),
       buildNode('a', {
-        href: 'https://github.com/AppliedElegance/Sniplets/issues/',
+        href: 'https://github.com/sponsors/jpc-ae',
         target: '_blank',
-        textContent: i18n('app_report_issue'),
+        textContent: i18n('app_donate'),
       }),
       document.createTextNode(' | '),
       buildNode('a', {
@@ -253,9 +281,9 @@ function showAbout() {
       }),
       document.createTextNode(' | '),
       buildNode('a', {
-        href: 'https://github.com/sponsors/jpc-ae',
+        href: 'https://github.com/AppliedElegance/Sniplets/issues/',
         target: '_blank',
-        textContent: i18n('app_donate'),
+        textContent: i18n('app_report_issue'),
       }),
     ],
     buttons: [{ title: i18n('ok'), value: 'esc' }],
