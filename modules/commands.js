@@ -319,7 +319,6 @@ async function injectScript(injection, info) {
         func: injectRelay,
         args: [xId],
       }).catch(e => e)
-      console.log(injectRelayResults)
       if (injectRelayResults instanceof Error) return result
 
       // fire the relay from the top level
@@ -331,14 +330,12 @@ async function injectScript(injection, info) {
         func: markFrame,
         args: [xId],
       }).catch(e => e)
-      console.log(markFrameResults)
       if (markFrameResults instanceof Error) return result
 
       // check for TimeoutError indicating a blocked frame
       const markFrameError = markFrameResults.at(0).result?.error
       if (markFrameError) {
         const { cause, string } = markFrameError
-        console.log(cause, string, markFrameError)
         if (cause.lastError === 'TimeoutError') {
           throw new MissingPermissionsError({ origins:
             [`${cause.origins.at(-1)}/*`],

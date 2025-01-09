@@ -307,9 +307,17 @@ async function handleFollowup({ action, args }) {
     if (Array.isArray(result.path)) space.path = result.path
     loadSniplets()
 
-    // focus the new sniplet's name field
-    // (note that side panel doesn't currently switch focus automatically)
-    q$(`input[name="name"][data-seq="${result.seq}"]`)?.focus()
+    // focus the new sniplet's name field, setTimeout allows for transitions
+    // (note that side panel doesn't currently allow switching window focus.
+    // see https://github.com/w3c/webextensions/issues/693)
+    setTimeout(() => {
+      /** @type {HTMLInputElement} */
+      const field = q$(`input[name="name"][data-seq="${result.seq}"]`)
+      if (!field) return // should hopefully never happen
+      field.closest('.card').scrollIntoView()
+      field.focus()
+      field.select()
+    }, 0)
   }
 
   async function handlePasteResult(result) {
@@ -1448,8 +1456,9 @@ async function handleAction(target) {
       toast(i18n('toast_settings_restored'))
     }
 
-    const restoreFileData = async (backupSpace, overwrite = true) => {
-      const restoreSpace = overwrite ? space : new Space()
+    const restoreFileData = async (backupSpace) => {
+      const isCurrent = (backupSpace.name === space.name)
+      const restoreSpace = isCurrent ? space : new Space()
 
       // attempt to reinitialize the space with the backup data
       if (!(await restoreSpace.init(backupSpace))) {
@@ -1469,13 +1478,14 @@ async function handleAction(target) {
       }
 
       if (await restoreSpace.save()) {
+        // update current space in case synced was flipped
+        if (isCurrent) await setCurrentSpace()
+
         // check for existing data to remove
-        const altSpaceKey = new StorageKey(backupSpace.name, backupSpace.synced)
-        altSpaceKey.clear()
+        const altSpaceStorage = new StorageKey(restoreSpace.name, !restoreSpace.synced)
+        altSpaceStorage.clear()
       }
     }
-
-    console.log(fileData)
 
     // restore based on where the data is
     if (fileData.userClippingsRoot) {
@@ -1493,12 +1503,12 @@ async function handleAction(target) {
         data: fileData.data,
       })
     } else if (fileData.space) {
-      // Full data backup
+      // Full data backup (not currently used)
       await restoreFileData(fileData.space)
     } else if (fileData.spaces) {
       // Complete backup, multiple spaces possible
       for (const subspace of fileData.spaces) {
-        await restoreFileData(subspace, false)
+        await restoreFileData(subspace)
       }
     }
 
@@ -1528,7 +1538,6 @@ async function handleAction(target) {
     await asyncActionFunc()
     return
   }
-
   switch (dataset.action) {
     // window open action
     case 'focus':
@@ -1548,9 +1557,9 @@ async function handleAction(target) {
           target.select()
         }
       }
+      // scroll entire card into view (timeout handles transition)
       console.log(target.closest('li'))
-      // scroll entire card into view (timeout waits for render)
-      setTimeout(target.closest('li')?.scrollIntoView, 1000)
+      setTimeout(() => (target.closest('li')?.scrollIntoView()), 150)
       break
 
     // open menus
@@ -1895,12 +1904,33 @@ async function handleAction(target) {
       if (await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
         const deletedItem = space.deleteItem(+dataset.seq)
         saveSpace()
-        buildList()
-        // console.log("should I build the tree");
+
+        // remove item element from list to avoid rebuilding
+        const listItem = target.closest('li')
         if (deletedItem instanceof Folder) {
-        // console.log("Yes, build the tree.");
+          const list = listItem.closest('ul.folder-list')
+
+          if (list && list.querySelectorAll('li.folder').length < 2) {
+            // last folder, remove separated grouped folder list if in one
+            const fotCard = list.closest('.card')
+            fotCard.nextElementSibling.remove()
+            fotCard.remove()
+          } else if (list) {
+            // update delimiters if bottom item in grouped folder list
+            const itemDropPre = listItem.previousElementSibling
+            const itemDropPost = listItem.nextElementSibling
+            if (itemDropPost.classList.value === 'delimiter') {
+              itemDropPre.classList.value === 'delimiter'
+            }
+          }
+
+          // rebuild the tree
           buildTree()
         }
+
+        // remove the item and following delimiter/drop zone
+        listItem.nextElementSibling.remove()
+        listItem.remove()
       }
       break
 
