@@ -1920,7 +1920,7 @@ async function handleAction(target) {
             const itemDropPre = listItem.previousElementSibling
             const itemDropPost = listItem.nextElementSibling
             if (itemDropPost.classList.value === 'delimiter') {
-              itemDropPre.classList.value === 'delimiter'
+              itemDropPre.classList.value = 'delimiter'
             }
           }
 
