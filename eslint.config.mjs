@@ -48,6 +48,7 @@ export default [
       'jsdoc/require-param-description': 'off',
       'jsdoc/require-returns': 'off',
       'jsdoc/require-returns-description': 'off',
+      'jsdoc/check-tag-names': 'off',
     },
   },
 ]
