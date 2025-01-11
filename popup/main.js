@@ -1241,20 +1241,22 @@ function handleDragDrop(event) {
     const target = event.target.closest('li')
     if (target) {
       // make sure we went somewhere
-      if (JSON.stringify(target.dataset) === JSON.stringify(item.dataset))
-        return dragEnd()
+      if (JSON.stringify(target.dataset) === JSON.stringify(item.dataset)) return dragEnd()
+
       // data for moving item
       const moveFrom = {
         path: item.dataset.path ? parseStringPath(item.dataset.path) : [],
-        seq: +item.dataset.seq,
+        seq: item.dataset.seq && +item.dataset.seq,
       }
       const moveTo = {
         path: target.dataset.path ? parseStringPath(target.dataset.path) : [],
-        seq: +target.dataset.seq,
+        seq: target.dataset.seq && +target.dataset.seq,
       }
+      console.log(structuredClone(moveFrom), structuredClone(moveTo), target.classList.value)
       if (target.classList.contains('folder')) {
         // no need to push seq for root
-        if (moveTo.path.length && moveTo.path.at(0) === 'root') {
+        if (target.dataset.path === 'root') {
+          console.log('targeting')
           moveTo.path = []
         } else {
           moveTo.path.push(moveTo.seq)
@@ -1269,7 +1271,7 @@ function handleDragDrop(event) {
           return dragEnd()
         }
       } else {
-        // adjust resort based on position
+        // adjust re-sort based on position
         if ((moveTo.seq % 1) !== 0)
           moveTo.seq = Math.trunc(moveTo.seq) + ((moveTo.seq > moveFrom.seq) ? 0 : 1)
         // make sure we're not sorting to self in a folder list
@@ -1457,34 +1459,39 @@ async function handleAction(target) {
     }
 
     const restoreFileData = async (backupSpace) => {
-      const isCurrent = (backupSpace.name === space.name)
-      const restoreSpace = isCurrent ? space : new Space()
+      // TODO: restore other spaces once switcher implemented
+      // const isCurrent = (backupSpace.name === space.name)
+      // const restoreSpace = isCurrent ? space : new Space()
 
       // attempt to reinitialize the space with the backup data
-      if (!(await restoreSpace.init(backupSpace))) {
-        toast(i18n('toast_restore_failed'), 'error')
+      // if (!(await space.init(backupSpace))) {
+      //   toast(i18n('toast_restore_failed'), 'error')
 
-        // rollback just in case
-        space.loadCurrent()
-        return
-      }
+      //   // rollback just in case
+      //   space.loadCurrent()
+      //   return
+      // }
+
+      const backupData = new DataBucket(backupSpace.data)
+      if (!(await backupData.parse())) return
+      space.data = backupData
 
       // resort based on current settings
-      restoreSpace.sort(settings.sort)
+      space.sort(settings.sort)
 
       // make sure synced spaces are syncable and fall back otherwise to avoid failing
-      if (restoreSpace.synced && !restoreSpace.isSyncable(settings.data.compress)) {
-        restoreSpace.synced = false
+      if (space.synced && !(await space.isSyncable(settings.data.compress))) {
+        space.synced = false
       }
 
-      if (await restoreSpace.save()) {
-        // update current space in case synced was flipped
-        if (isCurrent) await setCurrentSpace()
+      if (!(await space.save())) return
 
-        // check for existing data to remove
-        const altSpaceStorage = new StorageKey(restoreSpace.name, !restoreSpace.synced)
-        altSpaceStorage.clear()
-      }
+      // update current space in case synced was flipped
+      await setCurrentSpace()
+
+      // check for existing data to remove
+      const altSpaceStorage = new StorageKey(space.name, !space.synced)
+      altSpaceStorage.clear()
     }
 
     // restore based on where the data is
@@ -1509,13 +1516,14 @@ async function handleAction(target) {
       // Complete backup, multiple spaces possible (current backups will only have one)
       for (const subspace of fileData.spaces) {
         await restoreFileData(subspace)
-        if (subspace.name === fileData.currentSpace.name) {
-          KeyStore.currentSpace.set({
-            name: subspace.name,
-            synced: subspace.synced,
-            path: subspace.path,
-          })
-        }
+        // TODO: update currentSpace once switcher implemented
+        // if (subspace.name === fileData.currentSpace.name) {
+        //   KeyStore.currentSpace.set({
+        //     name: subspace.name,
+        //     synced: subspace.synced,
+        //     path: subspace.path || [],
+        //   })
+        // }
       }
     }
 
@@ -1639,7 +1647,8 @@ async function handleAction(target) {
 
         case 'space':
         default:
-          filename = `${space.name}-${filename}`
+          // not currently used
+          filename = `${appName}-${space.name}-${filename}`
           backup.version = '1.0'
           backup.createdBy = appName
           backup.space = structuredClone(space)

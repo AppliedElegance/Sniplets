@@ -12,7 +12,7 @@ const getStorageArea = synced => synced ? 'sync' : 'local'
 /** Return an array of numbers from a string path
  * @param {string} path (path in the form of '#,#,...' as when setting an array directly to an attribute)
  */
-const parseStringPath = path => (path && (path !== 'root')) ? path.split(',').map(Number) : []
+const parseStringPath = path => (console.log(path, path !== 'root', path && (path !== 'root')), path && (path !== 'root')) ? (console.log('splitting'), path.split(',').map(Number)) : []
 
 /** Base constructor for folders, sniplets and any future items */
 class TreeItem {
@@ -345,8 +345,8 @@ class Space {
     // retrieve compression settings, save and remove old data
     await settings.load()
     if (await this.save(settings.data.compress)) {
-      console.log(oldName, this.storageKey.area)
       removeStorageData(oldName, this.storageKey.area)
+      return true
     }
   }
 
@@ -471,7 +471,7 @@ class Space {
    * @param {{path:number[],seq:number}} to
    */
   moveItem(from, to) {
-    // console.log('Moving item...', from, to)
+    console.log('Moving item...', from, to)
     if (!from || !to || isNaN(from.seq)) return
     if (!Array.isArray(from.path)) from.path = this.path
     if (!Array.isArray(to.path)) to.path = this.path

@@ -87,7 +87,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   self.skipWaiting()
 
   // shorthands for enum comparison of reason this event was triggered
-  /** @type {{CHROME_UPDATE:'chrome_update',INSTALL:'install',SHARED_MODULE_UPDATE:'shared_module_update',UPDATE:'update'}} */
   const { INSTALL, UPDATE } = chrome.runtime.OnInstalledReason
 
   console.log('Checking currently stored data...',

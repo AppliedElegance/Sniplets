@@ -3,7 +3,7 @@
   "createdBy": "Sniplets",
   "data": {
     "version": "1.0",
-    "timestamp": 1735779190011,
+    "timestamp": 1736627656243,
     "children": [
       {
         "name": "Placeholders",
@@ -18,54 +18,46 @@
           {
             "name": "Custom Placeholders",
             "seq": 2,
-            "color": "blue",
             "content": "Values for custom placeholders will be confirmed when pasting or using the clipboard feature:\n$[Custom Placeholder]\n\nA default value can be added in curly braces:\n$[Default{Text}]\n\nIf your placeholder should be chosen from a list, you can separate the values with a pipe (|) symbol where the first option will be default:\n$[Select Value{Option 1|Option 2|Option 3}]\n\nIf you want a special type of input field, you can specify its name in brackets:\n$[Date & Time(datetime-local)]\n\nIt’s possible to combine types and default values as long as the values are valid for the input type:\n$[Date Picker(date){2024-05-04}] $[Time Picker(time){16:30}]\n\nThe above can be especially useful for rich text fields like so:\n<span style=\"background-color:$[Color(color){#FFF444}]\">Highlighted Text</span>",
             "nosubst": false
           },
           {
             "name": "Date",
             "seq": 3,
-            "color": "gray",
             "content": "The default date display for the locale:\n$[DATE]\n\nThe current date with custom formatting:\n$[DATE(ddd, MMM Do, ’YY @ h A)]\n\nLocale-based date strings of decreasing length:\n$[DATE(full)]\n$[DATE(long)]\n$[DATE(medium)]\n$[DATE(short)]",
             "nosubst": false
           },
           {
             "name": "Time",
             "seq": 4,
-            "color": "yellow",
             "content": "The default time display:\n$[TIME]\n\nThe current time with custom formatting:\n$[TIME(h:mm A Z)]\n\nLocale-based time strings of decreasing length:\n$[TIME(full)]\n$[TIME(long)]\n$[TIME(medium)]\n$[TIME(short)]",
             "nosubst": false
           },
           {
-            "name": "Counters",
+            "name": "Embedded Sniplets",
             "seq": 5,
+            "color": "blue",
+            "content": "The named sniplet will be inlined and then processed:\n$[CLIPPING(Basic Placeholders)]\n\nSame as above, except the embedded sniplet will be checked for embedded sniplets and those recursively inlined as well:\n$[SNIPLET(Basic Placeholders)]\n\nThe named sniplet will be processed fully and the result embedded:\n$[SNIPLET{Basic Placeholders}]",
+            "nosubst": false
+          },
+          {
+            "name": "Counters",
+            "seq": 6,
             "color": "purple",
             "content": "Counters will use the default starting value chosen in the settings menu (initially 0), and will then increase by one each time it’s encountered. \n\nA default auto-incrementing counter (next value +1):\n#[Auto Counter]) First item\n#[Auto Counter]) Second item\n\nAdding a number in brackets after the counter name will change the increment.\n\nThis will increase the counter by 2 after replacement:\n#[2-step Counter(2)]) First item\n#[2-step Counter(2)]) Second item\n\nThis will decrease the counter by 2 after replacement:\n#[Countdown(-2)]) First item\n#[Countdown(-2)]) Second item\n\nThis will preserve the value of COUNTER after replacement:\n#[Static Counter(0)]) First item\n#[Static Counter(0)]) Second item",
             "nosubst": false
           },
           {
-            "name": "Embedded Sniplets",
-            "seq": 6,
-            "content": "The named sniplet will be inlined and then processed:\n$[CLIPPING(Basic Placeholders)]\n\nSame as above, except the embedded sniplet will be checked for embedded sniplets and those recursively inlined as well:\n$[SNIPLET(Basic Placeholders)]\n\nThe named sniplet will be processed fully and the result embedded:\n$[SNIPLET{Basic Placeholders}]",
-            "nosubst": false
-          },
-          {
-            "name": "RichText",
-            "seq": 7,
-            "content": "<h1>This is a rich text sample</h1>\nBy default, regular new lines like these two:\n\nwill be marked with rich text line break (<br>) tags so they won’t collapse into spaces. URLs without anchor tags (like https://github.com/AppliedElegance/Sniplets/issues) and email addresses (like noreply@example.com) will be hyperlinked automatically. These behaviours can be changed in the settings menu.\n\nThe copy button at the top right of this sniplet will process and add both plain and rich text versions of this sniplet ($[PATH]/$[NAME]) to the clipboard, just like if you’d copied it from a webpage.",
-            "nosubst": false
-          },
-          {
             "name": "[NOSUBST] Disabled",
-            "seq": 8,
+            "seq": 7,
             "content": "The following text will be pasted as-is and without any rich text processing due to the inclusion of [NOSUBST] at the beginning of the sniplet name:\n$[NAME], $[FOLDER], $[PATH]\n$[HOSTAPP], $[UA]\n#[COUNTER]\n$[DATE], $[TIME]\nunlinked.com, email@unlinked.com",
             "nosubst": false
           },
           {
             "name": "Enhancements",
-            "seq": 9,
+            "seq": 8,
             "color": "orange",
-            "content": "$[SNIPLET(Basic Placeholders)]\nClippings of course only understands the CLIPPING keyword (added in Clippings v7).\n\nThe following enhanced placeholders are incompatible with Clippings and should be avoided if regularly sharing backups:\n\n$[PATH] & $[PATH($)]:\nThe first of these will be treated as a blank custom field. The second type with a custom delimiter will be ignored completely.\n\n[DATE(full)], etc.\nClippings only understands a limited selection of custom date formats and will completely ignore date placeholders when it does not understand the format. This includes the “full”, “long”, “medium” and “short” keywords. Currently, Clippings only understands the following custom formats:\n$[DATE(dddd, MMMM Do, YYYY)]\n$[DATE(MMMM D, YYYY)]\n$[DATE(MM/DD/YYYY)]\n$[DATE(YYYY-MM-DD)]\n$[DATE(D MMMM YYYY)]\n$[DATE(D.M.YYYY)]\n$[DATE(DD-MMM-YYYY)]\n$[DATE(ddd, MMM DD, YYYY hh:mm:ss A ZZ)]\n$[TIME(h:mm A)]\n$[TIME(HH:mm)]\n$[TIME(HH:mm:ss)]\n\n#[Counter(#)]\nClippings has no facility for controlling counters and will ignore fields with custom incrementation completely.",
+            "content": "The following enhanced placeholders are incompatible with Clippings and should be avoided if regularly sharing backups:\n\n$[PATH] & $[PATH($)]:\nThe first of these will be treated as a blank custom field. The second type with a custom delimiter will be ignored completely.\n\n[DATE(full)], etc.\nClippings only understands a limited selection of custom date formats and will completely ignore date placeholders when it does not understand the format. This includes the “full”, “long”, “medium” and “short” keywords. Currently, Clippings only understands the following custom formats:\n$[DATE(dddd, MMMM Do, YYYY)]\n$[DATE(MMMM D, YYYY)]\n$[DATE(MM/DD/YYYY)]\n$[DATE(YYYY-MM-DD)]\n$[DATE(D MMMM YYYY)]\n$[DATE(D.M.YYYY)]\n$[DATE(DD-MMM-YYYY)]\n$[DATE(ddd, MMM DD, YYYY hh:mm:ss A ZZ)]\n$[TIME(h:mm A)]\n$[TIME(HH:mm)]\n$[TIME(HH:mm:ss)]\n\n$[SNIPLET(Name)]\nClippings of course only understands the CLIPPING keyword (added in Clippings v7).\n\n#[Counter(#)]\nClippings has no facility for controlling counters and will ignore fields with custom incrementation completely.",
             "nosubst": false
           }
         ]
@@ -82,10 +74,16 @@
         "color": "red",
         "content": "Folder and sniplet icons can be clicked to open their menu. The options currently available allow you to change the icon colour and move the item up or down manually. To move sniplets around, you can also drag their border and drop them into a folder or position, and for folders just drag their button.\n\nOn the right are buttons to rename (folders), copy to clipboard (sniplets) or delete. Once you get the hang of it, feel free to delete the tutorials! You can delete everything and start fresh right away by going to the settings menu at the top left under “Data” and clicking “Clear All Data and settings”.",
         "nosubst": false
+      },
+      {
+        "name": "Pasting Rich Text",
+        "seq": 4,
+        "content": "<h1>This is a rich text sample</h1>\n\n<h2>Line Breaks</h2>\nBy default, regular new lines like these two:\n\nwill be marked with line break (&lt;br&gt;) tags when pasting into rich text fields so they won’t collapse into spaces.\n\n<h2>Hyperlinks</h2>\nURLs without anchor tags (like https://github.com/AppliedElegance/Sniplets/issues) and email addresses (like noreply@example.com) will be hyperlinked automatically. These behaviours can be changed in the settings menu.\n\n<h2>Copying to Clipboard</h2>\nThe copy button at the top right of this sniplet will process and add both plain and rich text versions of it to the clipboard, just like if you’d copied it from a webpage. This will allow you to past it into any program or field.",
+        "nosubst": false
       }
     ],
     "counters": {
-      "startVal": 0
+      "startVal": 1
     }
   }
 }
