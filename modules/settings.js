@@ -124,11 +124,10 @@ export default class Settings {
 
   /** Load settings from sync storage */
   static async load() {
-    const legacyKey = new StorageKey('settings', 'sync')
-    const settings = await KeyStore.settings.get() || await legacyKey.get()
+    const settings = await KeyStore.settings.get()
     if (!settings) return
 
-    // upgrade settings object as needed and return the object
+    // upgrade settings object as needed
     return this.init(settings)
   }
 

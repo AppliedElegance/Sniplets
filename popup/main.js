@@ -502,6 +502,13 @@ const loadPopup = async () => {
     if (settings.view.rememberPath) setCurrentSpace()
   }
 
+  // check for a notice that needs to be posted
+  const notice = await KeyStore.notice.get()
+  if (notice) {
+    await showAbout(notice)
+    KeyStore.notice.clear()
+  }
+
   // Fetch requests from session storage set using the `setFollowup()` function
   const followup = await KeyStore.followup.get()
   if (followup) {
@@ -512,13 +519,6 @@ const loadPopup = async () => {
   }
 
   loadSniplets()
-
-  // check for a notice that need to be posted
-  const notice = await KeyStore.notice.get()
-  if (notice) {
-    await showAbout(notice)
-    KeyStore.notice.clear()
-  }
 
   // check and action URL parameters accordingly (okay to ignore in case of followups)
   if (window.params.action?.length) handleAction(window.params)
@@ -1416,10 +1416,10 @@ async function handleAction(target) {
       // Clippings data
       await importFileData({ children: fileData.userClippingsRoot })
     } else if (fileData.data) {
-      // Simple data backup (legacy)
+      // Simple data backup
       await importFileData(fileData.data)
     } else if (fileData.space) {
-      // Full data backup
+      // Full data backup (not currently used)
       await importFileData(fileData.space.data)
     } else if (fileData.spaces) {
       // Complete backup, multiple spaces possible
@@ -1506,9 +1506,16 @@ async function handleAction(target) {
       // Full data backup (not currently used)
       await restoreFileData(fileData.space)
     } else if (fileData.spaces) {
-      // Complete backup, multiple spaces possible
+      // Complete backup, multiple spaces possible (current backups will only have one)
       for (const subspace of fileData.spaces) {
         await restoreFileData(subspace)
+        if (subspace.name === fileData.currentSpace.name) {
+          KeyStore.currentSpace.set({
+            name: subspace.name,
+            synced: subspace.synced,
+            path: subspace.path,
+          })
+        }
       }
     }
 

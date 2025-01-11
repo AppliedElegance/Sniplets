@@ -86,23 +86,36 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // force refresh
   self.skipWaiting()
 
-  // console.log('Checking currently stored data...',
-  //   await chrome.storage.local.get(null),
-  //   await chrome.storage.sync.get(null),
-  // )
+  // shorthands for enum comparison of reason this event was triggered
+  /** @type {{CHROME_UPDATE:'chrome_update',INSTALL:'install',SHARED_MODULE_UPDATE:'shared_module_update',UPDATE:'update'}} */
+  const { INSTALL, UPDATE } = chrome.runtime.OnInstalledReason
+
+  console.log('Checking currently stored data...',
+    await chrome.storage.local.get(null),
+    await chrome.storage.sync.get(null),
+  )
 
   // prepare defaults
   if (!(await settings.load())) {
-    // settings init in case of corrupt data
-    settings.init()
-    // bug check if the default space is in the wrong area
+    // legacy check
+    const legacyKey = new StorageKey('settings', 'sync')
+    const legacySettings = await legacyKey.get()
+
+    // load legacy settings or reinitialize if legacy is undefined
+    settings.init(legacySettings)
+
+    // bug check if the default space is in the wrong area (should be save to remove by v1.0)
     if (!settings.defaultSpace.get()) {
-      const testSpace = new StorageKey(settings.defaultSpace.key, !settings.defaultSpace.synced)
+      const testSpace = new StorageKey(settings.defaultSpace.name, !settings.defaultSpace.synced)
       if (await testSpace.get()) settings.defaultSpace.area = testSpace.area
     }
+
+    // clean up legacy and save
     settings.save()
+    legacyKey.clear()
   }
   const { defaultSpace, view: { action }, data: { compress } } = settings
+  console.log(settings.entries)
 
   // set default action as needed
   setDefaultAction(action)
@@ -110,40 +123,53 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // prepare space for init
   const space = new Space()
 
-  // check for current space in case of reinstall
+  // check for current space in case of reinstall (with legacy check since it's been moved)
   const legacyCurrentSpace = new StorageKey('currentSpace', 'local')
   const currentSpace = await KeyStore.currentSpace.get() || await legacyCurrentSpace.get()
+
+  // try to load up current space or fall back to default
   if (!(await space.load(currentSpace || defaultSpace))) {
+    console.log('creating new space')
     // no space data found, create new space
     await space.init(defaultSpace)
 
     // if initial install add tutorial
-    if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    if (details.reason === INSTALL) {
       const starterPath = `/_locales/${i18n('locale')}/starter.json`
       try {
         const starterFile = await fetch(starterPath)
         const starterContent = await starterFile.json()
         const starterData = new DataBucket(starterContent.data)
         space.data = await starterData.parse()
-      } catch (e) {
-        console.warn(`Starter data could not be loaded at ${starterPath}`, e)
+      } catch {
+        // no starter data, hopefully won't happen
+        // console.warn(`Starter data could not be loaded at ${starterPath}`, e)
       }
     }
 
-    // save new space
-    await space.save(compress)
-  } else if (details.reason === 'update' && space.name === 'Snippets') {
+    // save new space and update local current
+    if (await space.save(compress)) {
+      space.setAsCurrent()
+      legacyCurrentSpace.clear()
+    }
+  } else if (details.reason === UPDATE && space.name === 'Snippets') {
+    console.log('branding update')
     // update branding
-    space.name = defaultSpace.name
-    await space.save(compress)
+    settings.defaultSpace.key = KeyStore.defaultSpace.key
+    settings.save()
+    await space.rename(settings.defaultSpace.name)
   }
+  console.log(details.reason, UPDATE, space.name, 'Snippets')
+
+  // make sure any updates to the current space are saved and remove legacy
   await space.setAsCurrent()
+  legacyCurrentSpace.clear()
 
   // build context menu for current data
   buildContextMenus(space)
 
   // add update notice on next use
-  if (details.reason === 'update') {
+  if (details.reason === UPDATE) {
     // Set update details for next loads
     KeyStore.notice.set({
       tagline: i18n('update_tagline'),
@@ -155,6 +181,11 @@ chrome.runtime.onInstalled.addListener(async (details) => {
       ],
     })
   }
+
+  console.log('Checking currently stored data...',
+    await chrome.storage.local.get(null),
+    await chrome.storage.sync.get(null),
+  )
 })
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -187,7 +218,7 @@ chrome.action.onClicked.addListener((tab) => {
   //   src.searchParams.append('view', 'window')
   //   chrome.windows.create({
   //     url: src.href,
-  //     type: "popup",
+  //     type: 'popup',
   //     width: 700, // 867 for screenshots
   //     height: 460, // 540 for screenshots
   //   })
@@ -216,7 +247,7 @@ async function handleCommand(command, args) {
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   // console.log('Context menu clicked...', info, tab)
 
-  // get details from menu item and ignore "empty" ones (sanity check)
+  // get details from menu item and ignore 'empty' ones (sanity check)
   const { command, ...data } = parseContextMenuData(info.menuItemId)
   if (!commandMap.has(command)) return
 
@@ -244,7 +275,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  // console.log('Storage changed...', changes, areaName)
+  console.log('Storage changed...', changes, areaName)
   const synced = (areaName === 'sync')
 
   for (const [key, change] of Object.entries(changes)) {
@@ -284,28 +315,35 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       }
     }
 
-    // check for removed sync data without local data
+    // check for active removed sync data without local data
     if (
-      synced
-      && change.oldValue?.children
-      && !change.newValue
+      synced // only care about synced spaces
+      && change.oldValue?.children // only spaces have children
+      && !change.newValue // removed, not changed
     ) {
-      // double-check we don't have a local space with the same name
-      if (!(await getStorageData(key, 'local'))) {
-        // don't lose the data on other synced instances without confirming first
-        const followup = {
-          action: 'unsynced',
-          args: {
-            name: key,
-            data: change.oldValue,
-          },
-        }
-        sendMessage('followup', followup).catch(async () => {
-          await KeyStore.followup.set(followup)
-          await settings.load()
-          openSession(Contexts.get(settings.view.action))
-        })
+      const { timestamp } = change.oldValue
+      // double-check it wasn't renamed
+      /** @type {{oldName:string,newName:string,timestamp:number}[]} */
+      const renameLog = await KeyStore.renameLog.get()
+      if (renameLog.find(v => (key === v.oldName && timestamp < v.timestamp))) break
+
+      // double-check we don't have it locally
+      if (await getStorageData(key, 'local')) break
+
+      // don't lose the data on other synced instances without confirming first
+      const followup = {
+        action: 'unsynced',
+        args: {
+          name: key,
+          data: change.oldValue,
+        },
       }
+      sendMessage('followup', followup).catch(async () => {
+        // open a new window to handle the followup if no sessions open
+        await KeyStore.followup.set(followup)
+        await settings.load()
+        openSession(Contexts.get(settings.view.action))
+      })
     }
   }
 })

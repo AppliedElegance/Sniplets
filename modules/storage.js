@@ -3,7 +3,7 @@ import { i18n } from '/modules/refs.js'
 /** Safely stores data in a chrome.storage bucket
  * @param {string} key The name of the storage bucket
  * @param {*} data Any JSON-serializable data
- * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to use (defaults to local)
+ * @param {'local'|'managed'|'session'|'sync'} [area] - Which storage area to look in (defaults to local)
  */
 async function setStorageData(key, data, area = 'local') {
   // console.log('Storing data...', key, data)
@@ -17,7 +17,7 @@ async function setStorageData(key, data, area = 'local') {
 
 /** Safely retrieves storage data from a chrome.storage bucket
  * @param {string} key - The name of the storage bucket
- * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to look in (defaults to local)
+ * @param {'local'|'managed'|'session'|'sync'} [area] - Which storage area to look in (defaults to local)
  * @returns {Promise<*>} Any JSON serializable value or undefined
  */
 async function getStorageData(key, area = 'local') {
@@ -31,7 +31,7 @@ async function getStorageData(key, area = 'local') {
 
 /** Safely removes storage data from chrome.storage.local (default) or .sync.
  * @param {string} key - The name of the storage bucket
- * @param {['local', 'managed', 'session', 'sync']=} area - Which storage area to look in (defaults to local)
+ * @param {'local'|'managed'|'session'|'sync'} [area] - Which storage area to look in (defaults to local)
  */
 async function removeStorageData(key, area = 'local') {
   /** @type {chrome.storage.StorageArea} */
@@ -79,9 +79,15 @@ class StorageKey {
       : (area === true ? 'sync' : 'local'))
   }
 
-  // pseudonyms for spaces
+  // pseudonym for spaces
   get name() { return this.key }
+  /** @param {string} name */
+  set name(name) { this.key = name }
+
+  // alternative to area name for sync/local
   get synced() { return this.area === 'sync' }
+  /** @param {boolean} synced */
+  set synced(synced) { this.area = synced ? 'sync' : 'local' }
 
   async set(data) {
     return setStorageData(this.key, data, this.area)
@@ -97,11 +103,27 @@ class StorageKey {
 }
 
 class KeyStore {
-  static get settings() { return new StorageKey('_Settings', 'sync') }
+  // local
   static get currentSpace() { return new StorageKey('_CurrentSpace', 'local') }
-  static get defaultSpace() { return new StorageKey(i18n('app_name'), 'sync') }
   static get notice() { return new StorageKey('_Notice', 'local') }
+
+  // sync
+  static get settings() { return new StorageKey('_Settings', 'sync') }
+  static get defaultSpace() { return new StorageKey(i18n('app_name'), 'sync') }
+  static get renameLog() { return new StorageKey('_RenameLog', 'sync') }
+
+  // session
   static get followup() { return new StorageKey('_Followup', 'session') }
+
+  // reserved keys
+  static get reservedKeys() {
+    return [
+      this.settings,
+      this.currentSpace,
+      this.notice,
+      this.followup,
+    ]
+  }
 }
 
 /** Send text to clipboard
@@ -120,6 +142,26 @@ async function setClipboard(snip) {
     .catch(e => console.error(e))
 }
 
+async function clearOldData() {
+  // remove any spaces that are no longer current
+  const storedData = {
+    local: await chrome.storage.local.get(null),
+    sync: await chrome.storage.sync.get(null),
+  }
+  const currentSpace = storedData?.[KeyStore.currentSpace.area]?.[KeyStore.currentSpace.key]
+  console.log(storedData, currentSpace, KeyStore.reservedKeys.concat(currentSpace))
+  for (const localKey in storedData.local) {
+    if (!(KeyStore.reservedKeys.concat(currentSpace).find(
+      v => (console.log(v), v.key === localKey && v.area === 'local'),
+    ))) removeStorageData(localKey, 'local')
+  }
+  for (const syncKey in storedData.sync) {
+    if (!(KeyStore.reservedKeys.concat(currentSpace).find(
+      v => (console.log(v), v.key === syncKey && v.area === 'sync'),
+    ))) removeStorageData(syncKey, 'sync')
+  }
+}
+
 export {
   setStorageData,
   getStorageData,
@@ -127,4 +169,5 @@ export {
   StorageKey,
   KeyStore,
   setClipboard,
+  clearOldData,
 }

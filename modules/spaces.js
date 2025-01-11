@@ -1,5 +1,5 @@
 import { i18n, locale, i18nOrd, Colors } from '/modules/refs.js'
-import { StorageKey, KeyStore } from '/modules/storage.js'
+import { StorageKey, KeyStore, removeStorageData } from '/modules/storage.js'
 import settings from '/modules/settings.js'
 import { ParseError } from '/modules/errors.js'
 
@@ -311,8 +311,9 @@ class Space {
    * @param {boolean} [rememberPath] Whether to set the current path to the saved one
    */
   async loadCurrent(rememberPath = false) {
-    const { path, ...key } = await KeyStore.currentSpace.get()
-    if (!(await this.load(key, rememberPath ? path : []))) {
+    const { path, ...location } = await KeyStore.currentSpace.get()
+    if (!(await this.load(location, rememberPath ? path : []))) {
+      // no current space found (first run?) use default
       await settings.load()
       if (!(await this.load(settings.defaultSpace))) {
         // should never happen unless memory is corrupt
@@ -321,7 +322,32 @@ class Space {
         this.setAsCurrent()
       }
     }
-    return true
+
+    // return success
+    return this
+  }
+
+  async rename(newName) {
+    const oldName = this.name
+    // retrieve and update log (remove old records)
+    /** @type {{oldName:string,newName:string,timestamp:number}[]} */
+    const renameLog = (await KeyStore.renameLog.get() || []).filter(v => v.oldName !== oldName)
+    renameLog.push({
+      oldName: oldName,
+      newName: newName,
+      timestamp: Date.now(),
+    })
+    await KeyStore.renameLog.set(renameLog)
+
+    // set new name
+    this.name = newName
+
+    // retrieve compression settings, save and remove old data
+    await settings.load()
+    if (await this.save(settings.data.compress)) {
+      console.log(oldName, this.storageKey.area)
+      removeStorageData(oldName, this.storageKey.area)
+    }
   }
 
   /** Save the space's DataBucket into the appropriate storage
