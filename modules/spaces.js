@@ -669,9 +669,9 @@ class Space {
           ['mm', paddedDate.minute],
           ['s', numericDate.second],
           ['ss', paddedDate.second],
-          ['.s', `.${shortDate.fractionalSecond}`],
-          ['.ss', `.${paddedDate.fractionalSecond}`],
-          ['.sss', `.${longDate.fractionalSecond}`],
+          ['S', `.${shortDate.fractionalSecond}`],
+          ['SS', `.${paddedDate.fractionalSecond}`],
+          ['SSS', `.${longDate.fractionalSecond}`],
           ['a', shortDate.dayPeriod],
           ['A', shortDate.dayPeriod.toUpperCase()],
           ['z', shortDate.timeZoneName],
@@ -680,7 +680,7 @@ class Space {
         ])
 
         // Replace DO (ordinal date) or letter patterns (allows strings like YYYYMMDDHHmmSS)
-        return format.replaceAll(/D[oO]|\.?s+|([a-zA-Z])\1*/g, match =>
+        return format.replaceAll(/D[oO]|(?:[a-zA-Z])\1*/g, match =>
           datetimeMap.get(match) // case sensitive matches
           || datetimeMap.get(match.toLowerCase()) // case insensitive matches
           || match, // unknown character strings}
