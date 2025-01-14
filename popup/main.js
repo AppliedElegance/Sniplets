@@ -110,7 +110,7 @@ async function handleError({ error, ...args }) {
     if (haveOrigins && await confirmAction(i18n('request_origins_all'), i18n('action_permit'))) {
       if (await chrome.permissions.request({
         origins: allUrls,
-      }).catch(e => (console.warn(e), false))) return {}
+      }).catch(() => false)) return {}
     } else if (origins.length) {
       const request = await confirmSelection(i18n('request_origins', origins.join(', ')), [
         { title: i18n('request_all_site_permissions'), value: JSON.stringify(allUrls) },
@@ -118,7 +118,7 @@ async function handleError({ error, ...args }) {
       ], i18n('action_permit'))
       if (request && await chrome.permissions.request({
         origins: JSON.parse(request),
-      }).catch(e => (console.warn(e), false))) return {}
+      }).catch(() => false)) return {}
     }
 
     return
@@ -267,8 +267,7 @@ async function handleFollowup({ action, args }) {
         }
         setCurrentSpace()
         loadSniplets()
-      } catch (e) {
-        console.error(e)
+      } catch {
         showAlert(i18n('error_data_corrupt'))
       }
     } else {
@@ -450,7 +449,7 @@ const loadPopup = async () => {
 
   // load up settings with sanitation check for sideloaded versions
   if (!(await settings.load())) {
-    console.warn('No settings found, reinitializing...')
+    // console.warn('No settings found, reinitializing...')
     settings.init()
     settings.save()
   }
@@ -483,13 +482,8 @@ const loadPopup = async () => {
   if (!(await space.loadCurrent(settings.view.rememberPath))) {
     // should hopefully never happen
     if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
-      try {
-        await space.init(settings.defaultSpace)
-        saveSpace()
-      } catch (e) {
-        // well and truly borked
-        console.error(e)
-      }
+      await space.init(settings.defaultSpace)
+      saveSpace()
     } else {
       window.close()
       return
@@ -1252,11 +1246,9 @@ function handleDragDrop(event) {
         path: target.dataset.path ? parseStringPath(target.dataset.path) : [],
         seq: target.dataset.seq && +target.dataset.seq,
       }
-      console.log(structuredClone(moveFrom), structuredClone(moveTo), target.classList.value)
       if (target.classList.contains('folder')) {
         // no need to push seq for root
         if (target.dataset.path === 'root') {
-          console.log('targeting')
           moveTo.path = []
         } else {
           moveTo.path.push(moveTo.seq)
@@ -1382,18 +1374,18 @@ async function handleAction(target) {
     if (!fileHandle || fileHandle instanceof Error) return
 
     // Read the file
-    const file = await fileHandle.getFile().catch(e => console.warn(e))
-    if (!file) return
-    const fileData = await file.text().catch(e => console.warn(e))
-    if (!fileData) return
+    const file = await fileHandle.getFile().catch(e => e)
+    if (!file || file instanceof Error) return
+    const fileData = await file.text().catch(e => e)
+    if (!fileData || fileData instanceof Error) return
 
     // Try to parse and return the backup data
     return JSON.parse(fileData)
   }
 
   const importData = async () => {
-    const fileData = await getBackupFileData().catch(e => console.warn(e))
-    if (!fileData) {
+    const fileData = await getBackupFileData().catch(e => e)
+    if (!fileData || fileData instanceof Error) {
       toast(i18n('toast_import_cancelled'), 'warning')
       return
     }
@@ -1441,9 +1433,9 @@ async function handleAction(target) {
     ))) return
 
     // request a backup file
-    const fileData = await getBackupFileData().catch(e => console.warn(e))
+    const fileData = await getBackupFileData().catch(e => e)
     // console.log('got backup file', fileData)
-    if (!fileData) {
+    if (!fileData || fileData instanceof Error) {
       toast(i18n('toast_restore_cancelled'), 'warning')
       return
     }
@@ -1573,7 +1565,6 @@ async function handleAction(target) {
         }
       }
       // scroll entire card into view (timeout handles transition)
-      console.log(target.closest('li'))
       setTimeout(() => (target.closest('li')?.scrollIntoView()), 150)
       break
 
@@ -1761,8 +1752,7 @@ async function handleAction(target) {
         // replace live with sync data before moving, set to false since it'll be reset after
           try {
             await space.init({ name: space.name, synced: false, data: targetData })
-          } catch (e) {
-            console.error(e)
+          } catch {
             alert(i18n('error_shift_failed'))
             return
           }

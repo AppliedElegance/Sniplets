@@ -24,6 +24,8 @@
 - Enhanced colour highlighting
 - Cleaned up icons
 - Cleaned up menus
+- Completed rebrand to Sniplets
+- Fixed bug when importing corrupted backup files
 
 ## v0.10.4 (2024-05-13)
 

@@ -12,7 +12,7 @@ const getStorageArea = synced => synced ? 'sync' : 'local'
 /** Return an array of numbers from a string path
  * @param {string} path (path in the form of '#,#,...' as when setting an array directly to an attribute)
  */
-const parseStringPath = path => (console.log(path, path !== 'root', path && (path !== 'root')), path && (path !== 'root')) ? (console.log('splitting'), path.split(',').map(Number)) : []
+const parseStringPath = path => (path && (path !== 'root')) ? path.split(',').map(Number) : []
 
 /** Base constructor for folders, sniplets and any future items */
 class TreeItem {
@@ -302,7 +302,8 @@ class Space {
   /** Set this space as the current space in the local browser */
   async setAsCurrent() {
     return KeyStore.currentSpace.set({
-      ...this.storageKey,
+      name: this.name,
+      synced: this.synced,
       path: this.path,
     })
   }
@@ -371,14 +372,14 @@ class Space {
   }
 
   /** Load a stored DataBucket into the space
-   * @param {StorageKey} [key] Name (key) and area (synced?) of the space to load, reloads if omitted
+   * @param {StorageKey} [location] Name (key) and area (synced?) of the space to load, reloads if omitted
    * @param {number[]} [path] Optional folder path
    */
-  async load(key, path = []) {
+  async load(location, path = []) {
     // make sure the storage key is typed
     const spaceLocker = new StorageKey(
-      key?.key || key?.name || this.name,
-      key?.area || key?.synced || this.synced,
+      location?.key || location?.name || this.name,
+      location?.area || location?.synced || this.synced,
     )
     if (!spaceLocker.name) return false
     const data = await spaceLocker.get()
@@ -471,7 +472,6 @@ class Space {
    * @param {{path:number[],seq:number}} to
    */
   moveItem(from, to) {
-    console.log('Moving item...', from, to)
     if (!from || !to || isNaN(from.seq)) return
     if (!Array.isArray(from.path)) from.path = this.path
     if (!Array.isArray(to.path)) to.path = this.path

@@ -27,6 +27,13 @@ async function setFollowup(action, args = {}) {
     ],
   })
 
+  // save followup as session data and open a new session to action it
+  const sendToNew = async () => {
+    await KeyStore.followup.set(followup)
+    await settings.load()
+    openSession(Contexts.get(settings.view.action))
+  }
+
   // send followup to any found contexts available to the current tab if possible
   const session = sessions.find(o =>
     (+(new URL(o.documentUrl).searchParams.get('tabId')) === args.target?.tabId),
@@ -35,13 +42,10 @@ async function setFollowup(action, args = {}) {
   )
   if (session) {
     const sendResult = sendMessage('followup', followup, session).catch(e => e)
-    // console.log(sendResult)
-    if (sendResult instanceof Error) return
+    if (sendResult instanceof Error) sendToNew()
   } else {
     // save followup as session data and open a new session to action it
-    await KeyStore.followup.set(followup)
-    await settings.load()
-    openSession(Contexts.get(settings.view.action))
+    sendToNew()
   }
 
   return
@@ -89,10 +93,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   // shorthands for enum comparison of reason this event was triggered
   const { INSTALL, UPDATE } = chrome.runtime.OnInstalledReason
 
-  console.log('Checking currently stored data...',
-    await chrome.storage.local.get(null),
-    await chrome.storage.sync.get(null),
-  )
+  // console.log('Checking currently stored data...',
+  //   await chrome.storage.local.get(null),
+  //   await chrome.storage.sync.get(null),
+  // )
 
   // prepare defaults
   if (!(await settings.load())) {
@@ -114,7 +118,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     legacyKey.clear()
   }
   const { defaultSpace, view: { action }, data: { compress } } = settings
-  console.log(settings.entries)
 
   // set default action as needed
   setDefaultAction(action)
@@ -124,41 +127,45 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   // check for current space in case of reinstall (with legacy check since it's been moved)
   const legacyCurrentSpace = new StorageKey('currentSpace', 'local')
-  const currentSpace = await KeyStore.currentSpace.get() || await legacyCurrentSpace.get()
+  const currentSpace = await KeyStore.currentSpace.get() || await legacyCurrentSpace.get() || defaultSpace
 
   // try to load up current space or fall back to default
-  if (!(await space.load(currentSpace || defaultSpace))) {
-    console.log('creating new space')
-    // no space data found, create new space
-    await space.init(defaultSpace)
+  if (!(await space.load(currentSpace))) {
+    // check for rename in case of race condition
+    /** @type {{oldName:string,newName:string,timestamp:number}[]} */
+    const renameLog = await KeyStore.renameLog.get()
+    const renameEntry = renameLog?.find(v => (currentSpace.name === v.oldName))
+    if (!(renameEntry && await space.load(new StorageKey(renameEntry.newName, currentSpace.synced)))) {
+      // no space data found, create new space
+      await space.init(defaultSpace)
 
-    // if initial install add tutorial
-    if (details.reason === INSTALL) {
-      const starterPath = `/_locales/${i18n('locale')}/starter.json`
-      try {
-        const starterFile = await fetch(starterPath)
-        const starterContent = await starterFile.json()
-        const starterData = new DataBucket(starterContent.data)
-        space.data = await starterData.parse()
-      } catch {
-        // no starter data, hopefully won't happen
-        // console.warn(`Starter data could not be loaded at ${starterPath}`, e)
+      // if initial install add tutorial
+      if (details.reason === INSTALL) {
+        const starterPath = `/_locales/${i18n('locale')}/starter.json`
+        try {
+          const starterFile = await fetch(starterPath)
+          const starterContent = await starterFile.json()
+          const starterData = new DataBucket(starterContent.data)
+          space.data = await starterData.parse()
+        } catch {
+          // no starter data, hopefully won't happen
+          // console.warn(`Starter data could not be loaded at ${starterPath}`, e)
+        }
+      }
+
+      // save new space and update local current
+      if (await space.save(compress)) {
+        space.setAsCurrent()
+        legacyCurrentSpace.clear()
       }
     }
-
-    // save new space and update local current
-    if (await space.save(compress)) {
-      space.setAsCurrent()
-      legacyCurrentSpace.clear()
-    }
   } else if (details.reason === UPDATE && space.name === 'Snippets') {
-    console.log('branding update')
-    // update branding
-    settings.defaultSpace.key = KeyStore.defaultSpace.key
-    settings.save()
-    await space.rename(settings.defaultSpace.name)
+    // leave for next version to avoid 'corrupt data' popup in case data is updated before extension
+    // // update branding
+    // settings.defaultSpace.key = KeyStore.defaultSpace.key
+    // settings.save()
+    // await space.rename(settings.defaultSpace.name)
   }
-  console.log(details.reason, UPDATE, space.name, 'Snippets')
 
   // make sure any updates to the current space are saved and remove legacy
   await space.setAsCurrent()
@@ -181,10 +188,10 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     })
   }
 
-  console.log('Checking currently stored data...',
-    await chrome.storage.local.get(null),
-    await chrome.storage.sync.get(null),
-  )
+  // console.log('Checking currently stored data...',
+  //   await chrome.storage.local.get(null),
+  //   await chrome.storage.sync.get(null),
+  // )
 })
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -274,10 +281,12 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  console.log('Storage changed...', changes, areaName)
+  // console.log('Storage changed...', changes, areaName)
   const synced = (areaName === 'sync')
 
   for (const [key, change] of Object.entries(changes)) {
+    // console.log('Storage changed...', areaName, key, change)
+
     // check for settings updates and update the action as necessary
     if ((key === KeyStore.settings.key) && change.newValue) {
       // update actions to match new settings
@@ -297,7 +306,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
 
       // check if current space was changed
       const currentSpace = await KeyStore.currentSpace.get()
-      const spaceKey = new StorageKey(currentSpace.key ?? currentSpace.name, currentSpace.area ?? currentSpace.synced)
+      const spaceKey = new StorageKey(currentSpace.name, currentSpace.synced)
       if (!currentSpace || (spaceKey.key === key && spaceKey.area === areaName)) {
         const space = new Space()
         try {
@@ -309,6 +318,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
           // console.log('rebuilding context menus', structuredClone(space))
           buildContextMenus(space)
         } catch (e) {
+          // something weird happened
           console.error(e)
         }
       }

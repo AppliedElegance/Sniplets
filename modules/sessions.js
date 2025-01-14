@@ -12,9 +12,8 @@ async function getCurrentTab() {
 
 /** Open the popup action if possible */
 async function openPopup() {
-  return chrome.action.openPopup && chrome.action.openPopup()
-    .then(() => true)
-    .catch(e => (console.error(e)))
+  if (!chrome.action.openPopup) return new Error('openPopup not yet implemented in this browser')
+  return chrome.action.openPopup().catch(e => e)
 }
 
 /** Open a new side panel for the tab
@@ -69,7 +68,7 @@ async function openSession(view, params = []) {
 
   switch (Contexts.get(view)) {
     case Contexts.POPUP:
-      if (!(await openPopup())) openWindow(src)
+      if ((await openPopup()) instanceof Error) openWindow(src)
       break
 
     case Contexts.SIDE_PANEL:

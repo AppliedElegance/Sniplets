@@ -149,15 +149,14 @@ async function clearOldData() {
     sync: await chrome.storage.sync.get(null),
   }
   const currentSpace = storedData?.[KeyStore.currentSpace.area]?.[KeyStore.currentSpace.key]
-  console.log(storedData, currentSpace, KeyStore.reservedKeys.concat(currentSpace))
   for (const localKey in storedData.local) {
     if (!(KeyStore.reservedKeys.concat(currentSpace).find(
-      v => (console.log(v), v.key === localKey && v.area === 'local'),
+      v => (v.key === localKey && v.area === 'local'),
     ))) removeStorageData(localKey, 'local')
   }
   for (const syncKey in storedData.sync) {
     if (!(KeyStore.reservedKeys.concat(currentSpace).find(
-      v => (console.log(v), v.key === syncKey && v.area === 'sync'),
+      v => (v.key === syncKey && v.area === 'sync'),
     ))) removeStorageData(syncKey, 'sync')
   }
 }

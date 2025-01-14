@@ -1,10 +1,15 @@
 {
-    "compilerOptions": {
-        "target": "ESNext",
-        "baseUrl": ".",
-        "paths": {
-            "/*": ["*"]
-        }
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "baseUrl": ".",
+    "paths": {
+      "/*": ["*"]
     },
-    "exclude": ["node_modules", "ref"]
+    "noImplicitAny": false,
+    "noImplicitThis": false,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true
+  },
+  "exclude": ["node_modules", "ref"]
 }

@@ -28,18 +28,18 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 > The 0.11 release series is again a major overhaul from previous releases as the extension approaches feature parity with Clippings. Code has been modularized and much work has been done under the hood to enhance usability (such as full embedded frame support, sped up actions, and support for more WYSIWYG editors)
 
 - Side panel features and related options
-- Additional feature to import backups without overwriting current ones
-- Dark mode (OS dependant)
+- Import backup data without overwriting (alternative to restore)
+- Dark mode (OS dependant, manual toggle may be added later)
 - Support for embedded sniplets compatible with Clippings v7 (`$[CLIPPING(name)]`)
 - [Full release notes…](https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md)
 
 ## Roadmap
 
-1.0 -> Full feature parity with Clippings for Firefox; features remaining:
+1.0 -> Full feature parity with Clippings for Firefox. Features remaining:
 
 - paste via keyboard shortcuts
 - editor buttons to add placeholders and counters into a new sniplet
-- import (not just restore) from backup
+- option to preserve tags as text instead of formatting on paste to rich text fields
 
 1.1 -> Support for multiple "spaces" to better organize sniplets when doing different types of work.
 

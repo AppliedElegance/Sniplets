@@ -10,14 +10,6 @@ export default [
     braceStyle: '1tbs',
   }),
   {
-    files: ['/service_worker.js'],
-    languageOptions: {
-      globals: {
-        ...globals.worker,
-      },
-    },
-  },
-  {
     languageOptions: {
       globals: {
         ...globals.browser,
