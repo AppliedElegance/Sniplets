@@ -334,7 +334,7 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       // double-check it wasn't renamed
       /** @type {{oldName:string,newName:string,timestamp:number}[]} */
       const renameLog = await KeyStore.renameLog.get()
-      if (renameLog.find(v => (key === v.oldName && timestamp < v.timestamp))) break
+      if (renameLog?.find(v => (key === v.oldName && timestamp < v.timestamp))) break
 
       // double-check we don't have it locally
       if (await getStorageData(key, 'local')) break
