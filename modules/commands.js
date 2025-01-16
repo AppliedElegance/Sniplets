@@ -21,13 +21,18 @@ async function sendMessage(subject, body, to) {
  */
 async function buildContextMenus(space) {
   // Since there's no way to poll current menu items, clear all first
-  await chrome.contextMenus.removeAll().catch(e => console.error(e))
+  await chrome.contextMenus.removeAll().catch(e => e)
+  // lastError must be explicitly checked for contextMenu promises
+  chrome.runtime.lastError
 
   if (!space?.name) return
 
-  const addMenu = properties => chrome.contextMenus.create(properties, () =>
-    chrome.runtime.lastError && console.error(chrome.runtime.lastError),
-  )
+  const addMenu = properties => new Promise((resolve, reject) => {
+    const id = chrome.contextMenus.create(properties, () => {
+      chrome.runtime.lastError && reject(chrome.runtime.lastError)
+      resolve(id)
+    })
+  }).catch(e => e)
 
   /** @type {{command:string,spaceKey:StorageKey,path:number[],seq:number}} */
   const menuData = {
@@ -37,7 +42,7 @@ async function buildContextMenus(space) {
   }
 
   // create snipper for selected text
-  addMenu({
+  await addMenu({
     id: JSON.stringify(menuData),
     title: i18n('action_snip_selection'),
     contexts: ['selection'],
@@ -47,7 +52,7 @@ async function buildContextMenus(space) {
   if (space.data?.children?.length) {
     // set root menu item
     menuData.command = 'paste'
-    addMenu({
+    await addMenu({
       id: JSON.stringify(menuData),
       title: i18n('action_paste'),
       contexts: ['editable'],
@@ -58,7 +63,7 @@ async function buildContextMenus(space) {
      * @param {(Folder|Sniplet)[]} folder
      * @param {*} parentData
      */
-    const buildFolder = (folder, parentData) => {
+    const buildFolder = async (folder, parentData) => {
       const menuItem = {
         contexts: ['editable'],
         parentId: JSON.stringify(parentData),
@@ -70,7 +75,7 @@ async function buildContextMenus(space) {
 
       // list sniplets in folder
       if (folder.length) {
-        folder.forEach((item) => {
+        for (const item of folder) {
           menuData.seq = item.seq
           menuItem.id = JSON.stringify(menuData)
           // using emojis for ease of parsing and && escaping, non-breaking spaces (`\xA0`) avoids collapsing
@@ -78,19 +83,19 @@ async function buildContextMenus(space) {
           menuItem.title = `${
             (item instanceof Folder) ? color.folder : color.sniplet
           }\xA0\xA0${item.name.replaceAll('&', '&&')}`
-          addMenu(menuItem)
-          if (item instanceof Folder) buildFolder(item.children, menuData)
-        })
+          await addMenu(menuItem)
+          if (item instanceof Folder) await buildFolder(item.children, menuData)
+        }
       } else {
         menuData.seq = undefined
         menuItem.id = JSON.stringify(menuData)
         menuItem.title = i18n('folder_empty')
         menuItem.enabled = false
-        addMenu(menuItem)
+        await addMenu(menuItem)
       }
     }
     // build paste sniplet menu tree
-    buildFolder(space.data.children, menuData)
+    await buildFolder(space.data.children, menuData)
   }
 }
 
@@ -101,8 +106,7 @@ async function buildContextMenus(space) {
 function parseContextMenuData(data) {
   try {
     return JSON.parse(data)
-  } catch (e) {
-    console.error(e)
+  } catch {
     return {}
   }
 }
@@ -631,8 +635,7 @@ async function pasteItem(args) {
           return (input.value !== undefined || input.contentEditable === 'plaintext-only')
             ? document.execCommand('insertText', false, snip.content)
             : document.execCommand('insertHTML', false, snip.richText)
-        } catch (e) {
-          console.error(e)
+        } catch {
           return
         }
       })()

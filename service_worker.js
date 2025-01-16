@@ -14,6 +14,7 @@ import { getMainUrl, openSession } from '/modules/sessions.js'
 async function setFollowup(action, args = {}) {
   // console.log('Setting followup...', action, args)
 
+  // prepare followup message
   const followup = {
     action: action,
     args: args,
@@ -22,8 +23,8 @@ async function setFollowup(action, args = {}) {
   // check for visible open sessions (only in case of POPUP or SIDE_PANEL)
   const sessions = await chrome.runtime.getContexts({
     contextTypes: [
-      Contexts.SIDE_PANEL,
-      Contexts.POPUP,
+      chrome.runtime.ContextType.SIDE_PANEL,
+      chrome.runtime.ContextType.POPUP,
     ],
   })
 
@@ -57,31 +58,25 @@ async function setFollowup(action, args = {}) {
 function setDefaultAction(action) {
   // set popup action
   if (action === 'popup') {
-    chrome.action.setPopup({ popup: 'popup/main.html?view=popup' })
-      .catch(e => console.error(e))
+    chrome.action.setPopup({ popup: 'popup/main.html?view=popup' }).catch(e => e)
   } else {
-    chrome.action.setPopup({ popup: '' })
-      .catch(e => console.error(e))
+    chrome.action.setPopup({ popup: '' }).catch(e => e)
   }
 
   // set side panel action
   if (action === 'panel') {
     // disable except when opened by action on specific tab
-    chrome.sidePanel.setOptions({ enabled: false })
-      .catch(e => console.error(e))
+    chrome.sidePanel.setOptions({ enabled: false }).catch(e => e)
   } else {
     // enable for right-click open and toggle action
-    chrome.sidePanel.setOptions({ enabled: true })
-      .catch(e => console.error(e))
+    chrome.sidePanel.setOptions({ enabled: true }).catch(e => e)
   }
 
   // set side panel toggle behaviour
   if (action === 'panel-toggle') {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true })
-      .catch(e => console.error(e))
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(e => e)
   } else {
-    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false })
-      .catch(e => console.error(e))
+    chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(e => e)
   }
 }
 
@@ -161,6 +156,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
     }
   } else if (details.reason === UPDATE && space.name === 'Snippets') {
     // leave for next version to avoid 'corrupt data' popup in case data is updated before extension
+    // this version understands renames, so next version will handle it
     // // update branding
     // settings.defaultSpace.key = KeyStore.defaultSpace.key
     // settings.save()
@@ -205,8 +201,8 @@ chrome.action.onClicked.addListener((tab) => {
   if (!tab.id) return
 
   const src = getMainUrl()
-  src.searchParams.append('view', 'panel')
-  src.searchParams.append('tabId', tab.id)
+  src.searchParams.set('view', 'panel')
+  src.searchParams.set('tabId', tab.id)
 
   // use single callback only to avoid losing gesture (nested callbacks and async are broken)
   chrome.sidePanel.setOptions({
@@ -234,6 +230,7 @@ chrome.action.onClicked.addListener((tab) => {
 // handle context menu and keyboard shortcut commands
 async function handleCommand(command, args) {
   // console.log('Handling command...', command, args)
+
   // Get result and convert caught errors to serializable object for passing to window
   const result = await runCommand(command, args)
     .catch(e => ({ error: {
@@ -308,19 +305,13 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       const currentSpace = await KeyStore.currentSpace.get()
       const spaceKey = new StorageKey(currentSpace.name, currentSpace.synced)
       if (!currentSpace || (spaceKey.key === key && spaceKey.area === areaName)) {
-        const space = new Space()
-        try {
-          await space.init({
-            name: key,
-            synced: synced,
-            data: change.newValue,
-          })
-          // console.log('rebuilding context menus', structuredClone(space))
-          buildContextMenus(space)
-        } catch (e) {
-          // something weird happened
-          console.error(e)
-        }
+        const contextSpace = new Space()
+        await contextSpace.init({
+          name: key,
+          synced: synced,
+          data: change.newValue,
+        }).catch(e => e)
+        buildContextMenus(contextSpace).catch(e => e)
       }
     }
 

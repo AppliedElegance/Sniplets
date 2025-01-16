@@ -10,18 +10,29 @@ async function getCurrentTab() {
   return tab
 }
 
-/** Open the popup action if possible */
-async function openPopup() {
-  if (!chrome.action.openPopup) return new Error('openPopup not yet implemented in this browser')
-  return chrome.action.openPopup().catch(e => e)
+/** Open the popup action if possible
+ * @param {URL} [url] The full url to open if popup unavailable
+ */
+async function openPopup(url) {
+  url ||= chrome.action.getPopup()
+  if (!url) return
+  // url.searchParams.set('view', Contexts.POPUP)
+  // chrome.action.setPopup({
+  //   popup: url,
+  // })
+  const result = chrome.action.openPopup && await chrome.action.openPopup().catch(e => e)
+  if (!result || result instanceof Error) {
+    return openWindow(url)
+  }
+  return true
 }
 
 /** Open a new side panel for the tab
  * @param {URL} url full url to open
- * @param {chrome.tabs.Tab=} tab The target tab
+ * @param {chrome.tabs.Tab} [tab] The target tab
  */
 async function openPanel(url, tab) {
-  url.searchParams.set('view', 'panel')
+  url.searchParams.set('view', Contexts.SIDE_PANEL)
   const targetTab = tab || await getCurrentTab()
   if (!targetTab) return
 
@@ -30,55 +41,50 @@ async function openPanel(url, tab) {
     enabled: true,
     path: url.href,
   })
-  return chrome.sidePanel.open({
+  const result = await chrome.sidePanel.open({
     tabId: targetTab.id,
-  })
-    .then(() => true)
-    .catch(e => (console.error(e), false))
+  }).catch(e => e)
+  return (result instanceof Error) ? false : true
 }
 
 /** Open a new popup window
  * @param {URL} url full url object to open
  */
 async function openWindow(url) {
-  url.searchParams.set('view', 'window')
+  url.searchParams.set('view', Contexts.TAB)
 
   // There can be more than one window open so provide a unique ID
   url.searchParams.set('uuid', crypto.randomUUID())
-  return chrome.windows.create({
+  const result = await chrome.windows.create({
     url: url.href,
     type: 'popup',
     width: 700, // 867 for screenshots
     height: 460, // 540 for screenshots
-  })
-    .then(() => true)
-    .catch(e => (console.error(e), false))
+  }).catch(e => e)
+  return (result instanceof Error) ? false : result
 }
 
 /** Open a new session in a specified context
- * @param {string} view The type of session to open
+ * @param {chrome.runtime.ContextType} contextType The type of session to open
  * @param {Array} params An array of search parameters to add to the main url
  */
-async function openSession(view, params = []) {
+async function openSession(contextType, params = []) {
   const src = getMainUrl()
   // go through params
   for (const [name, value] of params) {
     src.searchParams.set(name, value)
   }
 
-  switch (Contexts.get(view)) {
-    case Contexts.POPUP:
-      if ((await openPopup()) instanceof Error) openWindow(src)
-      break
+  // available types
+  const { POPUP, SIDE_PANEL, TAB } = chrome.runtime.ContextType
+  const sessionMap = new Map([
+    [POPUP, openWindow],
+    [SIDE_PANEL, openPanel],
+    [TAB, openWindow],
+  ])
 
-    case Contexts.SIDE_PANEL:
-      openPanel(src)
-      break
-
-    default:
-      openWindow(src)
-      break
-  }
+  const sessionMapFunc = sessionMap.get(contextType) ?? sessionMap.get(TAB)
+  return sessionMapFunc(src)
 }
 
 export {

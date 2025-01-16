@@ -400,7 +400,7 @@ class Space {
   getPathNames(path = this.path) {
     const folderNames = this.data.getPathNames(path)
     if (!folderNames) {
-      console.error(`The requested path sequence ${path} doesn't exist.`, structuredClone(this))
+      // console.error(`The requested path sequence ${path} doesn't exist.`, structuredClone(this))
       return
     }
     return [this.name].concat(folderNames)
@@ -413,7 +413,7 @@ class Space {
   getItem(path = this.path) {
     const item = this.data.getItem(path)
     if (!item) {
-      console.error(`The requested item path sequence ${path} doesn't exist. The last item reached: ${item}`)
+      // console.error(`The requested item path sequence ${path} doesn't exist. The last item reached: ${item}`)
       return
     }
     return item
@@ -492,8 +492,8 @@ class Space {
       this.sequence(toFolder)
       if (JSON.stringify(from.path) !== JSON.stringify(to.path))
         this.sequence(fromFolder)
-    } catch (e) {
-      console.error(e)
+    } catch {
+      return
     }
     return fromItem
   }

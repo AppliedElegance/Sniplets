@@ -15,25 +15,13 @@ const i18nOrd = i => i18n(`ordinal_${new Intl.PluralRules(locale, { type: 'ordin
 
 // see https://developer.chrome.com/docs/extensions/reference/api/runtime#type-ContextType
 class Contexts {
-  // Copy over enum as shorthand
-  /** @type {'TAB'} */
-  static get TAB() { return chrome.runtime.ContextType.TAB }
-  /** @type {'POPUP'} */
-  static get POPUP() { return chrome.runtime.ContextType.POPUP }
-  /** @type {'BACKGROUND'} */
-  static get BACKGROUND() { return chrome.runtime.ContextType.BACKGROUND }
-  /** @type {'OFFSCREEN_DOCUMENT'} */
-  static get OFFSCREEN_DOCUMENT() { return chrome.runtime.ContextType.OFFSCREEN_DOCUMENT }
-  /** @type {'SIDE_PANEL'} */
-  static get SIDE_PANEL() { return chrome.runtime.ContextType.SIDE_PANEL }
-  /** @type {'DEVELOPER_TOOLS'} */
-  static get DEVELOPER_TOOLS() { return chrome.runtime.ContextType.DEVELOPER_TOOLS }
+  static #type = chrome.runtime.ContextType
 
   static #views = new Map([
-    ['popup', this.POPUP],
-    ['panel', this.SIDE_PANEL],
-    ['panel-toggle', this.SIDE_PANEL],
-    ['window', this.TAB],
+    ['popup', Contexts.#type.POPUP],
+    ['panel', Contexts.#type.SIDE_PANEL],
+    ['panel-toggle', Contexts.#type.SIDE_PANEL],
+    ['window', Contexts.#type.TAB],
   ])
 
   static get(view) { return Contexts.#views.get(view) }

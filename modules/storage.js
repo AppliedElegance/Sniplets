@@ -11,8 +11,7 @@ async function setStorageData(key, data, area = 'local') {
   const bucket = chrome.storage[area]
   if (!bucket) return
   return bucket.set({ [key]: data })
-    .then(() => true)
-    .catch(e => (console.error(e)))
+    .then(() => true).catch(e => (e, false))
 }
 
 /** Safely retrieves storage data from a chrome.storage bucket
@@ -24,8 +23,7 @@ async function getStorageData(key, area = 'local') {
   /** @type {chrome.storage.StorageArea} */
   const bucket = chrome.storage[area]
   if (!bucket) return
-  const result = await bucket.get(key)
-    .catch(e => (console.error(e), {}))
+  const result = await bucket.get(key).catch(e => (e, {}))
   return result[key]
 }
 
@@ -38,8 +36,7 @@ async function removeStorageData(key, area = 'local') {
   const bucket = chrome.storage[area]
   if (!bucket) return
   return bucket.remove(key)
-    .then(() => true)
-    .catch(e => (console.error(e)))
+    .then(() => true).catch(e => (e, false))
 }
 
 class StorageKey {
@@ -138,8 +135,7 @@ async function setClipboard(snip) {
   }
   // console.log(`Copying to clipboard...`);
   return navigator.clipboard.write([new ClipboardItem(items)])
-    .then(() => true)
-    .catch(e => console.error(e))
+    .then(() => true).catch(e => (e, false))
 }
 
 async function clearOldData() {
