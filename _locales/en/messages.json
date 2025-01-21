@@ -588,7 +588,7 @@
     "message": "Scripting Blocked"
   },
   "alert_message_scripting_blocked": {
-    "message": "Editing on this page is disallowed by the browser. Please copy and paste manually using the sniplets manager.\n\nURL: $url$",
+    "message": "Sniplets was blocked by the browser from accessing this page. This is expected if you are on an Extension download site or an internal page like the New Tab and Settings pages. If not, please try using the context menu rather than a shortcut. You can also copy and paste manually using the sniplets manager.\n\nURL: $url$",
     "placeholders": {
       "URL": {
         "content": "$1"
@@ -705,5 +705,8 @@
   },
   "title_selection_not_found": {
     "message": "No Selection Found"
+  },
+  "error_blocked_url": {
+    "message": "unavailable"
   }
 }

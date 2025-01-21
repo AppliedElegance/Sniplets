@@ -1,3 +1,5 @@
+import { i18n } from '/modules/refs.js'
+
 class NotImplementedError extends Error {
   name = this.constructor.name
   constructor(feature, lastError) {
@@ -25,6 +27,7 @@ class MissingPermissionsError extends Error {
 class ScriptingBlockedError extends Error {
   name = this.constructor.name
   constructor(url, lastError) {
+    url ||= i18n('error_blocked_url')
     super(`Scripting on this page is blocked.\nURL: ${url}`, { cause: {
       url: url,
       lastError: lastError,

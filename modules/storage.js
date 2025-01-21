@@ -119,16 +119,19 @@ class KeyStore {
       this.currentSpace,
       this.notice,
       this.followup,
+      this.renameLog,
     ]
   }
 }
 
 /** Send text to clipboard
- * @param {{content:string,richText:string}} snip a processed sniplet (use `getProcessedSniplet`)
+ * @param {{content:string,richText?:string}} snip a processed sniplet with optional rich text
  */
 async function setClipboard(snip) {
   // console.log('Setting clipboard...', { ...snip })
   if (!snip?.content) return
+
+  // set up items
   const items = {
     'text/plain': new Blob([snip.content], { type: 'text/plain' }),
     'text/html': new Blob([snip.richText || snip.content], { type: 'text/html' }),

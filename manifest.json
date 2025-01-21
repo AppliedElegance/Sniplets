@@ -32,10 +32,10 @@
   },
   "action": {
     "default_title": "__MSG_app_command_open__",
-    "default_popup": "/popup/main.html?view=popup"
+    "default_popup": "/popup/main.html?view=POPUP"
   },
   "side_panel": {
-    "default_path": "/popup/main.html?view=panel"
+    "default_path": "/popup/main.html?view=SIDE_PANEL"
   },
   "commands": {
     "_execute_action": {

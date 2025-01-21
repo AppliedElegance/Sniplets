@@ -58,7 +58,7 @@ async function setFollowup(action, args = {}) {
 function setDefaultAction(action) {
   // set popup action
   if (action === 'popup') {
-    chrome.action.setPopup({ popup: 'popup/main.html?view=popup' }).catch(e => e)
+    chrome.action.setPopup({ popup: 'popup/main.html?view=POPUP' }).catch(e => e)
   } else {
     chrome.action.setPopup({ popup: '' }).catch(e => e)
   }
@@ -144,7 +144,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
           space.data = await starterData.parse()
         } catch {
           // no starter data, hopefully won't happen
-          // console.warn(`Starter data could not be loaded at ${starterPath}`, e)
         }
       }
 
@@ -233,11 +232,6 @@ async function handleCommand(command, args) {
 
   // Get result and convert caught errors to serializable object for passing to window
   const result = await runCommand(command, args)
-    .catch(e => ({ error: {
-      name: e.name,
-      message: e.message,
-      cause: e.cause,
-    } }))
 
   // set followup if anything was returned
   if (result) setFollowup(command, {
@@ -290,6 +284,9 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
       if (change.newValue.view.action !== change.oldValue?.view.action) {
         setDefaultAction(change.newValue.view.action)
       }
+
+      // send a message to update any open windows
+      sendMessage('updateSettings').catch(() => false)
     }
 
     // check for data updates, key can be anything

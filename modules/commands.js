@@ -1,7 +1,7 @@
 import { CrossOriginError, CustomPlaceholderError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
 import { i18n, Colors } from '/modules/refs.js'
 import settings from '/modules/settings.js'
-import { Folder, Sniplet, Space } from '/modules/spaces.js'
+import { Folder, getRichText, Sniplet, Space } from '/modules/spaces.js'
 
 /** Send an internal message
  * @param {string} subject What is expected of the receiver
@@ -111,6 +111,24 @@ function parseContextMenuData(data) {
   }
 }
 
+/** Check for known blocked urls
+ * @param {string} src
+ */
+function isBlockedUrl(src) {
+  if (!src) return
+
+  const url = new URL(src)
+  const isBlockedProtocol = [
+    'chrome:',
+    'edge:',
+  ].includes(url.protocol)
+  const isBlockedOrigin = [
+    'https://chromewebstore.google.com',
+    'https://microsoftedge.microsoft.com',
+  ].includes(url.origin)
+  return isBlockedProtocol || isBlockedOrigin
+}
+
 /** Helper for injecting scripts
  * Requires the ["scripting"] permission.
  * @param {{
@@ -123,21 +141,8 @@ function parseContextMenuData(data) {
  */
 async function injectScript(injection, info) {
   // console.log('Injecting script...', injection, info)
-  // check for known blocked urls
-  const url = info.frameUrl || info.pageUrl
-  if (url) {
-    const testUrl = new URL(url)
-    const isBlockedProtocol = [
-      'chrome:',
-      'edge:',
-    ].includes(testUrl.protocol)
-    const isBlockedOrigin = [
-      'https://chromewebstore.google.com',
-      'https://microsoftedge.microsoft.com',
-    ].includes(testUrl.origin)
-    if (isBlockedProtocol || isBlockedOrigin) throw new ScriptingBlockedError(url)
-  }
 
+  const src = info.frameUrl || info.pageUrl
   const { target } = injection
 
   const results = await chrome.scripting.executeScript(injection).catch(async (e) => {
@@ -149,7 +154,7 @@ async function injectScript(injection, info) {
         ...injection,
         target: { tabId: target.tabId },
       }).catch(e => ({ error: e }))
-      if (retryResults?.error) throw new ScriptingBlockedError(url || 'chrome://new-tab-page', e)
+      if (retryResults?.error) throw new ScriptingBlockedError(src, e)
 
       const result = retryResults?.at(0)?.result
       if (result?.error?.name === 'SecurityError') {
@@ -172,7 +177,7 @@ async function injectScript(injection, info) {
       }
       return retryResults
     } else {
-      throw new ScriptingBlockedError(url || 'chrome://new-tab-page', e)
+      throw new ScriptingBlockedError(src, e)
     }
   })
   const result = results?.at(0)?.result
@@ -371,7 +376,7 @@ async function injectScript(injection, info) {
             frameIds: [frameID],
           },
         }).catch(e => ({ error: e }))
-        if (retryResults?.error) throw new ScriptingBlockedError(url || 'chrome://new-tab-page', retryResults.error)
+        if (retryResults?.error) throw new ScriptingBlockedError(src, retryResults.error)
 
         return retryResults
       }
@@ -391,6 +396,10 @@ async function injectScript(injection, info) {
  */
 async function snipSelection(args) {
   // console.log('Snipping selection...', args)
+
+  const src = args.frameUrl || args.pageUrl
+  if (isBlockedUrl(src)) throw new ScriptingBlockedError(src)
+
   const { target, spaceKey, path, ...info } = args
 
   // Make sure we have a space to return into
@@ -493,6 +502,10 @@ async function snipSelection(args) {
  */
 async function pasteItem(args) {
   // console.log('Pasting', args)
+
+  const src = args.frameUrl || args.pageUrl
+  if (isBlockedUrl(src)) throw new ScriptingBlockedError(src)
+
   /** Injection script for pasting.
    * @param {{content:string, richText:string}} snip
    */
@@ -710,6 +723,11 @@ async function pasteItem(args) {
     if (!sniplet?.content) throw new SnipNotFoundError(spaceKey, path, seq)
     if (sniplet.customFields) throw new CustomPlaceholderError(sniplet)
 
+    // generate richText if everything is ready
+    await settings.load()
+    sniplet.richText = getRichText(sniplet, settings.pasting)
+
+    // assign sniplet to command
     args.snip = sniplet
   }
 
@@ -741,6 +759,11 @@ const commandMap = new Map([
   ['paste', pasteItem],
 ])
 
+/** Run a command on the selection
+ * @param {'snip'|'paste'} command
+ * @param {{}} args
+ * @returns {*|{error:Error}}
+ */
 async function runCommand(command, args) {
   // console.log('Running command...', command, args)
   const actionFunc = commandMap.get(command)
@@ -757,8 +780,7 @@ export {
   sendMessage,
   buildContextMenus,
   parseContextMenuData,
-  snipSelection,
-  pasteItem,
+  isBlockedUrl,
   commandMap,
   runCommand,
 }

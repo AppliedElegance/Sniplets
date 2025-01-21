@@ -218,15 +218,16 @@ class DataBucket {
 
   /** Retrieve a specific item using a path
    * @param {number[]} path
+   * @returns {string[]|undefined}
    */
   getPathNames(path) {
     const pathNames = []
     let item = this
     for (const seq of path) {
-      if (!(item.children)) return // path broken
+      if (!(item.children?.length)) return // no items in folder or not a folder
       item = item.children.find(v => v.seq === seq)
       if (item) pathNames.push(item.name)
-      else return
+      else return // path broken
     }
     return pathNames
   }
@@ -381,9 +382,9 @@ class Space {
       location?.key || location?.name || this.name,
       location?.area || location?.synced || this.synced,
     )
-    if (!spaceLocker.name) return false
-    const data = await spaceLocker.get()
-    // console.log('Confirming data...', data)
+
+    // check for data
+    const data = spaceLocker.name && await spaceLocker.get()
     if (!data) return
     await this.init({
       name: spaceLocker.name,
@@ -399,10 +400,7 @@ class Space {
    */
   getPathNames(path = this.path) {
     const folderNames = this.data.getPathNames(path)
-    if (!folderNames) {
-      // console.error(`The requested path sequence ${path} doesn't exist.`, structuredClone(this))
-      return
-    }
+    if (!folderNames) return
     return [this.name].concat(folderNames)
   }
 
@@ -412,10 +410,7 @@ class Space {
    */
   getItem(path = this.path) {
     const item = this.data.getItem(path)
-    if (!item) {
-      // console.error(`The requested item path sequence ${path} doesn't exist. The last item reached: ${item}`)
-      return
-    }
+    if (!item) return
     return item
   }
 
@@ -680,7 +675,7 @@ class Space {
         ])
 
         // Replace DO (ordinal date) or letter patterns (allows strings like YYYYMMDDHHmmSS)
-        return format.replaceAll(/D[oO]|(?:[a-zA-Z])\1*/g, match =>
+        return format.replaceAll(/D[oO]|([a-zA-Z])\1*/g, match =>
           datetimeMap.get(match) // case sensitive matches
           || datetimeMap.get(match.toLowerCase()) // case insensitive matches
           || match, // unknown character strings}
@@ -752,9 +747,6 @@ class Space {
     const rxPlaceholders = /\$\[(.+?)(?:\((.+?)\))?(?:\{(.+?)\})?\]/g
     sniplet.content = sniplet.content.replaceAll(rxPlaceholders, processPlaceholder)
     // console.log('Content replaced', { ...sniplet })
-
-    sniplet.richText = getRichText(sniplet)
-    // console.log('Added richText', { ...sniplet })
 
     // combine sniplet and serialize maps as arrays for followup
     const snip = {
@@ -879,10 +871,11 @@ const linkEmails = text => text.replaceAll(
 )
 
 /** Place anchor tags around urls if not already linked
+ * see https://datatracker.ietf.org/doc/html/rfc3986#section-3
  * @param {string} text
  */
 const linkURLs = text => text.replaceAll(
-  /<a.+?\/a>|<[^>]*?>|((?:\b(https?|ftp|chrome|edge|about|file):\/+)(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9!$&'()*+,-./:;=?@_~#]|%\d{2})*)?|www.?\.(?:[a-zA-Z0-9]+\.)+[a-z]+|(?<=\s|^|[>])(?:[a-zA-Z0-9]+\.)+(?:com|org|net|int|edu|gov|biz|io|co(?:\.[a-z]+)?|us|jp|eu|nu))/gi,
+  /<a.+?\/a>|<[^>]*?>|((?:\b(https?|ftp|chrome|edge|about|file):\/+)(?:(?:[a-zA-Z0-9]+\.)+[a-z]+|(?:[0-9]+\.){3}[0-9]+)(?::[0-9]+)?(?:\/(?:[a-zA-Z0-9-_.~]|%[0-9a-fA-F]{2})*)?(?:\?(?:[a-zA-Z0-9-_.~=&]|%[0-9a-fA-F]{2})*)?(?:#(?:[a-zA-Z0-9-_.~]|%[0-9a-fA-F]{2})*)?|www.?\.(?:[a-zA-Z0-9]+\.)+[a-z]+|(?<=\s|^|[>])(?:[a-zA-Z0-9]+\.)+(?:com|org|net|int|edu|gov|biz|io|co(?:\.[a-z]+)?|us|jp|eu|nu))/gi,
   (match, p1, p2) => {
     // skip anchors and tag attributes
     if (!p1) return match
@@ -896,11 +889,13 @@ const linkURLs = text => text.replaceAll(
  * @param {{content:string,nosubst:boolean}} snip A processed sniplet
  * @param {{rtLineBreaks:boolean,rtLinkEmails:boolean,rtLinkURLs:boolean}} rtOptions Snipping settings (use `settings.snipping`)
  */
-const getRichText = (snip, { rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true } = {}) => {
+function getRichText(snip, { rtLineBreaks = true, rtLinkEmails = true, rtLinkURLs = true } = {}) {
   // don't process flagged sniplets
   if (snip.nosubst) return snip.content
+
   // work on string copy
   let text = snip.content
+
   // process according to settings
   if (rtLineBreaks) text = tagNewlines(text)
   if (rtLinkEmails) text = linkEmails(text)

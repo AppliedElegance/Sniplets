@@ -1,11 +1,9 @@
-import { Contexts } from '/modules/refs.js'
-
 /** generate clean full URL to main popup page */
 const getMainUrl = () => new URL(chrome.runtime.getURL('popup/main.html'))
 
 /** Get the currently active tab */
 async function getCurrentTab() {
-  const queryOptions = { active: true, currentWindow: true }
+  const queryOptions = { active: true, lastFocusedWindow: true }
   const [tab] = await chrome.tabs.query(queryOptions)
   return tab
 }
@@ -16,7 +14,7 @@ async function getCurrentTab() {
 async function openPopup(url) {
   url ||= chrome.action.getPopup()
   if (!url) return
-  // url.searchParams.set('view', Contexts.POPUP)
+  // url.searchParams.set('view', chrome.runtime.ContextType.POPUP)
   // chrome.action.setPopup({
   //   popup: url,
   // })
@@ -32,7 +30,10 @@ async function openPopup(url) {
  * @param {chrome.tabs.Tab} [tab] The target tab
  */
 async function openPanel(url, tab) {
-  url.searchParams.set('view', Contexts.SIDE_PANEL)
+  url ||= (await chrome.sidePanel.getOptions({}))?.path
+  if (!url) return
+
+  url.searchParams.set('view', chrome.runtime.ContextType.SIDE_PANEL)
   const targetTab = tab || await getCurrentTab()
   if (!targetTab) return
 
@@ -44,14 +45,18 @@ async function openPanel(url, tab) {
   const result = await chrome.sidePanel.open({
     tabId: targetTab.id,
   }).catch(e => e)
-  return (result instanceof Error) ? false : true
+  if (result instanceof Error) {
+    // especially happens due to async call losing user gesture
+    return openWindow(url)
+  }
+  return true
 }
 
 /** Open a new popup window
  * @param {URL} url full url object to open
  */
 async function openWindow(url) {
-  url.searchParams.set('view', Contexts.TAB)
+  url.searchParams.set('view', chrome.runtime.ContextType.TAB)
 
   // There can be more than one window open so provide a unique ID
   url.searchParams.set('uuid', crypto.randomUUID())
@@ -78,7 +83,7 @@ async function openSession(contextType, params = []) {
   // available types
   const { POPUP, SIDE_PANEL, TAB } = chrome.runtime.ContextType
   const sessionMap = new Map([
-    [POPUP, openWindow],
+    [POPUP, openPopup],
     [SIDE_PANEL, openPanel],
     [TAB, openWindow],
   ])

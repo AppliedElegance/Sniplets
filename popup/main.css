@@ -91,8 +91,8 @@ main {
 hr {
   height: 1.5px;
   margin: 3px 0;
-  background-image: linear-gradient(to right, var(--metal-30), var(--metal), var(--metal-30));
   border: 0;
+  background-image: linear-gradient(to right, var(--metal-30), var(--metal), var(--metal-30));
 }
 
 h1 {
@@ -120,15 +120,15 @@ h3 {
 button {
   margin: 0;
   padding: 0 6px;
+  border: 0;
 
   font-family: inherit;
   font-size: 100%;
   text-align: center;
   text-transform: none;
 
-  appearance: button;
+  appearance: auto;
   background: transparent;
-  border: 0;
 
   transition-duration: 150ms;
 }
@@ -156,6 +156,7 @@ input, select {
   min-width: 0;
   margin: 0;
   padding: 0 4px;
+  border: none;
 
   font-family: inherit;
   font-size: 16px;
@@ -165,7 +166,6 @@ input, select {
   text-align: left;
 
   background: none;
-  border: none;
 }
 
 select {
@@ -447,9 +447,9 @@ nav {
 .card {
   margin: 8px 9px 10px;
   padding: 3px;
+  border-radius: 3px;
 
   background: var(--bg-color);
-  border-radius: 3px;
   box-shadow: 0 1px 3px var(--shadow-12), 0 1px 2px var(--shadow-24);
 
   transition: all 0.3s cubic-bezier(.25,.8,.25,1);
@@ -462,13 +462,13 @@ nav {
 .placeholder {
   height: 20px;
   margin: 9px;
+  border: 3px dashed;
+  border-radius: 4px;
 
   font-size: 14px;
   text-align: center;
 
   background: var(--ph-color);
-  border: 3px dashed;
-  border-radius: 4px;
 }
 
 .menu {
@@ -483,7 +483,6 @@ nav {
 
   margin: 0;
   padding: 0;
-
   border: none;
 }
 
@@ -539,12 +538,12 @@ input:focus + label,
 
   margin: 0;
   padding: 5px 0 5px 8px;
+  border: 0;
 
   font-size: 15px;
   line-height: 19px;
 
   background: var(--bg-color);
-  border: 0;
 
   transition: height 125ms;
 }
@@ -562,7 +561,7 @@ dialog {
   width: fit-content;
   max-width: 600px;
   font-size: larger;
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 dialog.narrow {
@@ -620,10 +619,9 @@ dialog .buttons {
   box-sizing: border-box;
   width: 100%;
   padding: 2px 4px;
+  border-bottom: 1px solid var(--fg-color);
 
   font: inherit;
-
-  border-bottom: 1px solid var(--fg-color);
 }
 
 .source-url {
@@ -676,12 +674,13 @@ input:checked + label .icon.checked {
 }
 
 h1.notice {
+  border-top: 2px solid var(--fg-color);
+  border-bottom: 2px solid var(--fg-color);
+
   font-size: 24px;
   line-height: 34px;
 
   background: var(--yellow-30);
-  border-top: 2px solid var(--fg-color);
-  border-bottom: 2px solid var(--fg-color);
 }
 
 ul.notice {
@@ -701,7 +700,6 @@ ul.notice {
   max-width: 300px; 
   margin-inline: auto;
   padding: 0.5rem;
-
   border-radius: 4px;
 
   animation: fade-in 0.17s ease-out forwards, fade-out 0.1s ease-out 2s forwards;

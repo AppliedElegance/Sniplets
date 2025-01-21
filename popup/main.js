@@ -18,8 +18,8 @@ import {
   buildColorMenu,
 } from '/modules/dom.js'
 import { showModal, showAlert, confirmAction, confirmSelection, showAbout, toast } from '/modules/modals.js'
-import { runCommand } from '/modules/commands.js'
-import { CustomPlaceholderError, SnipNotFoundError } from '/modules/errors.js'
+import { isBlockedUrl, runCommand } from '/modules/commands.js'
+import { CustomPlaceholderError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
 
 /**
  * Shorthand for document.getElementById(id)
@@ -372,6 +372,9 @@ async function getProcessedSniplet(seq) {
     else return
   }
 
+  // generate richText if everything is ready
+  snip.richText = getRichText(snip, settings.pasting)
+
   return snip
 }
 
@@ -398,7 +401,34 @@ async function copySniplet(args) {
 }
 
 async function pasteSniplet(args) {
-  // console.log('Pasting sniplet...', args)
+  // console.log('Pasting sniplet...', { ...args })
+
+  // get active tab info and confirm basic access
+  const activeTab = await getCurrentTab()
+  if (!activeTab?.url) {
+    // check for all frames permission
+    if (chrome.permissions.contains({ origins: ['<all_urls>'] })) {
+      // no scripting possible
+      handleError({
+        error: new ScriptingBlockedError(),
+      })
+    } else {
+      handleError({
+        error: new MissingPermissionsError({ origins: [] }),
+      })
+    }
+    return
+  } else if (isBlockedUrl(activeTab.url)) {
+    handleError({
+      error: new ScriptingBlockedError(activeTab.url),
+    })
+    return
+  }
+
+  // set up target args
+  args.pageUrl = activeTab.url
+  args.target = { tabId: activeTab.id }
+  args.spaceKey = space.storageKey
 
   // get requested item
   args.snip ||= await getProcessedSniplet(+args.seq)
@@ -407,16 +437,8 @@ async function pasteSniplet(args) {
     return
   }
 
-  // get active tab info
-  const activeTab = await getCurrentTab()
-
-  // set up remaining args
-  args.pageUrl = activeTab.url
-  args.target = { tabId: activeTab.id }
-  args.spaceKey = space.storageKey
-
   // attempt to paste into a selected field
-  const result = await runCommand('paste', args).catch(e => ({ error: e }))
+  const result = await runCommand('paste', args)
   if (result) handleFollowup({ action: 'paste', args: {
     ...args,
     ...result,
@@ -430,18 +452,28 @@ chrome.runtime.onMessage.addListener(async (message) => {
   /** @type {{ to: chrome.runtime.ExtensionContext, subject: string, body: * }} */
   const { to, subject, body } = message
 
-  if (subject === 'updateSpace') {
-    const { name, synced, timestamp } = body
-    if (name === space.name && synced === space.synced && timestamp > space.data.timestamp) {
-      await space.load()
+  const messageMap = new Map([
+    ['updateSettings', async () => {
+      await settings.load()
       loadSniplets()
-    }
-  } else if ((!to || to.documentUrl === location.href) && (subject === 'followup')) {
-    handleFollowup(body)
-  }
+    }],
+    ['updateSpace', async () => {
+      const { name, synced, timestamp } = body
+      if (name === space.name && synced === space.synced && timestamp > space.data.timestamp) {
+        await space.load()
+        loadSniplets()
+      }
+    }],
+    ['followup', () => {
+      if (!to || to.documentUrl === location.href) handleFollowup(body)
+    }],
+  ])
+
+  const messageMapFunc = messageMap.get(subject)
+  if (typeof messageMapFunc === 'function') messageMapFunc()
 })
 
-// onDOMContentLoaded
+/** Will run on DOMContentLoaded */
 const loadPopup = async () => {
   // accessibility
   document.documentElement.lang = locale
@@ -458,7 +490,7 @@ const loadPopup = async () => {
   window.params = Object.fromEntries(new URLSearchParams(location.search))
 
   // check if opened as popup and set style accordingly
-  if (window.params.view === 'popup') {
+  if (window.params.view === chrome.runtime.ContextType.POPUP) {
     document.body.style.width = '370px' // column flex collapses width unless set
     document.body.style.height = '560px'
   }
@@ -710,7 +742,7 @@ function buildHeader() {
         buildMenuItem(i18n('action_add_folder'), 'new-folder'),
         buildMenuItem(i18n('action_add_sniplet'), 'new-sniplet'),
       ]),
-      ...(window.params.view !== 'window')
+      ...(window.params.view !== chrome.runtime.ContextType.TAB)
         ? [
             buildActionIcon(i18n('open_new_window'), 'menu-pop-out', {
               action: 'open-window',
@@ -926,6 +958,7 @@ function buildList() {
   container.scrollTop = scroll
 }
 
+/** Load the app (header, folder tree and list which can also be built separately) */
 function loadSniplets() {
   buildHeader()
   buildTree()
