@@ -1,7 +1,7 @@
 import { i18n, Contexts } from '/modules/refs.js'
 import settings from '/modules/settings.js'
 import { Space, DataBucket } from '/modules/spaces.js'
-import { getStorageData, KeyStore, StorageKey } from '/modules/storage.js'
+import { getStorageData, KeyStore, removeStorageData, setStorageData, StorageKey } from '/modules/storage.js'
 import { sendMessage, buildContextMenus, parseContextMenuData, commandMap, runCommand } from '/modules/commands.js'
 import { getMainUrl, openSession } from '/modules/sessions.js'
 
@@ -125,7 +125,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   const currentSpace = await KeyStore.currentSpace.get() || await legacyCurrentSpace.get() || defaultSpace
 
   // try to load up current space or fall back to default
-  if (!(await space.load(currentSpace))) {
+  if (!(await space.load(currentSpace, currentSpace?.path))) {
     // check for rename in case of race condition
     /** @type {{oldName:string,newName:string,timestamp:number}[]} */
     const renameLog = await KeyStore.renameLog.get()
@@ -272,62 +272,112 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
 
 // update spaces and menu items as needed
 chrome.storage.onChanged.addListener(async (changes, areaName) => {
-  // console.log('Storage changed...', changes, areaName)
+  console.log('Storage changed...', changes, areaName)
   const synced = (areaName === 'sync')
 
   for (const [key, change] of Object.entries(changes)) {
     // console.log('Storage changed...', areaName, key, change)
 
+    // send a message to update any open windows
+    const updateSessions = async timestamp => sendMessage('updateSpace', {
+      name: key,
+      synced: synced,
+      timestamp: timestamp,
+    }).catch(e => e)
+
     // check for settings updates and update the action as necessary
-    if ((key === KeyStore.settings.key) && change.newValue) {
+    if (key === KeyStore.settings.key) {
+      if (!change.newValue) continue
+
       // update actions to match new settings
       if (change.newValue.view.action !== change.oldValue?.view.action) {
         setDefaultAction(change.newValue.view.action)
       }
 
+      // TODO: remove once space switcher implemented
+      // ensure currentSpace is in sync
+      const currentSpace = await KeyStore.currentSpace.get()
+      if (currentSpace && currentSpace.name !== change.newValue.defaultSpace.key) {
+        currentSpace.name = change.newValue.defaultSpace.key
+        await KeyStore.currentSpace.set(currentSpace)
+      }
+
       // send a message to update any open windows
-      sendMessage('updateSettings').catch(() => false)
+      sendMessage('updateSettings').catch(e => e)
+      continue
     }
 
     // check for data updates, key can be anything
     if (change.newValue?.children) {
       // send a message to update any open windows
-      sendMessage('updateSpace', {
-        name: key,
-        synced: synced,
-        timestamp: change.newValue.timestamp,
-      }).catch(() => false)
+      updateSessions(change.newValue.timestamp)
 
       // check if current space was changed
       const currentSpace = await KeyStore.currentSpace.get()
-      const spaceKey = new StorageKey(currentSpace.name, currentSpace.synced)
+      const spaceKey = new StorageKey(currentSpace?.name, currentSpace?.synced)
       if (!currentSpace || (spaceKey.key === key && spaceKey.area === areaName)) {
         const contextSpace = new Space()
-        await contextSpace.init({
+        const initResult = await contextSpace.init({
           name: key,
           synced: synced,
           data: change.newValue,
         }).catch(e => e)
-        buildContextMenus(contextSpace).catch(e => e)
+        if (!(initResult instanceof Error)) buildContextMenus(contextSpace).catch(e => e)
       }
     }
 
     // check for active removed sync data without local data
     if (
       synced // only care about synced spaces
-      && change.oldValue?.children // only spaces have children
       && !change.newValue // removed, not changed
+      && change.oldValue?.children // only spaces have children
     ) {
+      console.log(key, change, await chrome.storage.local.get(null))
       const { timestamp } = change.oldValue
-      // double-check it wasn't renamed
+
+      // rename check
       /** @type {{oldName:string,newName:string,timestamp:number}[]} */
       const renameLog = await KeyStore.renameLog.get()
-      if (renameLog?.find(v => (key === v.oldName && timestamp < v.timestamp))) break
+      const renameEntry = renameLog?.find(v => (key === v.oldName && timestamp < v.timestamp))
+      if (renameEntry) {
+        // check current space and update to avoid corrupt data
+        const currentSpace = await KeyStore.currentSpace.get()
+        if (currentSpace?.synced && currentSpace?.name === key) {
+          currentSpace.name = renameEntry.newName
+          await KeyStore.currentSpace.set(currentSpace)
+        }
 
+        // check default space as well in case it hasn't been updated yet
+        await settings.load()
+        if (settings.defaultSpace.key === key) {
+          settings.defaultSpace.key = renameEntry.newName
+          await settings.save()
+        }
+        updateSessions(timestamp + 1)
+        continue
+      }
+
+      // TODO: remove rebrand check once space switcher is implemented
       // double-check we don't have it locally
-      if (await getStorageData(key, 'local')) break
+      const localSpace = await getStorageData(key, 'local')
+      if (localSpace) {
+        // update local space name in case of rebrand to avoid two space names without switcher
+        await settings.load()
+        const defaultKey = settings.defaultSpace.key
+        if (key !== defaultKey && await setStorageData(defaultKey, localSpace, 'local')) {
+          // update current space to avoid corrupt data
+          const currentSpace = await KeyStore.currentSpace.get()
+          currentSpace.name = defaultKey
+          if (await KeyStore.currentSpace.set(currentSpace)) {
+            // only remove existing data once everything else is confirmed okay
+            removeStorageData(key)
+          }
+          updateSessions(timestamp + 1)
+          break
+        }
+      }
 
-      // don't lose the data on other synced instances without confirming first
+      // don't lose the data on other synced instances without confirming or renaming first
       const followup = {
         action: 'unsynced',
         args: {

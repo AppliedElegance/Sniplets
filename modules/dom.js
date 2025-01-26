@@ -435,6 +435,7 @@ function buildItemWidget(item, list, path, { view, data }) {
             buildNode('input', {
               type: 'url',
               id: `source-${item.seq}`,
+              name: 'sourceURL',
               placeholder: '…',
               value: item.sourceURL,
               dataset: {

@@ -1,7 +1,7 @@
 import { CrossOriginError, CustomPlaceholderError, MissingPermissionsError, ScriptingBlockedError, SnipNotFoundError } from '/modules/errors.js'
 import { i18n, Colors } from '/modules/refs.js'
 import settings from '/modules/settings.js'
-import { Folder, getRichText, Sniplet, Space } from '/modules/spaces.js'
+import { Folder, getRichText, Space } from '/modules/spaces.js'
 
 /** Send an internal message
  * @param {string} subject What is expected of the receiver
@@ -37,8 +37,6 @@ async function buildContextMenus(space) {
   /** @type {{command:string,spaceKey:StorageKey,path:number[],seq:number}} */
   const menuData = {
     command: 'snip',
-    spaceKey: space.storageKey,
-    path: [],
   }
 
   // create snipper for selected text
@@ -52,6 +50,8 @@ async function buildContextMenus(space) {
   if (space.data?.children?.length) {
     // set root menu item
     menuData.command = 'paste'
+    menuData.spaceKey = space.storageKey,
+    menuData.path = []
     await addMenu({
       id: JSON.stringify(menuData),
       title: i18n('action_paste'),
@@ -101,7 +101,7 @@ async function buildContextMenus(space) {
 
 /** Parse the MenuItemID providing data for context menu items
  * @param {string} data The menuItemId from the ContextMenus onClicked event info
- * @returns {{command:string,spaceKey:{name:string,synced:boolean},path:number[],seq:number}}
+ * @returns {{command:string,spaceKey:{name:string,synced:boolean},path?:number[],seq?:number}}
  */
 function parseContextMenuData(data) {
   try {
@@ -396,17 +396,19 @@ async function injectScript(injection, info) {
  */
 async function snipSelection(args) {
   // console.log('Snipping selection...', args)
+  await settings.load()
 
   const src = args.frameUrl || args.pageUrl
   if (isBlockedUrl(src)) throw new ScriptingBlockedError(src)
 
-  const { target, spaceKey, path, ...info } = args
+  // const { target, spaceKey, path, ...info } = args
+  const { target, ...info } = args
 
   // Make sure we have a space to return into
-  const space = new Space()
-  if (!(spaceKey?.name && await space.load(spaceKey, path)) && !(await space.loadCurrent())) {
-    throw new SnipNotFoundError(spaceKey, path, 'TBD')
-  }
+  // const space = new Space()
+  // if (!(spaceKey?.name && await space.load(spaceKey, path)) && !(await space.loadCurrent(settings.view.rememberPath))) {
+  //   throw new SnipNotFoundError(spaceKey, path, 'TBD')
+  // }
 
   /** Injection script to grab selection text
    * @param {{preserveTags:boolean, saveSource:boolean}} options
@@ -473,26 +475,26 @@ async function snipSelection(args) {
     return getText(window)
   }
 
-  await settings.load()
-  const result = (await injectScript({
+  // const result =
+  return (await injectScript({
     target: target,
     func: returnSnip,
     args: [settings.snipping],
   }, info)).at(0)?.result
 
   // console.log('Handling snip result...', result)
-  if (!result || result.error) return result
+  // if (!result || result.error) return result
 
   // add snip to space and return result
-  const newSnip = space.addItem(new Sniplet(result))
-  space.sort(settings.sort)
-  await space.save(settings.data.compress)
-  return {
-    target: target,
-    spaceKey: space.storageKey,
-    path: space.path,
-    seq: newSnip.seq,
-  }
+  // const newSnip = space.addItem(new Sniplet(result))
+  // space.sort(settings.sort)
+  // await space.save(settings.data.compress)
+  // return {
+  //   target: target,
+  //   spaceKey: space.storageKey,
+  //   seq: newSnip.seq,
+  //   ...path ? { path: space.path } : {},
+  // }
 }
 
 /**
@@ -716,7 +718,7 @@ async function pasteItem(args) {
   if (!args.snip) {
     const { spaceKey, path, seq } = args
     const space = new Space()
-    if (!(spaceKey?.name ? await space.load(spaceKey) : await space.loadCurrent())) {
+    if (!(spaceKey?.name ? await space.load(spaceKey, path) : await space.loadCurrent())) {
       throw new SnipNotFoundError(spaceKey, path, seq)
     }
     const sniplet = space.getProcessedSniplet(seq, path)

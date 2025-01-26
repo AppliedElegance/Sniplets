@@ -46,6 +46,7 @@ const qa$ = query => document.querySelectorAll(query)
 const space = new Space()
 const saveSpace = async () => space.save(settings.data.compress)
 const setCurrentSpace = async () => space.setAsCurrent()
+const loadCurrentSpace = async () => space.loadCurrent(settings.view.rememberPath)
 
 // resize helper for editors
 const adjustEditors = () => {
@@ -75,9 +76,35 @@ const debounce = function setDelay(f, delay) {
 }
 const onResize = new ResizeObserver(debounce(adjustOnResize, 0))
 
+// (note that side panel doesn't currently allow switching window focus.
+// see https://github.com/w3c/webextensions/issues/693)
+/** Load the sniplets list and focus the requested field
+ * @param {number} seq
+ * @param {'name'|'content'|'sourceURL'} [fieldName]
+ * @param {boolean} [select]
+ */
+function loadAndFocus(seq, fieldName = 'name', select = true) {
+  //  turn off transition temporarily for better scrollIntoView
+  $('sniplets').classList.add('no-transition')
+
+  // load results
+  loadSniplets()
+
+  // focus the new sniplet's name field after redraw
+  setTimeout(() => {
+    /** @type {HTMLInputElement} */
+    const field = q$(`[name="${fieldName}"][data-seq="${seq}"]`)
+    if (!field) return
+    field.closest('.card').scrollIntoView({ behavior: 'smooth' })
+    field.focus()
+    if (select) field.select()
+    $('sniplets').classList.remove('no-transition')
+  }, 0)
+}
+
 async function handleError({ error, ...args }) {
   async function handleScriptingBlockedError({ cause }) {
-    // console.log('Handling Scripting Blocked Error', cause)
+    console.log('Handling Scripting Blocked Error', cause)
     const { url } = cause
 
     await showAlert(
@@ -236,13 +263,35 @@ async function handleError({ error, ...args }) {
 }
 
 async function handleFollowup({ action, args }) {
-  // console.log('Handling followup...', action, args)
+  console.log('Handling followup...', action, args)
 
   async function handleUnsync(args) {
-    // make sure it hasn't already been restored and we're not removing everything
+    // update settings and get current space for comparison
+    await settings.load()
+    const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
+
+    // TODO: remove name check once space switching is implemented (renames handled by service worker)
+    // ignore if we're not syncing
+    if (!currentSpace.synced || args.name !== currentSpace.name) {
+      loadSniplets()
+      return
+    }
+
+    // make sure it hasn't already been restored and we're not removing a replacement
     if ((await getStorageData(args.name, 'sync'))
       || !(await KeyStore.currentSpace.get()) // resolves race condition
     ) return
+
+    // check if this is a rename we haven't caught up with
+    const renameLog = await KeyStore.renameLog.get()
+    const renameEntry = renameLog?.find(v => (args.name === v.oldName))
+    if (renameEntry?.oldName === currentSpace.name
+      && await space.load(new StorageKey(renameEntry.newName, currentSpace.synced), settings.view.rememberPath ? currentSpace.path : [])
+    ) {
+      setCurrentSpace()
+      loadSniplets()
+      return
+    }
 
     // make it possible to keep local data or keep synchronizing on this machine just in case
     args.synced = await confirmAction(
@@ -250,39 +299,41 @@ async function handleFollowup({ action, args }) {
       i18n('action_keep_syncing'),
       i18n('action_use_local'),
     )
-    if (typeof args.synced === 'boolean') {
-      // if not currently working on the same data, make do with saving the data
-      const currentSpace = (await KeyStore.currentSpace.get()) || settings.defaultSpace
-      if (args.name !== currentSpace.name) {
-        setStorageData(args.name, args.data, getStorageArea(args.synced))
+    // assume ignore (keep synchronizing) if popup dismissed
+    if (!(typeof args.synced === 'boolean')) args.synced = true
+
+    // if not currently working on the same data, make do with saving the data
+    if (args.name !== currentSpace.name) {
+      setStorageData(args.name, args.data, getStorageArea(args.synced))
+      return
+    }
+
+    // recover the data
+    try {
+      await space.init(args)
+      if (!(await saveSpace())) {
+        showAlert(i18n('error_data_corrupt'))
         return
       }
-
-      // recover the data
-      try {
-        await space.init(args)
-        if (!(await saveSpace())) {
-          showAlert(i18n('error_data_corrupt'))
-          return
-        }
-        setCurrentSpace()
-        loadSniplets()
-      } catch {
-        showAlert(i18n('error_data_corrupt'))
-      }
-    } else {
+      setCurrentSpace()
+      loadSniplets()
+    } catch {
       showAlert(i18n('error_data_corrupt'))
     }
   }
 
   async function handleSnipResult(result) {
-    // console.log('Handling snip result...', result, result.spaceKey?.key === space.storageKey.key && result.spaceKey?.area === space.storageKey.area, result.spaceKey, space.storageKey)
-    if (!result.spaceKey) result.spaceKey = space.storageKey
-    if (!result.path) result.path = space.path
+    // make sure we have the latest globals (in case the window was popped open)
+    await settings.load()
+    if (!space.name) await loadCurrentSpace()
+
+    // update result in case error handling and additional followup is needed.
+    // if (!result.spaceKey) result.spaceKey = space.storageKey
+    // if (!Array.isArray(result.path)) result.path = space.path
 
     // make sure this window can handle the followup
-    if (!(result.spaceKey?.key === space.storageKey.key
-      && result.spaceKey?.area === space.storageKey.area)) return
+    // if (!(result.spaceKey?.key === space.storageKey.key
+    //   && result.spaceKey?.area === space.storageKey.area)) return
 
     // handle errors first and retry if successfully handled
     if (result.error) {
@@ -301,26 +352,22 @@ async function handleFollowup({ action, args }) {
       return
     }
 
-    // reload and update path before following up
-    await space.load()
-    if (Array.isArray(result.path)) space.path = result.path
-    loadSniplets()
+    // add sniplet
+    const { seq } = space.addItem(new Sniplet(result))
+    space.sort(settings.sort)
+    saveSpace()
 
-    // focus the new sniplet's name field, setTimeout allows for transitions
-    // (note that side panel doesn't currently allow switching window focus.
-    // see https://github.com/w3c/webextensions/issues/693)
-    setTimeout(() => {
-      /** @type {HTMLInputElement} */
-      const field = q$(`input[name="name"][data-seq="${result.seq}"]`)
-      if (!field) return // should hopefully never happen
-      field.closest('.card').scrollIntoView()
-      field.focus()
-      field.select()
-    }, 0)
+    loadAndFocus(seq)
   }
 
   async function handlePasteResult(result) {
+    // make sure we have the latest globals (in case the window was popped open)
+    await settings.load()
+    await loadCurrentSpace()
+
     // currently, only errors need handling
+    console.log('Handling paste result...', result, space.storageKey)
+
     if (!result.spaceKey) result.spaceKey = space.storageKey
     if (!result.path) result.path = space.path
 
@@ -341,6 +388,10 @@ async function handleFollowup({ action, args }) {
           ...result,
           ...retryResult,
         } })
+      } else {
+        // load and show the appropriate sniplet
+        space.path = Array.isArray(result.path) ? result.path : []
+        loadAndFocus(result.seq, 'content', false)
       }
     }
   }
@@ -406,19 +457,22 @@ async function pasteSniplet(args) {
   // get active tab info and confirm basic access
   const activeTab = await getCurrentTab()
   if (!activeTab?.url) {
-    // check for all frames permission
-    if (chrome.permissions.contains({ origins: ['<all_urls>'] })) {
+    // check for all urls permission
+    if (await chrome.permissions.contains({ origins: ['<all_urls>'] })) {
       // no scripting possible
       handleError({
         error: new ScriptingBlockedError(),
       })
+      return
     } else {
-      handleError({
+      // no activeTab permission (toggled side panel), request all urls permission
+      const errorResult = await handleError({
         error: new MissingPermissionsError({ origins: [] }),
       })
+      if (!errorResult) return
     }
-    return
   } else if (isBlockedUrl(activeTab.url)) {
+    // known site where scripting is not allowed (extension store)
     handleError({
       error: new ScriptingBlockedError(activeTab.url),
     })
@@ -447,7 +501,7 @@ async function pasteSniplet(args) {
 
 // Listen for updates on the fly in case of multiple popout windows
 chrome.runtime.onMessage.addListener(async (message) => {
-  // console.log('Receiving message...', message, sender)
+  console.log('Receiving message...', message)
 
   /** @type {{ to: chrome.runtime.ExtensionContext, subject: string, body: * }} */
   const { to, subject, body } = message
@@ -455,12 +509,24 @@ chrome.runtime.onMessage.addListener(async (message) => {
   const messageMap = new Map([
     ['updateSettings', async () => {
       await settings.load()
+      // TODO: remove once space switcher implemented
+      // make sure names are in sync
+      if (settings.defaultSpace.name !== space.name) {
+        await loadCurrentSpace()
+      }
       loadSniplets()
     }],
     ['updateSpace', async () => {
+      // check for an updated currentSpace
+      const currentSpace = await KeyStore.currentSpace.get()
+      if (currentSpace?.name !== space.name) {
+        await loadCurrentSpace()
+        loadSniplets()
+      }
+
       const { name, synced, timestamp } = body
       if (name === space.name && synced === space.synced && timestamp > space.data.timestamp) {
-        await space.load()
+        await space.reload()
         loadSniplets()
       }
     }],
@@ -510,9 +576,26 @@ const loadPopup = async () => {
   // set up ResizeObserver to handle path and editor reflows
   onResize.observe($('sniplets'))
 
+  // check for any notice that needs to be posted
+  const notice = await KeyStore.notice.get()
+  if (notice) {
+    await showAbout(notice)
+    KeyStore.notice.clear()
+  }
+
+  // Fetch requests from session storage set using the `setFollowup()` function
+  const followup = await KeyStore.followup.get()
+  if (followup) {
+    console.log(followup)
+    KeyStore.followup.clear()
+    handleFollowup(followup)
+
+    // stop here to avoid clashes with followups expecting to handle sniplet loading themselves
+    return
+  }
+
   // load up the current space
-  if (!(await space.loadCurrent(settings.view.rememberPath))) {
-    // should hopefully never happen
+  if (!(await loadCurrentSpace())) {
     if (await confirmAction(i18n('warning_space_corrupt'), i18n('action_reinitialize'))) {
       await space.init(settings.defaultSpace)
       saveSpace()
@@ -528,25 +611,10 @@ const loadPopup = async () => {
     if (settings.view.rememberPath) setCurrentSpace()
   }
 
-  // check for a notice that needs to be posted
-  const notice = await KeyStore.notice.get()
-  if (notice) {
-    await showAbout(notice)
-    KeyStore.notice.clear()
-  }
-
-  // Fetch requests from session storage set using the `setFollowup()` function
-  const followup = await KeyStore.followup.get()
-  if (followup) {
-    KeyStore.followup.clear()
-    handleFollowup(followup)
-    // stop here to avoid clashes with followups expecting to handle sniplet loading themselves
-    return
-  }
-
+  // load sniplets
   loadSniplets()
 
-  // check and action URL parameters accordingly (okay to ignore in case of followups)
+  // check and action URL parameters accordingly
   if (window.params.action?.length) handleAction(window.params)
 }
 document.addEventListener('DOMContentLoaded', loadPopup, false)
@@ -1202,7 +1270,7 @@ function handleDragDrop(event) {
 
   // wait for browser to pick up the item with a nice outline before hiding anything
   setTimeout(() => {
-    // turned picked up item into a placeholder
+    // turn picked up item into a placeholder
     for (const child of item.children) {
       child.style.display = `none`
     }
@@ -1493,7 +1561,7 @@ async function handleAction(target) {
       //   toast(i18n('toast_restore_failed'), 'error')
 
       //   // rollback just in case
-      //   space.loadCurrent()
+      //   loadCurrentSpace()
       //   return
       // }
 
@@ -1509,7 +1577,7 @@ async function handleAction(target) {
         space.synced = false
       }
 
-      if (!(await space.save())) return
+      if (!(await saveSpace())) return
 
       // update current space in case synced was flipped
       await setCurrentSpace()
@@ -1598,7 +1666,7 @@ async function handleAction(target) {
         }
       }
       // scroll entire card into view (timeout handles transition)
-      setTimeout(() => (target.closest('li')?.scrollIntoView()), 150)
+      setTimeout(() => (target.closest('li')?.scrollIntoView({ behavior: 'smooth' })), 150)
       break
 
     // open menus
@@ -1775,14 +1843,18 @@ async function handleAction(target) {
 
       // check if data already exists
       const targetData = await getStorageData(space.name, getStorageArea(!space.synced))
+      console.log(targetData, space.name, !space.synced, structuredClone(space))
+      console.log(await chrome.storage.sync.get(null))
       if (targetData) {
-      // confirm what to do with existing data
+        console.log('confirming')
+        // confirm what to do with existing data
         const response = await confirmSelection(i18n('warning_sync_overwrite'), [
           { title: i18n('action_keep_local'), value: 'local' },
           { title: i18n('action_keep_sync'), value: 'sync' },
         ], i18n('action_start_sync'))
+        console.log(response)
         if (response === 'sync') {
-        // replace live with sync data before moving, set to false since it'll be reset after
+          // replace live with sync data before moving, set to false since it'll be reset after
           try {
             await space.init({ name: space.name, synced: false, data: targetData })
           } catch {
@@ -1790,9 +1862,9 @@ async function handleAction(target) {
             return
           }
         } else if (response === 'local') {
-        // do nothing (ignore the synced data)
+          // do nothing (ignore the synced data)
         } else {
-        // action cancelled
+          // action cancelled
           return
         }
       }
@@ -1802,10 +1874,9 @@ async function handleAction(target) {
       if (await saveSpace()) {
         setCurrentSpace()
         removeStorageData(space.name, getStorageArea(!space.synced))
-        buildHeader()
         loadSniplets()
       } else {
-      // revert change
+        // revert change
         space.synced = !space.synced
         alert(i18n('error_shift_failed'))
         return
@@ -1922,11 +1993,10 @@ async function handleAction(target) {
 
     // add/edit/delete items
     case 'new-sniplet': {
-      const newSniplet = space.addItem(new Sniplet())
+      const { seq } = space.addItem(new Sniplet())
       space.sort(settings.sort)
       saveSpace()
-      buildList()
-      handleAction({ action: 'focus', seq: newSniplet.seq, field: 'name' })
+      loadAndFocus(seq)
       break }
 
     case 'new-folder': {
@@ -1942,6 +2012,7 @@ async function handleAction(target) {
     case 'delete':
       if (await confirmAction(i18n('warning_delete_sniplet'), i18n('action_delete'))) {
         const deletedItem = space.deleteItem(+dataset.seq)
+        space.sort(settings.sort)
         saveSpace()
 
         // remove item element from list to avoid rebuilding
@@ -1974,7 +2045,7 @@ async function handleAction(target) {
       break
 
     case 'rename': {
-    // change input type to text if needed and enable+focus
+      // change input type to text if needed and enable+focus
       const input = q$(`input[data-seq="${dataset.seq}"][data-field="name"]`)
       input.type = `text`
       input.dataset.action = `edit`

@@ -92,7 +92,7 @@ hr {
   height: 1.5px;
   margin: 3px 0;
   border: 0;
-  background-image: linear-gradient(to right, var(--metal-30), var(--metal), var(--metal-30));
+  background-image: linear-gradient(to right in oklab, var(--metal-30), var(--metal), var(--metal-30));
 }
 
 h1 {
@@ -164,6 +164,7 @@ input, select {
   line-height: 24px;
   color: inherit;
   text-align: left;
+  text-overflow: ellipsis;
 
   background: none;
 }
@@ -270,7 +271,7 @@ button:not([disabled]):hover,
 }
 
 hr.red {
-  background-image: linear-gradient(to right, var(--red-30), var(--red), var(--red-30));
+  background-image: linear-gradient(to right in oklab, var(--red-30), var(--red), var(--red-30));
 }
 
 .pink {
@@ -279,7 +280,7 @@ hr.red {
 }
 
 hr.pink {
-  background-image: linear-gradient(to right, var(--pink-30), var(--pink), var(--pink-30));
+  background-image: linear-gradient(to right in oklab, var(--pink-30), var(--pink), var(--pink-30));
 }
 
 .orange {
@@ -288,7 +289,7 @@ hr.pink {
 }
 
 hr.orange {
-  background-image: linear-gradient(to right, var(--orange-30), var(--orange), var(--orange-30));
+  background-image: linear-gradient(to right in oklab, var(--orange-30), var(--orange), var(--orange-30));
 }
 
 .yellow {
@@ -297,7 +298,7 @@ hr.orange {
 }
 
 hr.yellow {
-  background-image: linear-gradient(to right, var(--yellow-30), var(--yellow), var(--yellow-30));
+  background-image: linear-gradient(to right in oklab, var(--yellow-30), var(--yellow), var(--yellow-30));
 }
 
 .green {
@@ -306,7 +307,7 @@ hr.yellow {
 }
 
 hr.green {
-  background-image: linear-gradient(to right, var(--green-30), var(--green), var(--green-30));
+  background-image: linear-gradient(to right in oklab, var(--green-30), var(--green), var(--green-30));
 }
 
 .lightblue {
@@ -315,7 +316,7 @@ hr.green {
 }
 
 hr.lightblue {
-  background-image: linear-gradient(to right, var(--lightblue-30), var(--lightblue), var(--lightblue-30));
+  background-image: linear-gradient(to right in oklab, var(--lightblue-30), var(--lightblue), var(--lightblue-30));
 }
 
 .blue {
@@ -324,7 +325,7 @@ hr.lightblue {
 }
 
 hr.blue {
-  background-image: linear-gradient(to right, var(--blue-30), var(--blue), var(--blue-30));
+  background-image: linear-gradient(to right in oklab, var(--blue-30), var(--blue), var(--blue-30));
 }
 
 .purple {
@@ -333,7 +334,7 @@ hr.blue {
 }
 
 hr.purple {
-  background-image: linear-gradient(to right, var(--purple-30), var(--purple), var(--purple-30));
+  background-image: linear-gradient(to right in oklab, var(--purple-30), var(--purple), var(--purple-30));
 }
 
 .brown {
@@ -342,7 +343,7 @@ hr.purple {
 }
 
 hr.brown {
-  background-image: linear-gradient(to right, var(--brown-30), var(--brown), var(--brown-30));
+  background-image: linear-gradient(to right in oklab, var(--brown-30), var(--brown), var(--brown-30));
 }
 
 .black {
@@ -352,7 +353,7 @@ hr.brown {
 }
 
 hr.black {
-  background-image: linear-gradient(to right, var(--black-30), var(--black), var(--black-30));
+  background-image: linear-gradient(to right in oklab, var(--black-30), var(--black), var(--black-30));
 }
 
 .white {
@@ -362,7 +363,7 @@ hr.black {
 }
 
 hr.white {
-  background-image: linear-gradient(to right, var(--white-30), var(--white), var(--white-30));
+  background-image: linear-gradient(to right in oklab, var(--white-30), var(--white), var(--white-30));
 }
 
 .gray, .grey {
@@ -371,14 +372,14 @@ hr.white {
 }
 
 hr.gray, hr.grey {
-  background-image: linear-gradient(to right, var(--grey-30), var(--grey), var(--grey-30));
+  background-image: linear-gradient(to right in oklab, var(--grey-30), var(--grey), var(--grey-30));
 }
 
 hr.vr {
   width: 1.5px;
   height: auto;
   margin: 0;
-  background-image: linear-gradient(to bottom, var(--metal-30), var(--metal), var(--metal-30));
+  background-image: linear-gradient(to bottom in oklab, var(--metal-30), var(--metal), var(--metal-30));
 }
 
 .quick-actions {
@@ -416,7 +417,6 @@ nav {
 .snip-content {
   overflow: hidden;
   flex-direction: column;
-  transition: height 125ms;
 }
 
 .snip-content.collapsed {
@@ -451,8 +451,6 @@ nav {
 
   background: var(--bg-color);
   box-shadow: 0 1px 3px var(--shadow-12), 0 1px 2px var(--shadow-24);
-
-  transition: all 0.3s cubic-bezier(.25,.8,.25,1);
 }
 
 .drag {
@@ -546,6 +544,10 @@ input:focus + label,
   background: var(--bg-color);
 
   transition: height 125ms;
+}
+
+.no-transition .content-editor {
+  transition: none;
 }
 
 .sniplet .field label {
@@ -742,6 +744,7 @@ ul.notice {
 }
 
 #sniplets {
+  scroll-behavior: smooth;
   overflow: auto;
   flex-grow: 1;
   padding-bottom: 100px;

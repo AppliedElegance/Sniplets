@@ -18,7 +18,8 @@ async function openPopup(url) {
   // chrome.action.setPopup({
   //   popup: url,
   // })
-  const result = chrome.action.openPopup && await chrome.action.openPopup().catch(e => e)
+  const result = chrome.action.openPopup && await chrome.action.openPopup()
+    .then(() => true).catch(e => e)
   if (!result || result instanceof Error) {
     return openWindow(url)
   }
@@ -89,6 +90,7 @@ async function openSession(contextType, params = []) {
   ])
 
   const sessionMapFunc = sessionMap.get(contextType) ?? sessionMap.get(TAB)
+  console.log(sessionMapFunc)
   return sessionMapFunc(src)
 }
 

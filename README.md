@@ -48,3 +48,4 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 - rtl enhancements
 - external file sync option with potential for interfacing with Clippings
 - markdown processing including check boxes
+- option to turn off editor wrapping

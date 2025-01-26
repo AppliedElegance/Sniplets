@@ -13,6 +13,9 @@
     "url": "https://github.com/AppliedElegance/Sniplets/issues"
   },
   "homepage": "https://github.com/AppliedElegance/Sniplets#readme",
+  "scripts": {
+    "preinstall": "npx only-allow pnpm"
+  },
   "devDependencies": {
     "@eslint/js": "^9.14.0",
     "@stylistic/eslint-plugin": "^2.13.0",
@@ -20,8 +23,9 @@
     "eslint": "^9.18.0",
     "eslint-plugin-jsdoc": "^50.6.1",
     "globals": "^15.14.0",
-    "stylelint": "^16.13.0",
+    "stylelint": "^16.14.0",
     "stylelint-config-clean-order": "^7.0.0",
     "stylelint-config-standard": "^37.0.0"
-  }
+  },
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
 }

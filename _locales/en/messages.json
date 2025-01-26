@@ -707,6 +707,6 @@
     "message": "No Selection Found"
   },
   "error_blocked_url": {
-    "message": "unavailable"
+    "message": "unavailable (hidden by the browser)"
   }
 }

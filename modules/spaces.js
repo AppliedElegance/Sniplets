@@ -57,14 +57,15 @@ class Sniplet extends TreeItem {
     if (!name && content) {
       // create sniplet title from first line of text
       name = content.match(/^.*/).at(0)
-      const maxLength = 27
-      if (name.length > maxLength) {
-        // cut down to size, then chuck trailing text if possible so no words are cut off
-        name = name.slice(0, maxLength + 1)
-        name = `${name.includes(' ')
-          ? name.slice(0, name.lastIndexOf(' '))
-          : name.slice(0, maxLength)}…`
-      }
+      // Maximum length too arbitrary, using text-overflow css instead
+      // const maxLength = 25
+      // if (name.length > maxLength) {
+      //   // cut down to size, then chuck trailing text if possible so no words are cut off
+      //   name = name.slice(0, maxLength + 1)
+      //   name = `${name.includes(' ')
+      //     ? name.slice(0, name.lastIndexOf(' '))
+      //     : name.slice(0, maxLength)}…`
+      // }
     }
     super({
       name: name || i18n('title_new_sniplet'),
@@ -274,14 +275,12 @@ class DataBucket {
 /** Space object stores sniplet groupings in buckets. */
 class Space {
   /** Construct a Space object
-   * @param {{
-   *   name: string
-   *   synced: boolean
-   *   data: DataBucket
-   *   path: number[]|string
-   * }} details
+   * @param {string} [name]
+   * @param {boolean} [synced]
+   * @param {DataBucket} [data]
+   * @param {number[]} [path]
    */
-  constructor({ name = i18n('default_space_name'), synced = false, data = new DataBucket(), path = [] } = {}) {
+  constructor(name, synced = false, data = new DataBucket(), path = []) {
     this.name = name
     this.synced = synced
     this.data = data
@@ -392,6 +391,18 @@ class Space {
       data: data,
       path: path,
     })
+    return true
+  }
+
+  async reload() {
+    if (!this.name) return
+
+    // get updated data
+    const data = new DataBucket(await this.storageKey.get())
+    if (!await data.parse()) return
+
+    // set new data
+    this.data = data
     return true
   }
 
