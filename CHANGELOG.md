@@ -5,10 +5,10 @@
 
 ## v0.11.0 (2025-01-26)
 
+> Side panel support and many related features, enhanced site compatibility and themes along with some smaller features
+
 > [!NOTE]
 > Special thanks again to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
-
-> Side panel support and many related features, enhanced site compatibility and themes along with some smaller features
 
 - Converted code to native modules now that it's supported for web workers (large refactor and code cleanup)
 - Added Side Panel and related options
@@ -38,10 +38,10 @@
 
 ## v0.10.3 (2024-05-10)
 
+> Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)
+
 > [!NOTE]
 > Special thanks to [Naomi Wu](https://github.com/MachineryEnchantress) for sponsoring this release
-
-> Enhanced Clippings import & preliminary keyboard shortcut support (0.10.2 skipped due to upload error)
 
 - Added compression toggle in case of issues on certain platforms (try toggling off if paste commands don't work)
 - Added preliminary support for including html tags when snipping
