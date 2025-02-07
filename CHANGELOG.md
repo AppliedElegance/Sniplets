@@ -3,6 +3,13 @@
 
 # v0.11.x
 
+## v0.11.1 (2025-02-08)
+
+> Bugfixes for new editor handling
+
+- Fixed fallback code when pasting in a known editor (like Froala)
+- Added option to not wrap text in editors
+
 ## v0.11.0 (2025-01-26)
 
 > Side panel support and many related features, enhanced site compatibility and themes along with some smaller features

@@ -552,6 +552,9 @@ const loadPopup = async () => {
     settings.save()
   }
 
+  // check for required classes
+  if (!settings.view.wrapEditors) $('sniplets').classList.add('unwrap-editors')
+
   // load parameters
   window.params = Object.fromEntries(new URLSearchParams(location.search))
 
@@ -730,6 +733,8 @@ function buildMenu() {
       buildMenuControl('checkbox', `toggle-folders-first`, settings.sort.foldersOnTop,
         i18n('menu_folders_first'), settings.sort.foldersOnTop),
       buildMenuSeparator(),
+      buildMenuControl('checkbox', 'toggle-wrap-editors', settings.view.wrapEditors,
+        i18n('menu_wrap_editors'), settings.view.wrapEditors),
       buildMenuControl('checkbox', `toggle-adjust-editors`, settings.view.adjustTextArea,
         i18n('menu_adjust_textarea'), settings.view.adjustTextArea),
       buildMenuControl('checkbox', `toggle-collapse-editors`, settings.view.collapseEditors,
@@ -1805,6 +1810,14 @@ async function handleAction(target) {
       settings.view.collapseEditors = !settings.view.collapseEditors
       settings.save()
       buildList()
+      break
+
+    case 'toggle-wrap-editors':
+      settings.view.wrapEditors = !settings.view.wrapEditors
+      settings.save()
+      if (settings.view.wrapEditors) $('sniplets').classList.remove('unwrap-editors')
+      else $('sniplets').classList.add('unwrap-editors')
+      adjustEditors()
       break
 
     case 'toggle-adjust-editors':

@@ -708,5 +708,8 @@
   },
   "error_blocked_url": {
     "message": "unavailable (hidden by the browser)"
+  },
+  "menu_wrap_editors": {
+    "message": "Wrap editor lines"
   }
 }

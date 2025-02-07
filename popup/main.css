@@ -427,6 +427,10 @@ nav {
   padding: 0;
 }
 
+.unwrap-editors .snip-content textarea {
+  text-wrap: nowrap;
+}
+
 .content-collapser {
   position:absolute;
   bottom: -2px;

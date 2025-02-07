@@ -7,12 +7,14 @@ export default class Settings {
       action = 'popup',
       rememberPath = false,
       sourceURL = false,
+      wrapEditors = true,
       adjustTextArea = true,
       collapseEditors = false,
     } = {}) {
       this.action = action
       this.rememberPath = rememberPath
       this.sourceURL = sourceURL
+      this.wrapEditors = wrapEditors
       this.maxEditorLines = 7 // currently not configurable
       this.adjustTextArea = adjustTextArea
       this.collapseEditors = collapseEditors
