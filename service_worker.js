@@ -178,7 +178,6 @@ chrome.runtime.onInstalled.addListener(async (details) => {
         i18n('update_highlight_1'),
         i18n('update_highlight_2'),
         i18n('update_highlight_3'),
-        i18n('update_highlight_4'),
       ],
     })
   }

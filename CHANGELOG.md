@@ -3,11 +3,12 @@
 
 # v0.11.x
 
-## v0.11.1 (2025-02-08)
+## v0.11.1 (2025-02-07)
 
 > Bugfixes for new editor handling
 
 - Fixed fallback code when pasting in a known editor (like Froala)
+- Fixed snipping from certain plaintext fields
 - Added option to not wrap text in editors
 
 ## v0.11.0 (2025-01-26)

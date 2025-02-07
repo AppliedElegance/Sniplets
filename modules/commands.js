@@ -437,17 +437,34 @@ async function snipSelection(args) {
         }
       }
 
-      const selection = window.getSelection()
-      if (selection.isCollapsed) return {
-        error: {
-          name: 'NoSelectionError',
-          message: 'No selection found on active page or frame.',
-        },
-        pageSrc: window.location.href,
-        frameSrc: window.document.activeElement.src,
+      const returnText = (text) => {
+        if (!text) return {
+          // message-passable (serialized) error in case of no selection
+          error: {
+            name: 'NoSelectionError',
+            message: 'No selection found on active page or frame.',
+          },
+          pageSrc: window.location.href,
+          frameSrc: window.document.activeElement.src,
+        }
+
+        return {
+          content: text,
+          ...saveSource ? { sourceURL: window.location.href } : {},
+        }
       }
 
-      let text
+      // in case selection is inside an input or text area
+      /** @type {HTMLTextAreaElement|HTMLInputElement} */
+      const input = document.activeElement
+      if (['TEXTAREA', 'INPUT'].includes(input.nodeName)) {
+        return returnText(input.value.slice(input.selectionStart, input.selectionEnd))
+      }
+
+      // get regular selection
+      const selection = window.getSelection()
+      if (selection.isCollapsed) return returnText()
+
       // TODO: add option to convert lists to numbers/bullets
       if (preserveTags) {
         const range = selection.getRangeAt(0)
@@ -456,19 +473,15 @@ async function snipSelection(args) {
         if (['UL', 'OL'].includes(container.nodeName)) {
           const list = container.cloneNode()
           list.append(content)
-          text = list.outerHTML
+          return returnText(list.outerHTML)
         } else {
           const temp = document.createElement('template')
           temp.content.append(content)
-          text = temp.content.innerHTML
+          return returnText(temp.content.innerHTML)
         }
-      } else {
-        text = selection.toString()
       }
-      return {
-        content: text,
-        ...saveSource ? { sourceURL: window.location.href } : {},
-      }
+
+      return returnText(selection.toString())
     }
 
     // grab selection
