@@ -31,7 +31,7 @@ This extension 'snips' text from pages you visit (or you can create them manuall
 - Import backup data without overwriting (alternative to restore)
 - Dark mode (OS dependant, manual toggle may be added later)
 - Support for embedded sniplets compatible with Clippings v7 (`$[CLIPPING(name)]`)
-- [Full release notes…](https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md)
+- [Full release notes…](https://github.com/AppliedElegance/Sniplets/wiki/Changelog)
 
 ## Roadmap
 

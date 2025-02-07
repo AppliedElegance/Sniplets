@@ -1063,8 +1063,10 @@ function adjustTextArea(target, maxLines = settings.view.maxEditorLines) {
   // don't shrink if focused (user may have resized manually for more room)
   if (focused && target.clientHeight >= (targetLines * lineHeight) + (2 * padding)) return
 
-  // set hight based on lines
-  target.style.height = `${targetLines * lineHeight}px`
+  // set hight based on lines, adjusting in case of horizontal scroll bar
+  const scrollbarHeight = target.offsetHeight - target.clientHeight
+  console.log(scrollbarHeight)
+  target.style.height = `${(targetLines * lineHeight) + scrollbarHeight}px`
 }
 
 /**

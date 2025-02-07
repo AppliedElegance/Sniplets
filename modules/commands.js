@@ -544,91 +544,78 @@ async function pasteItem(args) {
       const input = window.document.activeElement
 
       // some custom editors require special handling
-      if (input.classList.contains('ck')) {
+      if (input.classList.contains('ck-editor__editable')) {
         // CKEditor 5 (https://ckeditor.com/docs/ckeditor5/latest/api/index.html)
-        const { editor } = window
-        if (!editor) return {
+        const editor = input.closest('.ck-content')?.ckeditorInstance || window.editor
+        if (editor) {
+          const ckViewFrag = editor.data.processor.toView(snip.richText)
+          const ckModFrag = editor.data.toModel(ckViewFrag)
+          editor.model.insertContent(ckModFrag)
+          return
+        }
+        // non-standard implementation, execCommand will fail silently (returns true without pasting)
+        return {
           error: {
             name: 'CustomEditorError',
             message: 'An unknown or blocked version of CKEditor is bound to this field.',
             cause: { editor: 'CKEditor' },
           },
         }
-        const ckViewFrag = editor.data.processor.toView(snip.richText)
-        const ckModFrag = editor.data.toModel(ckViewFrag)
-        editor.model.insertContent(ckModFrag)
-        return
       } else if (input.classList.contains('cke_editable')) {
         // CKEditor 4 (https://ckeditor.com/docs/ckeditor4/latest/api/index.html)
         // This editor replaces the context menu, so this code will only run with keyboard shortcuts
         const getEditor = window =>
           window.CKEDITOR || (window.parent && getEditor(window.parent))
         const editor = getEditor(window)
-        if (!editor) return { // deprecated/unknown version or blocked parent
+        if (editor) {
+          editor.currentInstance.insertHTML(snip.richText)
+          return
+        }
+        // deprecated/unknown version or blocked parent (execCommand won't work)
+        return {
           error: {
             name: 'CustomEditorError',
             message: 'An unknown or blocked version of CKEditor is bound to this field.',
             cause: { editor: 'CKEditor' },
           },
         }
-        editor.currentInstance.insertHTML(snip.richText)
-        return
       } else if (input.classList.contains('cm-content')) {
         // CodeMirror 6 (https://codemirror.net/docs/ref/)
         const cmView = document.activeElement.cmView?.view
         if (cmView) {
           cmView.dispatch(cmView.viewState.state.replaceSelection(snip.content))
+          // dispatch does not return a success message, so just assume success
           return
         }
-        return {
-          error: {
-            name: 'CustomEditorError',
-            message: 'An unknown or blocked version of CodeMirror is bound to this field.',
-            cause: { editor: 'CodeMirror' },
-          },
-        }
+        // document.execCommand returns false, so manual code will take over
       } else if (document.activeElement.closest('.CodeMirror')) {
         // CodeMirror 5 (https://codemirror.net/5/doc/manual.html)
         const cm = document.activeElement.closest('.CodeMirror').CodeMirror
         if (cm) {
           cm.replaceSelection(snip.content)
+          // dispatch does not return a success message, so just assume success
           return
         }
-        return {
-          error: {
-            name: 'CustomEditorError',
-            message: 'An unknown or blocked version of CodeMirror is bound to this field.',
-            cause: { editor: 'CodeMirror' },
-          },
-        }
+        // document.execCommand returns false, so manual code will take over
       } else if (input.classList.contains('tiny-editable')) {
         // TinyMCE (https://www.tiny.cloud/docs/tinymce/latest/apis/tinymce.root/)
         if (window.tinyMCE || window.tinymce) {
           const tinyMCE = window.tinyMCE || window.tinymce
-          tinyMCE.activeEditor.execCommand('mceInsertContent', false, snip.richText)
-          return
+          const pasted = tinyMCE.activeEditor.execCommand('mceInsertContent', false, snip.richText)
+          if (pasted) return
         }
-        return {
-          error: {
-            name: 'CustomEditorError',
-            message: 'An unknown or blocked version of TinyMCE is bound to this field.',
-            cause: { editor: 'TinyMCE' },
-          },
-        }
+        // document.execCommand normally works as well
       } else if (input.classList.contains('fr-element')) {
         // Froala (https://froala.com/wysiwyg-editor/docs/overview/)
-        const froala = window.FroalaEditor?.INSTANCES?.at(0)
+        const froala = window.FroalaEditor?.INSTANCES?.find(i => i.el === document.activeElement)
+          || input.closest('.fr-box')['data-froala.editor']
         if (froala) {
+          froala.undo.saveStep()
           froala.html.insert(snip.richText)
+          froala.undo.saveStep()
           return
         }
-        return {
-          error: {
-            name: 'CustomEditorError',
-            message: 'An unknown or blocked version of Froala is bound to this field.',
-            cause: { editor: 'Froala' },
-          },
-        }
+        // document.execCommand normally works as well
       }
 
       // update richText in case of a TrustedHTML policy, ensure scripts are escaped
@@ -673,24 +660,26 @@ async function pasteItem(args) {
         }
 
         // forward-compatible manual cut paste code that kills the undo stack
-        if (input.value === 'undefined') {
+        if (input.selectionStart) {
+          const start = input.selectionStart
+          const end = input.selectionEnd
+          input.value = input.value.slice(0, start) + snip.content + input.value.slice(end)
+          input.selectionStart = input.selectionEnd = start + snip.content.length
+        } else {
           const selection = window.getSelection()
           const range = selection.getRangeAt(0)
           range.deleteContents()
-          if (input.contentEditable === 'plaintext-only') {
+          if (input.contentEditable === 'plaintext-only'
+            // assume monospace is a code block with highlighting (like CodeMirror) and paste plaintext
+            || getComputedStyle(input).fontFamily.includes('monospace')) {
             range.insertNode(document.createTextNode(snip.content))
-          } else { // no sanitation as that's between the user and the website
+          } else {
+            // no sanitation as that's between the user and the website
             const template = document.createElement('template')
             template.innerHTML = snip.richText
             range.insertNode(template.content)
           }
           selection.collapseToEnd()
-        } else {
-          const { value } = input
-          const start = input.selectionStart
-          const end = input.selectionEnd
-          input.value = value.slice(0, start) + snip.content + value.slice(end)
-          input.selectionStart = input.selectionEnd = start + snip.content.length
         }
       }
 

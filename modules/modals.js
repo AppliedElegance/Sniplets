@@ -256,7 +256,7 @@ function showAbout(update) {
                   textContent: s,
                 })),
                 buildNode('a', {
-                  href: 'https://github.com/AppliedElegance/Sniplets/blob/dev/CHANGELOG.md',
+                  href: 'https://github.com/AppliedElegance/Sniplets/wiki/Changelog',
                   target: '_blank',
                   textContent: i18n('update_link'),
                 }),
