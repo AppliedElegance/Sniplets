@@ -683,19 +683,19 @@
     "message": "Settings Restored"
   },
   "update_tagline": {
-    "message": "Many new features have been added. Please see the highlights below and review the settings menu for new options."
+    "message": "Various bug fixes & new editor option"
   },
   "update_highlight_1": {
-    "message": "Side panel features and related options"
+    "message": "Fixed fallback when pasting into custom editors"
   },
   "update_link": {
     "message": "Full release notes…"
   },
   "update_highlight_2": {
-    "message": "Import feature & safer restore function"
+    "message": "Fixed snipping in certain plaintext contexts"
   },
   "update_highlight_3": {
-    "message": "Theme updates & dark mode (OS dependant)"
+    "message": "Added option to not wrap text in editors"
   },
   "update_highlight_4": {
     "message": "Support for more web editors and tags"
