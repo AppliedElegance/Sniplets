@@ -2,9 +2,8 @@
   "name": "__MSG_app_name__",
   "description": "__MSG_app_description__",
   "default_locale": "en",
-  "version": "99.99.99",
+  "version": "0.11.1",
   "manifest_version": 3,
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlBk6Mws/yFfB2A4OHW3DGxJ/TgoeNGkAqsXVQ22OeXoBu3PV9dh6woeu6EBY3QwDfwlxcZOHk7q4ijjbrVy4Oxtpgsn7ay6Z/gbQIGfblQ9E5hEKsSmpkOCsW8gC91MNFTl0r8wblCpFuyPQolRYIMasQl1iPwxNyMIuJU8kj0ePyWDlw//4LWcYNxllfAyfPqiDWdngEaiaxcfDepiEtx1nkJi3x4cF9qlyKXzTR7Jp4WaMhHM4jBdIfT5Jyt/mNrADh97OYZhR8zOECHgZWUKuSL2HQjb6adaWQYXr9P/Re1F+KNdI0FGjqGBDZd2IqfXUybyL4KWNpy2I9WasdQIDAQAB",
   "icons": {
       "16": "/icons/app/snip16.png",
       "20": "/icons/app/snip20.png",
@@ -49,12 +48,6 @@
         "default": "Alt+Shift+C"
       },
       "description": "__MSG_app_command_copy__"
-    },
-    "paste": {
-      "suggested_key": {
-        "default": "Alt+Shift+Y"
-      },
-      "description": "__MSG_app_command_paste__"
     }
   }
 }
